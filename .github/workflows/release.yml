@@ -1,0 +1,117 @@
+name: Release
+on:
+  push:
+    tags: [ v* ]
+env:
+  GO_VERSION: 1.23
+  REPO: ${{ github.repository }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        GOOS: [linux, darwin, windows]
+        GOARCH: [amd64, arm64]
+        include:
+          - GOOS: windows
+            ext: .exe
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Repo Name
+      id: repo-name
+      run: echo name=$(basename ${{ github.repository }}) >> $GITHUB_OUTPUT
+
+    - name: Test
+      run: go test -v ./...
+
+    - name: Build
+      run: make package PROGRAM=${{ env.GOOS }}-${{ env.GOARCH }}/${{ steps.repo-name.outputs.name }}${{ matrix.ext }} PACKAGE=dist/${{ steps.repo-name.outputs.name }}-${{ matrix.GOOS }}-${{ matrix.GOARCH }}.zip
+      env:
+        GOOS: ${{ matrix.GOOS }}
+        GOARCH: ${{ matrix.GOARCH }}
+
+    - name: 'Upload Artifact'
+      uses: actions/upload-artifact@v4
+      with:
+        name: artifacts-${{ matrix.GOOS }}-${{ matrix.GOARCH }}
+        path: dist
+        retention-days: 1
+        if-no-files-found: error
+
+  release:
+    runs-on: ubuntu-latest
+    needs:
+      - build
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Download Artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+        pattern: artifacts-*
+        merge-multiple: true
+
+    - name: Install ChangeLog generator
+      run: |
+        wget https://github.com/git-chglog/git-chglog/releases/download/v0.15.1/git-chglog_0.15.1_linux_amd64.tar.gz
+        tar xzf git-chglog*.tar.gz git-chglog
+    - name: "Get Last Release"
+      id: last_release
+      uses: InsonusK/get-latest-release@v1.1.0
+      with:
+        myToken: ${{ github.token }}
+        exclude_types: "draft|prerelease"
+
+    - name: Generate Changelog for ${{ github.ref_name }}
+      id: generate-changelog
+      run: PATH="${PATH}:." make CHANGELOG.md
+
+    - name: Generate checksum
+      run: |
+        cd artifacts
+        for file in *; do shasum -a 256 "$file" >> checksum.txt; done
+    
+    - name: Create Release
+      id: create_release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: |
+          ./artifacts/*
+        body_path: ./CHANGELOG.md
+        draft: false
+
+  docker-build:
+    runs-on: ubuntu-latest
+    name: Build the docker image
+    steps:
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB }}
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Image
+        run: make image IMAGE=ghcr.io/${{env.REPO}}:${{ github.ref_name }}
+
+      - name: Tag latest
+        run: docker tag ghcr.io/${{env.REPO}}:${{ github.ref_name }} ghcr.io/${{env.REPO}}:latest
+
+      - name: Push
+        run: docker push ghcr.io/${{env.REPO}}:${{ github.ref_name }}
+
+      - name: Push Latest
+        run: docker push ghcr.io/${{env.REPO}}:latest
