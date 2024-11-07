@@ -1,7 +1,6 @@
 package terraform
 
 import (
-	"github.com/clouddrove/smurf/cmd"
 	"github.com/clouddrove/smurf/internal/terraform"
 	"github.com/spf13/cobra"
 )
@@ -16,5 +15,5 @@ var driftCmd = &cobra.Command{
 }
 
 func init() {
-	cmd.RootCmd.AddCommand(driftCmd)
+	stfCmd.AddCommand(driftCmd)
 }

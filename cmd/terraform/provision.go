@@ -3,7 +3,6 @@ package terraform
 import (
 	"sync"
 
-	"github.com/clouddrove/smurf/cmd"
 	"github.com/clouddrove/smurf/internal/terraform"
 	"github.com/spf13/cobra"
 )
@@ -25,7 +24,7 @@ var provisionCmd = &cobra.Command{
 				errChan <- err
 			}
 		}()
-		if err := terraform.Plan(); err != nil {
+		if err := terraform.Plan("", ""); err != nil {
 			return err
 		}
 
@@ -55,5 +54,5 @@ var provisionCmd = &cobra.Command{
 }
 
 func init() {
-	cmd.RootCmd.AddCommand(provisionCmd)
+	stfCmd.AddCommand(provisionCmd)
 }

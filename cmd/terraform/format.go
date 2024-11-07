@@ -5,15 +5,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var validateCmd = &cobra.Command{
-	Use:   "validate",
-	Short: "Validate  Terraform changes",
+var formatCmd = &cobra.Command{
+	Use:   "format",
+	Short: "Format the Terraform Infrastructure",
 	RunE: func(cmd *cobra.Command, args []string) error {
 
-		return terraform.Validate()
+		return terraform.Format()
 	},
 }
 
 func init() {
-	stfCmd.AddCommand(validateCmd)
+	stfCmd.AddCommand(formatCmd)
 }

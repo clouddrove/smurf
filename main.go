@@ -6,6 +6,7 @@ package main
 import (
 	"github.com/clouddrove/smurf/cmd"
 	_ "github.com/clouddrove/smurf/cmd/terraform"
+	_ "github.com/clouddrove/smurf/cmd/helm"
 )
 
 func main() {
