@@ -1,14 +1,12 @@
-FROM golang:1.23
-
+FROM golang:1.23-alpine
 
 
 WORKDIR /go/src/app
 COPY . .
 
 # Build the Go application
-RUN go build -o smurf main.go
-RUN chmod +x smurf
+RUN go build -o smurf main.go && \
+    mv smurf /usr/local/bin/ && \
+    chmod +x /usr/local/bin/smurf
 
-
-# Set entrypoint to the build binary
-ENTRYPOINT ["./go/src/app/smurf"]
+ENTRYPOINT ["/usr/local/bin/smurf"]

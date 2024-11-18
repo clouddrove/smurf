@@ -7,6 +7,7 @@ import (
 	"github.com/clouddrove/smurf/cmd"
 	_ "github.com/clouddrove/smurf/cmd/terraform"
 	_ "github.com/clouddrove/smurf/cmd/helm"
+	_ "github.com/clouddrove/smurf/cmd/docker"
 )
 
 func main() {
