@@ -1,4 +1,4 @@
-site_name: smurf
+site_name: Smurf
 theme:
   name: material
   font:
@@ -7,7 +7,13 @@ theme:
   logo: https://clouddrove.com/assets/images/logo.png
   favicon: https://clouddrove.com/assets/images/logo.png
   features:
-      - navigation.footer
+    - navigation.footer
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.tabs.link
+    - content.code.annotations
+    - content.code.copy
   palette:
     # Dark Mode
     - scheme: slate
