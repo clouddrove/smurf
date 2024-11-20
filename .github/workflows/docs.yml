@@ -1,30 +1,63 @@
-name: docs
+name: Publish docs via GitHub Pages
 on:
   push:
     branches:
       - master
+      - feat/mk-docs
+  workflow_dispatch:
 permissions: write-all
+
 jobs:
-  deploy:
+  build:
+    name: Build Docs
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Configure Git Credentials
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
+
       - uses: actions/setup-python@v5
         with:
           python-version: 3.x
       - run: echo "cache_id=$(date --utc '+%V')" >> $GITHUB_ENV
+
       - uses: actions/cache@v4
         with:
           key: mkdocs-material-${{ env.cache_id }}
           path: .cache
           restore-keys: |
             mkdocs-material-
+
       - run: pip install mkdocs-material
 
       - name: Deploy Documentation
         working-directory: ./docs/sm  # Specify your documentation directory here
         run: mkdocs gh-deploy --force
+
+  deploy:
+    name: Deploy Docs
+    runs-on: ubuntu-latest
+    environment:
+      name: smurf-url
+      url: https://smurf.clouddrove.com
+    needs: build
+    steps:
+      - name: Checkout gh-pages branch
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          token: ${{ secrets.GITHUB }}
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+        with:
+          artifact_name: github-pages	
