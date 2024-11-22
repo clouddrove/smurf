@@ -12,7 +12,7 @@ require (
 	github.com/pterm/pterm v0.12.79
 	github.com/spf13/cobra v1.8.1
 	golang.org/x/oauth2 v0.24.0
-	helm.sh/helm/v3 v3.16.2
+	helm.sh/helm/v3 v3.16.3
 	k8s.io/api v0.31.2
 	k8s.io/apimachinery v0.31.2
 	k8s.io/client-go v0.31.2
