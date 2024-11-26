@@ -1,15 +1,31 @@
 package helm
 
 import (
+	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/helm"
 	"github.com/spf13/cobra"
 )
 
+var createAuto bool
+
 var createChartCmd = &cobra.Command{
 	Use:   "create [NAME] [DIRECTORY]",
 	Short: "Create a new Helm chart in the specified directory.",
-	Args:  cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
+
+		if createAuto {
+
+			data , err := configs.LoadConfig(configs.FileName)
+
+			if err != nil {
+				return err
+			}
+
+			args = append(args, data.ChartName, data.ChartDir)
+
+			return helm.CreateChart(args[0], args[1])
+		}
+
 		return helm.CreateChart(args[0], args[1])
 	},
 	Example: `
@@ -18,5 +34,6 @@ var createChartCmd = &cobra.Command{
 }
 
 func init() {
+	createChartCmd.Flags().BoolVarP(&createAuto, "auto", "a", false, "Create Helm chart automatically")
 	selmCmd.AddCommand(createChartCmd)
 }
