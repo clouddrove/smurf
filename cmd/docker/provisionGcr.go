@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/docker"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
@@ -24,6 +25,7 @@ var (
 	provisionGcrConfirmPush     bool
 	provisionGcrDeleteAfterPush bool
 	provisionGcrPlatform        string
+	provisionGcrAuto            bool
 )
 
 var provisionGcrCmd = &cobra.Command{
@@ -33,6 +35,29 @@ var provisionGcrCmd = &cobra.Command{
 	Set the GOOGLE_APPLICATION_CREDENTIALS environment variable to the path of your service account JSON key file.
 	export GOOGLE_APPLICATION_CREDENTIALS="/path/to/your/service-account-key.json"`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+
+		if provisionGcrAuto {
+
+			data, err := configs.LoadConfig(configs.FileName)
+			if err != nil {
+				return err
+			}
+
+			envVars := map[string]string{
+				"GOOGLE_APPLICATION_CREDENTIALS": data.GoogleApplicationCredentials,
+			}
+
+			if err := configs.ExportEnvironmentVariables(envVars); err != nil {
+				fmt.Println("Error exporting variables:", err)
+				return err
+			}
+
+			sampleImageNameForGcr := "my-image"
+
+			provisionGcrImageName = sampleImageNameForGcr
+			provisionGcrProjectID = data.ProvisionGcrProjectID
+		}
+
 		if provisionGcrProjectID == "" {
 			return fmt.Errorf("GCR provisioning requires --project-id flag")
 		}
@@ -145,6 +170,7 @@ func init() {
 	provisionGcrCmd.Flags().BoolVarP(&provisionGcrConfirmPush, "yes", "y", false, "Push the image to GCR without confirmation")
 	provisionGcrCmd.Flags().BoolVarP(&provisionGcrDeleteAfterPush, "delete", "d", false, "Delete the local image after pushing")
 	provisionGcrCmd.Flags().StringVar(&provisionGcrPlatform, "platform", "", "Set the platform for the image")
+	provisionGcrCmd.Flags().BoolVar(&provisionGcrAuto, "auto", false, "Automatically push the image to GCR after tagging")
 
 	provisionGcrCmd.MarkFlagRequired("project-id")
 	provisionGcrCmd.MarkFlagRequired("image-name")

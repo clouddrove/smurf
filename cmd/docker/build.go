@@ -6,7 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/docker"
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
@@ -17,13 +19,45 @@ var (
 	target         string
 	platform       string
 	contextDir     string
+	buildAuto      bool
 )
 
 var buildCmd = &cobra.Command{
 	Use:   "build [IMAGE_NAME] [TAG]",
 	Short: "Build a Docker image with the given name and tag.",
-	Args:  cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
+
+		if buildAuto {
+
+			data, err := configs.LoadConfig(configs.FileName)
+
+			if err != nil {
+				return err
+			}
+
+			args = append(args, data.SourceTag, "latest")
+
+			if _, err := os.Stat("Dockerfile"); os.IsNotExist(err) {
+				return fmt.Errorf(color.RedString("Dockerfile not found at %s", "Dockerfile"))
+			}
+
+			currentDir, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("failed to get current working directory: %w", err)
+			}
+
+			opts := docker.BuildOptions{
+				ContextDir:     currentDir,
+				DockerfilePath: filepath.Join(currentDir, "Dockerfile"),
+				NoCache:        false,
+				BuildArgs:      make(map[string]string),
+				Target:         "",
+				Platform:       "",
+			}
+
+			return docker.Build(args[0], args[1], opts)
+		}
+
 		buildArgsMap := make(map[string]string)
 		for _, arg := range buildArgs {
 			parts := strings.SplitN(arg, "=", 2)
@@ -73,6 +107,7 @@ func init() {
 	buildCmd.Flags().StringArrayVar(&buildArgs, "build-arg", []string{}, "Set build-time variables")
 	buildCmd.Flags().StringVar(&target, "target", "", "Set the target build stage to build")
 	buildCmd.Flags().StringVar(&platform, "platform", "", "Set the platform for the build (e.g., linux/amd64, linux/arm64)")
+	buildCmd.Flags().BoolVar(&buildAuto, "auto", false, "Build the image automatically")
 
 	sdkrCmd.AddCommand(buildCmd)
 }

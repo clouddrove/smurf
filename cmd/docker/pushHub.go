@@ -1,6 +1,9 @@
 package docker
 
 import (
+	"fmt"
+
+	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/docker"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
@@ -10,6 +13,7 @@ var (
 	hubImageName       string
 	hubImageTag        string
 	hubDeleteAfterPush bool
+	hubAuto            bool
 )
 
 var pushHubCmd = &cobra.Command{
@@ -21,6 +25,28 @@ var pushHubCmd = &cobra.Command{
 	export DOCKER_PASSWORD=<password>
 	`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+
+		if hubAuto {
+			data, err := configs.LoadConfig(configs.FileName)
+			if err != nil {
+				return err
+			}
+
+			envVars := map[string]string{
+				"DOCKER_USERNAME": data.DockerUsername,
+				"DOCKER_PASSWORD": data.DockerPassword,
+			}
+
+			if err := configs.ExportEnvironmentVariables(envVars); err != nil {
+				fmt.Println("Error exporting variables:", err)
+				return err
+			}
+
+			sampleImageNameForHub := fmt.Sprintf("%s/my-image:%s", data.DockerUsername, "latest")
+
+			hubImageName = sampleImageNameForHub
+		}
+
 		opts := docker.PushOptions{
 			ImageName: hubImageName,
 		}
@@ -45,7 +71,7 @@ func init() {
 	pushHubCmd.Flags().StringVarP(&hubImageName, "image", "i", "", "Image name (e.g., myapp)")
 	pushHubCmd.Flags().StringVarP(&hubImageTag, "tag", "t", "latest", "Image tag (default: latest)")
 	pushHubCmd.Flags().BoolVarP(&hubDeleteAfterPush, "delete", "d", false, "Delete the local image after pushing")
-
+	pushHubCmd.Flags().BoolVarP(&hubAuto, "auto", "a", false, "Auto push image to Docker Hub")
 	pushHubCmd.MarkFlagRequired("image")
 
 	pushCmd.AddCommand(pushHubCmd)

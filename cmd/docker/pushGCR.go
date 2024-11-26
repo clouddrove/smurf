@@ -3,6 +3,7 @@ package docker
 import (
 	"fmt"
 
+	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/docker"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
@@ -13,6 +14,7 @@ var (
 	gcrImageName       string
 	gcrImageTag        string
 	gcrDeleteAfterPush bool
+	gcrAuto            bool
 )
 
 var pushGcrCmd = &cobra.Command{
@@ -22,6 +24,28 @@ var pushGcrCmd = &cobra.Command{
 	Set the GOOGLE_APPLICATION_CREDENTIALS environment variable to the path of your service account JSON key file.
 	export GOOGLE_APPLICATION_CREDENTIALS="/path/to/your/service-account-key.json"`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+
+		if gcrAuto {
+			data, err := configs.LoadConfig(configs.FileName)
+			if err != nil {
+				return err
+			}
+
+			envVars := map[string]string{
+				"GOOGLE_APPLICATION_CREDENTIALS": data.GoogleApplicationCredentials,
+			}
+
+			if err := configs.ExportEnvironmentVariables(envVars); err != nil {
+				fmt.Println("Error exporting variables:", err)
+				return err
+			}
+
+			sampleImageNameForGcr := "my-image"
+
+			gcrProjectID = data.ProvisionGcrProjectID
+			gcrImageName = sampleImageNameForGcr
+		}
+
 		if gcrProjectID == "" {
 			return fmt.Errorf("gcp requires --project-id flag")
 		}
@@ -53,7 +77,7 @@ func init() {
 	pushGcrCmd.Flags().StringVarP(&gcrImageName, "image", "i", "", "Image name (e.g., myapp)")
 	pushGcrCmd.Flags().StringVarP(&gcrImageTag, "tag", "t", "latest", "Image tag (default: latest)")
 	pushGcrCmd.Flags().BoolVarP(&gcrDeleteAfterPush, "delete", "d", false, "Delete the local image after pushing")
-
+	pushGcrCmd.Flags().BoolVarP(&gcrAuto, "auto", "a", false, "Use the default image name and tag from the config file")
 	pushGcrCmd.Flags().StringVar(&gcrProjectID, "project-id", "", "GCP project ID (required with --gcp)")
 
 	pushGcrCmd.MarkFlagRequired("project-id")

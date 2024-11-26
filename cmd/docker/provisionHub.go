@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/docker"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
@@ -12,17 +13,18 @@ import (
 
 // Flags for the provision command
 var (
-	provisionImageName      string
-	provisionImageTag       string
-	provisionDockerfilePath string
-	provisionNoCache        bool
-	provisionBuildArgs      []string
-	provisionTarget         string
-	provisionSarifFile      string
-	provisionTargetTag      string
-	provisionConfirmPush    bool
+	provisionImageName       string
+	provisionImageTag        string
+	provisionDockerfilePath  string
+	provisionNoCache         bool
+	provisionBuildArgs       []string
+	provisionTarget          string
+	provisionSarifFile       string
+	provisionTargetTag       string
+	provisionConfirmPush     bool
 	provisionDeleteAfterPush bool
-	provisionPlatform       string
+	provisionPlatform        string
+	provisionAuto            bool
 )
 
 var provisionHubCmd = &cobra.Command{
@@ -35,6 +37,27 @@ var provisionHubCmd = &cobra.Command{
 	`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		fullImageName := fmt.Sprintf("%s:%s", provisionImageName, provisionImageTag)
+
+		if provisionAuto {
+			args = append(args, "my-image", "latest")
+
+			data, err := configs.LoadConfig(configs.FileName)
+
+			if err != nil {
+				return err
+			}
+
+			envVars := map[string]string{
+				"DOCKER_USERNAME": data.DockerUsername,
+				"DOCKER_PASSWORD": data.DockerPassword,
+			}
+
+			if err := configs.ExportEnvironmentVariables(envVars); err != nil {
+				fmt.Println("Error exporting variables:", err)
+				return err
+			}
+
+		}
 
 		buildArgsMap := make(map[string]string)
 		for _, arg := range provisionBuildArgs {
@@ -162,6 +185,7 @@ func init() {
 	provisionHubCmd.Flags().BoolVarP(&provisionConfirmPush, "yes", "y", false, "Push the image without confirmation")
 	provisionHubCmd.Flags().BoolVarP(&provisionDeleteAfterPush, "delete", "d", false, "Delete the local image after pushing")
 	provisionHubCmd.Flags().StringVar(&provisionPlatform, "platform", "", "Set the platform for the image")
+	provisionHubCmd.Flags().BoolVarP(&provisionAuto, "auto", "a", false, "Auto provision the image")
 
 	provisionHubCmd.MarkFlagRequired("image-name")
 

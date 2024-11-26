@@ -5,12 +5,12 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/docker"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 )
 
-// Flags for the provisionAcr command
 var (
 	provisionAcrSubscriptionID  string
 	provisionAcrResourceGroup   string
@@ -26,12 +26,28 @@ var (
 	provisionAcrConfirmPush     bool
 	provisionAcrDeleteAfterPush bool
 	provisionAcrPlatform        string
+	provisionAcrAuto            bool
 )
 
 var provisionAcrCmd = &cobra.Command{
 	Use:   "provision-acr",
 	Short: "Build, scan, tag, and push a Docker image to Azure Container Registry.",
 	RunE: func(cmd *cobra.Command, args []string) error {
+
+		if provisionAcrAuto {
+			data, err := configs.LoadConfig(configs.FileName)
+			if err != nil {
+				return err
+			}
+
+			sampleImageNameForAcr := "my-image"
+
+			provisionAcrSubscriptionID = data.ProvisionAcrSubscriptionID
+			provisionAcrResourceGroup = data.ProvisionAcrResourceGroup
+			provisionAcrRegistryName = data.ProvisionAcrRegistryName
+			provisionAcrImageName = sampleImageNameForAcr
+		}
+
 		if provisionAcrSubscriptionID == "" || provisionAcrResourceGroup == "" || provisionAcrRegistryName == "" {
 			return fmt.Errorf("ACR provisioning requires --subscription-id, --resource-group, and --registry-name flags")
 		}
@@ -51,7 +67,7 @@ var provisionAcrCmd = &cobra.Command{
 			NoCache:        provisionAcrNoCache,
 			BuildArgs:      buildArgsMap,
 			Target:         provisionAcrTarget,
-			Platform:	   provisionAcrPlatform,
+			Platform:       provisionAcrPlatform,
 		}
 
 		pterm.Info.Println("Starting ACR build...")
@@ -147,6 +163,7 @@ func init() {
 	provisionAcrCmd.Flags().StringVar(&provisionAcrResourceGroup, "resource-group", "", "Azure resource group name (required)")
 	provisionAcrCmd.Flags().StringVar(&provisionAcrRegistryName, "registry-name", "", "Azure Container Registry name (required)")
 	provisionAcrCmd.Flags().StringVar(&provisionAcrPlatform, "platform", "", "Platform for the image")
+	provisionAcrCmd.Flags().BoolVar(&provisionAcrAuto, "auto", false, "Auto provision ACR")
 
 	provisionAcrCmd.MarkFlagRequired("subscription-id")
 	provisionAcrCmd.MarkFlagRequired("resource-group")
