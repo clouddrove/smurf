@@ -84,7 +84,7 @@ func CreateChart(chartName, saveDir string) error {
 	return nil
 }
 
-func HelmInstall(releaseName, chartPath, namespace string) error {
+func HelmInstall(releaseName, chartPath, namespace string, valuesFiles []string) error {
 	settings := cli.New()
 	kubeConfigPath := filepath.Join(os.Getenv("HOME"), ".kube", "config")
 	settings.KubeConfig = kubeConfigPath
@@ -102,6 +102,7 @@ func HelmInstall(releaseName, chartPath, namespace string) error {
 	client := action.NewInstall(actionConfig)
 	client.ReleaseName = releaseName
 	client.Namespace = namespace
+	
 
 	chart, err := loader.Load(chartPath)
 	if err != nil {
@@ -110,7 +111,28 @@ func HelmInstall(releaseName, chartPath, namespace string) error {
 		return err
 	}
 
-	release, err := client.Run(chart, nil)
+
+	vals := make(map[string]interface{})
+	for _, f := range valuesFiles {
+		additionalVals, err := chartutil.ReadValuesFile(f)
+		if err != nil {
+			color.Red("Error reading values file %s: %v\n", f, err)
+			return err
+		}
+		for key, value := range additionalVals {
+			vals[key] = value
+		}
+	}
+
+	for _, set := range valuesFiles {
+		if err := strvals.ParseInto(set, vals); err != nil {
+			color.Red("Error: %v\n", err)
+			return err
+		}
+	}
+
+
+	release, err := client.Run(chart, vals)
 	if err != nil {
 		color.RedString("Please Check your chart path and Chart Name")
 		color.RedString("Please check your yaml configurations")
@@ -305,13 +327,34 @@ func HelmUninstall(releaseName, namespace string) error {
 }
 
 // HelmLint lints a Helm chart
-func HelmLint(chartPath string) error {
+func HelmLint(chartPath string , fileValues []string) error {
 	spinner, _ := pterm.DefaultSpinner.Start("Linting chart")
 	actionConfig := new(action.Configuration)
 	_ = actionConfig
 	client := action.NewLint()
 
-	result := client.Run([]string{chartPath}, nil)
+	vals := make(map[string]interface{})
+	for _, f := range fileValues {
+		additionalVals, err := chartutil.ReadValuesFile(f)
+		if err != nil {
+			spinner.Fail(fmt.Sprintf("Failed to read values file: %s", f))
+			color.Red("Error reading values file %s: %v\n", f, err)
+			return err
+		}
+		for key, value := range additionalVals {
+			vals[key] = value
+		}
+	}
+
+	for _, set := range fileValues {
+		if err := strvals.ParseInto(set, vals); err != nil {
+			spinner.Fail("Failed to parse set values: " + err.Error())
+			color.Red("Error: %v\n", err)
+			return err
+		}
+	}
+
+	result := client.Run([]string{chartPath}, vals)
 	if len(result.Messages) > 0 {
 		for _, msg := range result.Messages {
 			// create a info section for msg.Severity and with msg.Path as title
@@ -329,7 +372,7 @@ func HelmLint(chartPath string) error {
 }
 
 // HelmTemplate renders the Helm templates for a given chart
-func HelmTemplate(releaseName, chartPath, namespace string) error {
+func HelmTemplate(releaseName, chartPath, namespace string, valuesFiles []string) error {
 	settings := cli.New()
 	actionConfig := new(action.Configuration)
 
@@ -351,8 +394,27 @@ func HelmTemplate(releaseName, chartPath, namespace string) error {
 		return err
 	}
 
+	vals := make(map[string]interface{})
+	for _, f := range valuesFiles {
+		additionalVals, err := chartutil.ReadValuesFile(f)
+		if err != nil {
+			color.Red("Error reading values file %s: %v\n", f, err)
+			return err
+		}
+		for key, value := range additionalVals {
+			vals[key] = value
+		}
+	}
+
+	for _, set := range valuesFiles {
+		if err := strvals.ParseInto(set, vals); err != nil {
+			color.Red("Error: %v\n", err)
+			return err
+		}
+	}
+
 	spinner, _ := pterm.DefaultSpinner.Start("Rendering Helm templates...")
-	rel, err := client.Run(chart, nil)
+	rel, err := client.Run(chart, vals)
 	if err != nil {
 		spinner.Fail(err.Error())
 		return err
@@ -399,19 +461,19 @@ func HelmProvision(releaseName, chartPath, namespace string) error {
 	} else {
 		go func() {
 			defer wg.Done()
-			installErr = HelmInstall(releaseName, chartPath, namespace)
+			installErr = HelmInstall(releaseName, chartPath, namespace, nil)
 		}()
 	}
 
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		lintErr = HelmLint(chartPath)
+		lintErr = HelmLint(chartPath, nil)
 	}()
 
 	go func() {
 		defer wg.Done()
-		templateErr = HelmTemplate(releaseName, chartPath, namespace)
+		templateErr = HelmTemplate(releaseName, chartPath, namespace, nil)
 	}()
 
 	wg.Wait()
