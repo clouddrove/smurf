@@ -54,8 +54,8 @@ var provisionEcrCmd = &cobra.Command{
 			}
 		}
 
-		if provisionEcrRegion == "" || provisionEcrRepository == "" {
-			return fmt.Errorf("ECR provisioning requires both --region and --repository flags")
+		if provisionEcrRegion == "" || provisionEcrRepository == "" || provisionEcrImageName == "" {
+			cmd.Help()
 		}
 
 		fullEcrImage := fmt.Sprintf("%s.dkr.ecr.%s.amazonaws.com/%s:%s", provisionEcrImageName, provisionEcrRegion, provisionEcrRepository, provisionEcrImageTag)
@@ -168,10 +168,6 @@ func init() {
 	provisionEcrCmd.Flags().StringVarP(&provisionEcrRepository, "repository", "R", "", "AWS ECR repository name (required)")
 	provisionEcrCmd.Flags().StringVar(&provisionEcrPlatform, "platform", "", "Platform for the build")
 	provisionEcrCmd.Flags().BoolVar(&provisionEcrAuto, "auto", false, "Automatically push the image to ECR after building and tagging")
-
-	provisionEcrCmd.MarkFlagRequired("image-name")
-	provisionEcrCmd.MarkFlagRequired("region")
-	provisionEcrCmd.MarkFlagRequired("repository")
 
 	sdkrCmd.AddCommand(provisionEcrCmd)
 }

@@ -33,6 +33,10 @@ var scan = &cobra.Command{
 			}
 		}
 
+		if dockerTag == "" {
+			cmd.Help()
+		}
+
 		err := docker.Scout(dockerTag, sarifFile)
 		if err != nil {
 			pterm.Error.Println(err)
@@ -49,7 +53,6 @@ func init() {
 	scan.Flags().StringVarP(&dockerTag, "tag", "t", "", "Docker image tag to scan")
 	scan.Flags().StringVarP(&sarifFile, "output", "o", "", "Output file for SARIF report")
 	scan.Flags().BoolVarP(&scanAuto, "auto", "a", false, "Scan Docker image automatically")
-	scan.MarkFlagRequired("tag")
 
 	sdkrCmd.AddCommand(scan)
 }

@@ -67,6 +67,10 @@ var provisionHubCmd = &cobra.Command{
 			}
 		}
 
+		if provisionImageName == "" {
+			cmd.Help()
+		}
+
 		buildArgsMap := make(map[string]string)
 		for _, arg := range provisionBuildArgs {
 			parts := strings.SplitN(arg, "=", 2)
@@ -195,7 +199,6 @@ func init() {
 	provisionHubCmd.Flags().StringVar(&provisionPlatform, "platform", "", "Set the platform for the image")
 	provisionHubCmd.Flags().BoolVarP(&provisionAuto, "auto", "a", false, "Auto provision the image")
 
-	provisionHubCmd.MarkFlagRequired("image-name")
 
 	sdkrCmd.AddCommand(provisionHubCmd)
 }

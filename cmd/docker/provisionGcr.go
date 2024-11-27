@@ -68,8 +68,8 @@ var provisionGcrCmd = &cobra.Command{
 			}
 		}
 
-		if provisionGcrProjectID == "" {
-			return fmt.Errorf("GCR provisioning requires --project-id flag")
+		if provisionGcrProjectID == "" || provisionGcrImageName == "" {
+			cmd.Help()
 		}
 
 		fullGcrImage := fmt.Sprintf("gcr.io/%s/%s:%s", provisionGcrProjectID, provisionGcrImageName, provisionGcrImageTag)
@@ -181,9 +181,6 @@ func init() {
 	provisionGcrCmd.Flags().BoolVarP(&provisionGcrDeleteAfterPush, "delete", "d", false, "Delete the local image after pushing")
 	provisionGcrCmd.Flags().StringVar(&provisionGcrPlatform, "platform", "", "Set the platform for the image")
 	provisionGcrCmd.Flags().BoolVar(&provisionGcrAuto, "auto", false, "Automatically push the image to GCR after tagging")
-
-	provisionGcrCmd.MarkFlagRequired("project-id")
-	provisionGcrCmd.MarkFlagRequired("image-name")
 
 	sdkrCmd.AddCommand(provisionGcrCmd)
 }

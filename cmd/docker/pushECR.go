@@ -44,8 +44,8 @@ var pushEcrCmd = &cobra.Command{
 			}
 		}
 
-		if ecrRegionName == "" || ecrRepositoryName == "" {
-			return fmt.Errorf("aws requires both --region and --repository flags")
+		if ecrRegionName == "" || ecrRepositoryName == "" || ecrImageName == "" {
+			cmd.Help()
 		}
 
 		ecrImage := fmt.Sprintf("%s.dkr.ecr.%s.amazonaws.com/%s:%s", ecrImageName, ecrRegionName, ecrRepositoryName, ecrImageTag)
@@ -77,9 +77,6 @@ func init() {
 	pushEcrCmd.Flags().StringVarP(&ecrRegionName, "region", "r", "", "AWS region (required with --aws)")
 	pushEcrCmd.Flags().StringVarP(&ecrRepositoryName, "repository", "R", "", "AWS ECR repository name (required with --aws)")
 
-	pushEcrCmd.MarkFlagRequired("region")
-	pushEcrCmd.MarkFlagRequired("repository")
-	pushEcrCmd.MarkFlagRequired("image")
 
 	pushCmd.AddCommand(pushEcrCmd)
 }

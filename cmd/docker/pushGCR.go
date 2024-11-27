@@ -52,8 +52,8 @@ var pushGcrCmd = &cobra.Command{
 
 		}
 
-		if gcrProjectID == "" {
-			return fmt.Errorf("gcp requires --project-id flag")
+		if gcrProjectID == "" || gcrImageName == "" {
+			cmd.Help()
 		}
 
 		gcrImage := fmt.Sprintf("gcr.io/%s/%s:%s", gcrProjectID, gcrImageName, gcrImageTag)
@@ -86,8 +86,6 @@ func init() {
 	pushGcrCmd.Flags().BoolVarP(&gcrAuto, "auto", "a", false, "Use the default image name and tag from the config file")
 	pushGcrCmd.Flags().StringVar(&gcrProjectID, "project-id", "", "GCP project ID (required with --gcp)")
 
-	pushGcrCmd.MarkFlagRequired("project-id")
-	pushGcrCmd.MarkFlagRequired("image")
 
 	pushCmd.AddCommand(pushGcrCmd)
 }

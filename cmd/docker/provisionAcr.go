@@ -60,8 +60,8 @@ var provisionAcrCmd = &cobra.Command{
 
 		}
 
-		if provisionAcrSubscriptionID == "" || provisionAcrResourceGroup == "" || provisionAcrRegistryName == "" {
-			return fmt.Errorf("ACR provisioning requires --subscription-id, --resource-group, and --registry-name flags")
+		if provisionAcrSubscriptionID == "" || provisionAcrResourceGroup == "" || provisionAcrRegistryName == "" || provisionAcrImageName == "" {
+			cmd.Help()
 		}
 
 		fullAcrImage := fmt.Sprintf("%s.azurecr.io/%s:%s", provisionAcrRegistryName, provisionAcrImageName, provisionAcrImageTag)
@@ -176,11 +176,6 @@ func init() {
 	provisionAcrCmd.Flags().StringVar(&provisionAcrRegistryName, "registry-name", "", "Azure Container Registry name (required)")
 	provisionAcrCmd.Flags().StringVar(&provisionAcrPlatform, "platform", "", "Platform for the image")
 	provisionAcrCmd.Flags().BoolVar(&provisionAcrAuto, "auto", false, "Auto provision ACR")
-
-	provisionAcrCmd.MarkFlagRequired("subscription-id")
-	provisionAcrCmd.MarkFlagRequired("resource-group")
-	provisionAcrCmd.MarkFlagRequired("registry-name")
-	provisionAcrCmd.MarkFlagRequired("image-name")
 
 	sdkrCmd.AddCommand(provisionAcrCmd)
 }

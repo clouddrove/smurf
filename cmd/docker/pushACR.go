@@ -50,8 +50,8 @@ var pushAcrCmd = &cobra.Command{
 
 		}
 
-		if acrSubscriptionID == "" || acrResourceGroup == "" || acrRegistryName == "" {
-			return fmt.Errorf("azure requires --subscription-id, --resource-group, and --registry-name flags")
+		if acrSubscriptionID == "" || acrResourceGroup == "" || acrRegistryName == "" || acrImageName == "" {
+			cmd.Help()
 		}
 
 		acrImage := fmt.Sprintf("%s.azurecr.io/%s:%s", acrRegistryName, acrImageName, acrImageTag)
@@ -86,11 +86,6 @@ func init() {
 	pushAcrCmd.Flags().StringVar(&acrResourceGroup, "resource-group", "", "Azure resource group name (required with --azure)")
 	pushAcrCmd.Flags().StringVar(&acrRegistryName, "registry-name", "", "Azure Container Registry name (required with --azure)")
 	pushAcrCmd.Flags().BoolVar(&acrAuto, "auto", false, "Automatically push the image to ACR after tagging")
-
-	pushAcrCmd.MarkFlagRequired("subscription-id")
-	pushAcrCmd.MarkFlagRequired("resource-group")
-	pushAcrCmd.MarkFlagRequired("registry-name")
-	pushAcrCmd.MarkFlagRequired("image")
 
 	pushCmd.AddCommand(pushAcrCmd)
 }

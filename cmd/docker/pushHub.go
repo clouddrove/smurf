@@ -54,6 +54,10 @@ var pushHubCmd = &cobra.Command{
 			}
 		}
 
+		if hubImageName == "" {
+			cmd.Help()
+		}
+
 		opts := docker.PushOptions{
 			ImageName: hubImageName,
 		}
@@ -79,7 +83,6 @@ func init() {
 	pushHubCmd.Flags().StringVarP(&hubImageTag, "tag", "t", "latest", "Image tag (default: latest)")
 	pushHubCmd.Flags().BoolVarP(&hubDeleteAfterPush, "delete", "d", false, "Delete the local image after pushing")
 	pushHubCmd.Flags().BoolVarP(&hubAuto, "auto", "a", false, "Auto push image to Docker Hub")
-	pushHubCmd.MarkFlagRequired("image")
 
 	pushCmd.AddCommand(pushHubCmd)
 }

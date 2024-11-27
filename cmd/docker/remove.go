@@ -30,6 +30,10 @@ var remove = &cobra.Command{
 			}
 		}
 
+		if imageTag == "" {
+			cmd.Help()
+		}
+
 		err := docker.RemoveImage(imageTag)
 		if err != nil {
 			pterm.Error.Println(err)
@@ -46,7 +50,6 @@ var remove = &cobra.Command{
 func init() {
 	remove.Flags().StringVarP(&imageTag, "tag", "t", "", "Docker image tag to remove")
 	remove.Flags().BoolVarP(&removeAuto, "auto", "a", false, "Remove Docker image automatically")
-	remove.MarkFlagRequired("tag")
 
 	sdkrCmd.AddCommand(remove)
 }
