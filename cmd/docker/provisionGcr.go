@@ -2,6 +2,7 @@ package docker
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 
@@ -43,8 +44,12 @@ var provisionGcrCmd = &cobra.Command{
 				return err
 			}
 
-			envVars := map[string]string{
-				"GOOGLE_APPLICATION_CREDENTIALS": data.Sdkr.GoogleApplicationCredentials,
+			var envVars map[string]string
+
+			if os.Getenv("GOOGLE_APPLICATION_CREDENTIALS") == "" {
+				envVars = map[string]string{
+					"GOOGLE_APPLICATION_CREDENTIALS": data.Sdkr.GoogleApplicationCredentials,
+				}
 			}
 
 			if err := configs.ExportEnvironmentVariables(envVars); err != nil {
@@ -54,8 +59,13 @@ var provisionGcrCmd = &cobra.Command{
 
 			sampleImageNameForGcr := "my-image"
 
-			provisionGcrImageName = sampleImageNameForGcr
-			provisionGcrProjectID = data.Sdkr.ProvisionGcrProjectID
+			if provisionGcrImageName == "" {
+				provisionGcrImageName = sampleImageNameForGcr
+			}
+
+			if provisionGcrProjectID == "" {
+				provisionGcrProjectID = data.Sdkr.ProvisionGcrProjectID
+			}
 		}
 
 		if provisionGcrProjectID == "" {

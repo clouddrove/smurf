@@ -2,6 +2,7 @@ package docker
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 
@@ -47,9 +48,13 @@ var provisionHubCmd = &cobra.Command{
 				return err
 			}
 
-			envVars := map[string]string{
-				"DOCKER_USERNAME": data.Sdkr.DockerUsername,
-				"DOCKER_PASSWORD": data.Sdkr.DockerPassword,
+			var envVars map[string]string
+
+			if os.Getenv("DOCKER_USERNAME") == "" && os.Getenv("DOCKER_PASSWORD") == "" {
+				envVars = map[string]string{
+					"DOCKER_USERNAME": data.Sdkr.DockerUsername,
+					"DOCKER_PASSWORD": data.Sdkr.DockerPassword,
+				}
 			}
 
 			if err := configs.ExportEnvironmentVariables(envVars); err != nil {
@@ -57,6 +62,9 @@ var provisionHubCmd = &cobra.Command{
 				return err
 			}
 
+			if provisionImageName == "" {
+				provisionImageName = data.Sdkr.SourceTag
+			}
 		}
 
 		buildArgsMap := make(map[string]string)

@@ -42,10 +42,22 @@ var provisionAcrCmd = &cobra.Command{
 
 			sampleImageNameForAcr := "my-image"
 
-			provisionAcrSubscriptionID = data.Sdkr.ProvisionAcrSubscriptionID
-			provisionAcrResourceGroup = data.Sdkr.ProvisionAcrResourceGroup
-			provisionAcrRegistryName = data.Sdkr.ProvisionAcrRegistryName
-			provisionAcrImageName = sampleImageNameForAcr
+			if provisionAcrSubscriptionID == "" {
+				provisionAcrSubscriptionID = data.Sdkr.ProvisionAcrSubscriptionID
+			}
+
+			if provisionAcrResourceGroup == "" {
+				provisionAcrResourceGroup = data.Sdkr.ProvisionAcrResourceGroup
+			}
+
+			if provisionAcrRegistryName == "" {
+				provisionAcrRegistryName = data.Sdkr.ProvisionAcrRegistryName
+			}
+
+			if provisionAcrImageName == "" {
+				provisionAcrImageName = sampleImageNameForAcr
+			}
+
 		}
 
 		if provisionAcrSubscriptionID == "" || provisionAcrResourceGroup == "" || provisionAcrRegistryName == "" {

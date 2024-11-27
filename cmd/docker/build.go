@@ -27,15 +27,15 @@ var buildCmd = &cobra.Command{
 	Short: "Build a Docker image with the given name and tag.",
 	RunE: func(cmd *cobra.Command, args []string) error {
 
-		if buildAuto {
-
+		if buildAuto  {
 			data, err := configs.LoadConfig(configs.FileName)
-
 			if err != nil {
 				return err
 			}
 
-			args = append(args, data.Sdkr.SourceTag, "latest")
+			if len(args) < 2 {
+				args = append(args, data.Sdkr.SourceTag, "latest")
+			}
 
 			if _, err := os.Stat("Dockerfile"); os.IsNotExist(err) {
 				return fmt.Errorf(color.RedString("Dockerfile not found at %s", "Dockerfile"))

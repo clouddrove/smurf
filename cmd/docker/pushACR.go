@@ -32,10 +32,22 @@ var pushAcrCmd = &cobra.Command{
 
 			sampleImageNameForAcr := "my-image"
 
-			acrSubscriptionID = data.Sdkr.ProvisionAcrSubscriptionID
-			acrResourceGroup = data.Sdkr.ProvisionAcrResourceGroup
-			acrRegistryName = data.Sdkr.ProvisionAcrRegistryName
-			acrImageName = sampleImageNameForAcr
+			if acrSubscriptionID == "" {
+				acrSubscriptionID = data.Sdkr.ProvisionAcrSubscriptionID
+			}
+
+			if acrResourceGroup == "" {
+				acrResourceGroup = data.Sdkr.ProvisionAcrResourceGroup
+			}
+
+			if acrRegistryName == "" {
+				acrRegistryName = data.Sdkr.ProvisionAcrRegistryName
+			}
+
+			if acrImageName == "" {
+				acrImageName = sampleImageNameForAcr
+			}
+
 		}
 
 		if acrSubscriptionID == "" || acrResourceGroup == "" || acrRegistryName == "" {

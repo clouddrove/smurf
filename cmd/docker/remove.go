@@ -25,7 +25,9 @@ var remove = &cobra.Command{
 				return err
 			}
 
-			imageTag = data.Sdkr.SourceTag
+			if imageTag == "" {
+				imageTag = data.Sdkr.SourceTag
+			}
 		}
 
 		err := docker.RemoveImage(imageTag)

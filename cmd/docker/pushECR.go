@@ -31,9 +31,17 @@ var pushEcrCmd = &cobra.Command{
 
 			sampleImageNameForEcr := "my-image"
 
-			ecrRegionName = data.Sdkr.ProvisionEcrRegion
-			ecrRepositoryName = data.Sdkr.ProvisionEcrRepository
-			ecrImageName = sampleImageNameForEcr
+			if ecrRegionName == "" {
+				ecrRegionName = data.Sdkr.ProvisionEcrRegion
+			}
+
+			if ecrRepositoryName == "" {
+				ecrRepositoryName = data.Sdkr.ProvisionEcrRepository
+			}
+
+			if ecrImageName == "" {
+				ecrImageName = sampleImageNameForEcr
+			}
 		}
 
 		if ecrRegionName == "" || ecrRepositoryName == "" {

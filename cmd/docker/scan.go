@@ -24,8 +24,13 @@ var scan = &cobra.Command{
 				return err
 			}
 
-			dockerTag = data.Sdkr.SourceTag
-			sarifFile = "scan.json"
+			if dockerTag == "" {
+				dockerTag = data.Sdkr.SourceTag
+			}
+
+			if sarifFile == "" {
+				sarifFile = "scan.json"
+			}
 		}
 
 		err := docker.Scout(dockerTag, sarifFile)

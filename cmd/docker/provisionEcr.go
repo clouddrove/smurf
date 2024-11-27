@@ -35,17 +35,23 @@ var provisionEcrCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 
 		if provisionEcrAuto {
-
 			data, err := configs.LoadConfig(configs.FileName)
 			if err != nil {
 				return err
 			}
-
 			sampleImageNameForEcr := "my-image"
 
-			provisionEcrImageName = sampleImageNameForEcr
-			provisionEcrRegion = data.Sdkr.ProvisionEcrRegion
-			provisionEcrRepository = data.Sdkr.ProvisionEcrRepository
+			if provisionEcrImageName == "" {
+				provisionEcrImageName = sampleImageNameForEcr
+			}
+
+			if provisionEcrRegion == "" {
+				provisionEcrRegion = data.Sdkr.ProvisionEcrRegion
+			}
+
+			if provisionEcrRepository == "" {
+				provisionEcrRepository = data.Sdkr.ProvisionEcrRepository
+			}
 		}
 
 		if provisionEcrRegion == "" || provisionEcrRepository == "" {

@@ -42,8 +42,14 @@ var pushGcrCmd = &cobra.Command{
 
 			sampleImageNameForGcr := "my-image"
 
-			gcrProjectID = data.Sdkr.ProvisionGcrProjectID
-			gcrImageName = sampleImageNameForGcr
+			if gcrProjectID == "" {
+				gcrProjectID = data.Sdkr.ProvisionGcrProjectID
+			}
+
+			if gcrImageName == "" {
+				gcrImageName = sampleImageNameForGcr
+			}
+
 		}
 
 		if gcrProjectID == "" {

@@ -2,6 +2,7 @@ package docker
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/docker"
@@ -32,9 +33,13 @@ var pushHubCmd = &cobra.Command{
 				return err
 			}
 
-			envVars := map[string]string{
-				"DOCKER_USERNAME": data.Sdkr.DockerUsername,
-				"DOCKER_PASSWORD": data.Sdkr.DockerPassword,
+			var envVars map[string]string
+
+			if os.Getenv("DOCKER_USERNAME") == "" && os.Getenv("DOCKER_PASSWORD") == "" {
+				envVars = map[string]string{
+					"DOCKER_USERNAME": data.Sdkr.DockerUsername,
+					"DOCKER_PASSWORD": data.Sdkr.DockerPassword,
+				}
 			}
 
 			if err := configs.ExportEnvironmentVariables(envVars); err != nil {
@@ -44,7 +49,9 @@ var pushHubCmd = &cobra.Command{
 
 			sampleImageNameForHub := fmt.Sprintf("%s/my-image:%s", data.Sdkr.DockerUsername, "latest")
 
-			hubImageName = sampleImageNameForHub
+			if hubImageName == "" {
+				hubImageName = sampleImageNameForHub
+			}
 		}
 
 		opts := docker.PushOptions{

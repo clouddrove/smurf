@@ -16,14 +16,19 @@ var tagCmd = &cobra.Command{
 	Use:   "tag",
 	Short: "Tag a Docker image for a remote repository",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if tagAuto {
+		if tagAuto && (sourceTag != "") && (targetTag != "") {
 			data, err := configs.LoadConfig(configs.FileName)
 			if err != nil {
 				return err
 			}
 
-			sourceTag = data.Sdkr.SourceTag
-			targetTag = data.Sdkr.TargetTag
+			if sourceTag == "" {
+				sourceTag = data.Sdkr.SourceTag
+			}
+
+			if targetTag == "" {
+				targetTag = data.Sdkr.TargetTag
+			}
 		}
 		opts := docker.TagOptions{
 			Source: sourceTag,
