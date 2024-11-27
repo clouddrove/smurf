@@ -53,10 +53,18 @@ The first argument is the name of the release to roll back, and the second is th
 				return err
 			}
 
-			args = append(args, data.Selm.ReleaseName, data.Selm.ChartName)
+			if len(args) < 2 {
+				args = append(args, data.Selm.ReleaseName, data.Selm.ChartName)
+			}
+
+			var nm string
+
+			if rollbackOpts.Namespace == "" {
+				nm = data.Selm.Namespace
+			}
 
 			options := helm.RollbackOptions{
-				Namespace: data.Selm.Namespace,
+				Namespace: nm,
 				Debug:     rollbackOpts.Debug,
 				Force:     rollbackOpts.Force,
 				Timeout:   rollbackOpts.Timeout,

@@ -20,8 +20,13 @@ var provisionCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
-			args = append(args, data.Selm.ChartName, data.Selm.ReleaseName)
-			provisionNamespace = data.Selm.Namespace
+
+			if len(args) < 2 {
+				args = append(args, data.Selm.ChartName, data.Selm.ReleaseName)
+			}
+			if provisionNamespace == "" {
+				provisionNamespace = data.Selm.Namespace
+			}
 
 			return helm.HelmProvision(args[0], args[1], provisionNamespace)
 		}

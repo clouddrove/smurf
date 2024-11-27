@@ -22,7 +22,10 @@ var lintCmd = &cobra.Command{
 				return err
 			}
 
-			args = append(args, data.Selm.ReleaseName)
+			if len(args) < 1 {
+				args = append(args, data.Selm.ReleaseName)
+			}
+
 
 			return helm.HelmLint(args[0], lintFile)
 		}

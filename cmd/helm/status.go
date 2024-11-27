@@ -20,8 +20,13 @@ var statusCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
-			args = append(args, data.Selm.ReleaseName)
-			statusNamespace = data.Selm.Namespace
+
+			if len(args) < 1 {
+				args = append(args, data.Selm.ReleaseName)
+			}
+			if statusNamespace == "" {
+				statusNamespace = data.Selm.Namespace
+			}
 			return helm.HelmStatus(args[0], statusNamespace)
 		}
 		releaseName := args[0]

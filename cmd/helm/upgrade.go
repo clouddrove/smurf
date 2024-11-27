@@ -31,8 +31,15 @@ var upgradeCmd = &cobra.Command{
 				if err != nil {
 					return err
 				}
-				args = append(args, data.Selm.ReleaseName, data.Selm.ChartName)
-				namespace = data.Selm.Namespace
+
+				if len(args) < 2 {
+					args = append(args, data.Selm.ReleaseName, data.Selm.ChartName)
+				}
+
+				if namespace == "" {
+					namespace = data.Selm.Namespace
+				}
+
 
 				exists, err := helm.HelmReleaseExists(args[0], namespace)
 

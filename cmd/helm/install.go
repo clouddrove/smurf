@@ -22,9 +22,14 @@ var installCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
-			installNamespace = data.Selm.Namespace
 
-			args = append(args, data.Selm.ChartName, data.Selm.ReleaseName)
+			if installNamespace == "" {
+				installNamespace = data.Selm.Namespace
+			}
+
+			if len(args) < 2 {
+				args = append(args, data.Selm.ChartName, data.Selm.ReleaseName)
+			}
 
             return helm.HelmInstall(args[0], args[1], installNamespace, installFiles)
 		}

@@ -23,8 +23,12 @@ var templateCmd = &cobra.Command{
 				return err
 			}
 
-			args = append(args, data.Selm.ReleaseName, data.Selm.ChartName)
-			templateNamespace = data.Selm.Namespace
+			if len(args) < 2 {
+				args = append(args, data.Selm.ReleaseName, data.Selm.ChartName)
+			}
+			if templateNamespace == "" {
+				templateNamespace = data.Selm.Namespace
+			}
 
 			return helm.HelmTemplate(args[0], args[1], templateNamespace, templateFiles)
 		}

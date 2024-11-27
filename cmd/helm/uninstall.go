@@ -21,8 +21,13 @@ var uninstallCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
-			args = append(args, data.Selm.ReleaseName)
-			uninstallNamespace = data.Selm.Namespace
+
+			if len(args) < 1 {
+				args = append(args, data.Selm.ReleaseName)
+			}
+			if uninstallNamespace == "" {
+				uninstallNamespace = data.Selm.Namespace
+			}
 			return helm.HelmUninstall(args[0], uninstallNamespace)
 		}
 
