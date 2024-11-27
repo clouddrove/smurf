@@ -25,5 +25,5 @@ type SelmConfig struct {
 	ReleaseName string `yaml:"releaseName"`
 	Namespace   string `yaml:"namespace"`
 	ChartName   string `yaml:"chartName"`
-	Revision    int    `yaml: "revision"`
+	Revision    int    `yaml:"revision"`
 }
