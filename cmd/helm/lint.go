@@ -22,7 +22,7 @@ var lintCmd = &cobra.Command{
 				return err
 			}
 
-			args = append(args, data.ChartDir)
+			args = append(args, data.Selm.ReleaseName)
 
 			return helm.HelmLint(args[0], lintFile)
 		}

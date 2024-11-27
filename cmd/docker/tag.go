@@ -22,8 +22,8 @@ var tagCmd = &cobra.Command{
 				return err
 			}
 
-			sourceTag = data.SourceTag
-			targetTag = data.TargetTag
+			sourceTag = data.Sdkr.SourceTag
+			targetTag = data.Sdkr.TargetTag
 		}
 		opts := docker.TagOptions{
 			Source: sourceTag,

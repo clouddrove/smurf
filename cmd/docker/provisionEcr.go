@@ -44,8 +44,8 @@ var provisionEcrCmd = &cobra.Command{
 			sampleImageNameForEcr := "my-image"
 
 			provisionEcrImageName = sampleImageNameForEcr
-			provisionEcrRegion = data.ProvisionEcrRegion
-			provisionEcrRepository = data.ProvisionEcrRepository
+			provisionEcrRegion = data.Sdkr.ProvisionEcrRegion
+			provisionEcrRepository = data.Sdkr.ProvisionEcrRepository
 		}
 
 		if provisionEcrRegion == "" || provisionEcrRepository == "" {

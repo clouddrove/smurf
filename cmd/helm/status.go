@@ -20,8 +20,8 @@ var statusCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
-			args = append(args, data.ChartName)
-			statusNamespace = data.Namespace
+			args = append(args, data.Selm.ReleaseName)
+			statusNamespace = data.Selm.Namespace
 			return helm.HelmStatus(args[0], statusNamespace)
 		}
 		releaseName := args[0]

@@ -53,17 +53,17 @@ The first argument is the name of the release to roll back, and the second is th
 				return err
 			}
 
-			args = append(args, data.ChartName, data.ChartDir)
+			args = append(args, data.Selm.ReleaseName, data.Selm.ChartName)
 
 			options := helm.RollbackOptions{
-				Namespace: data.Namespace,
+				Namespace: data.Selm.Namespace,
 				Debug:     rollbackOpts.Debug,
 				Force:     rollbackOpts.Force,
 				Timeout:   rollbackOpts.Timeout,
 				Wait:      rollbackOpts.Wait,
 			}
 
-			if err := helm.HelmRollback(args[0], data.Revision, options); err != nil {
+			if err := helm.HelmRollback(args[0], data.Selm.Revision, options); err != nil {
 				return fmt.Errorf("failed to roll back release: %v", err)
 			}
 

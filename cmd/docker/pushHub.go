@@ -33,8 +33,8 @@ var pushHubCmd = &cobra.Command{
 			}
 
 			envVars := map[string]string{
-				"DOCKER_USERNAME": data.DockerUsername,
-				"DOCKER_PASSWORD": data.DockerPassword,
+				"DOCKER_USERNAME": data.Sdkr.DockerUsername,
+				"DOCKER_PASSWORD": data.Sdkr.DockerPassword,
 			}
 
 			if err := configs.ExportEnvironmentVariables(envVars); err != nil {
@@ -42,7 +42,7 @@ var pushHubCmd = &cobra.Command{
 				return err
 			}
 
-			sampleImageNameForHub := fmt.Sprintf("%s/my-image:%s", data.DockerUsername, "latest")
+			sampleImageNameForHub := fmt.Sprintf("%s/my-image:%s", data.Sdkr.DockerUsername, "latest")
 
 			hubImageName = sampleImageNameForHub
 		}

@@ -31,8 +31,8 @@ var pushEcrCmd = &cobra.Command{
 
 			sampleImageNameForEcr := "my-image"
 
-			ecrRegionName = data.ProvisionEcrRegion
-			ecrRepositoryName = data.ProvisionEcrRepository
+			ecrRegionName = data.Sdkr.ProvisionEcrRegion
+			ecrRepositoryName = data.Sdkr.ProvisionEcrRepository
 			ecrImageName = sampleImageNameForEcr
 		}
 

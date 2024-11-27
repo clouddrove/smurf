@@ -21,7 +21,7 @@ var createChartCmd = &cobra.Command{
 				return err
 			}
 
-			args = append(args, data.ChartName, data.ChartDir)
+			args = append(args, data.Selm.ReleaseName, data.Selm.ChartName)
 
 			return helm.CreateChart(args[0], args[1])
 		}

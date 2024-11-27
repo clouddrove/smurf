@@ -44,7 +44,7 @@ var provisionGcrCmd = &cobra.Command{
 			}
 
 			envVars := map[string]string{
-				"GOOGLE_APPLICATION_CREDENTIALS": data.GoogleApplicationCredentials,
+				"GOOGLE_APPLICATION_CREDENTIALS": data.Sdkr.GoogleApplicationCredentials,
 			}
 
 			if err := configs.ExportEnvironmentVariables(envVars); err != nil {
@@ -55,7 +55,7 @@ var provisionGcrCmd = &cobra.Command{
 			sampleImageNameForGcr := "my-image"
 
 			provisionGcrImageName = sampleImageNameForGcr
-			provisionGcrProjectID = data.ProvisionGcrProjectID
+			provisionGcrProjectID = data.Sdkr.ProvisionGcrProjectID
 		}
 
 		if provisionGcrProjectID == "" {

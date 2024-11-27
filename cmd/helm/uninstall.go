@@ -21,8 +21,8 @@ var uninstallCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
-			args = append(args, data.ChartName)
-			uninstallNamespace = data.Namespace
+			args = append(args, data.Selm.ReleaseName)
+			uninstallNamespace = data.Selm.Namespace
 			return helm.HelmUninstall(args[0], uninstallNamespace)
 		}
 

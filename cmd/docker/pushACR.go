@@ -32,9 +32,9 @@ var pushAcrCmd = &cobra.Command{
 
 			sampleImageNameForAcr := "my-image"
 
-			acrSubscriptionID = data.ProvisionAcrSubscriptionID
-			acrResourceGroup = data.ProvisionAcrResourceGroup
-			acrRegistryName = data.ProvisionAcrRegistryName
+			acrSubscriptionID = data.Sdkr.ProvisionAcrSubscriptionID
+			acrResourceGroup = data.Sdkr.ProvisionAcrResourceGroup
+			acrRegistryName = data.Sdkr.ProvisionAcrRegistryName
 			acrImageName = sampleImageNameForAcr
 		}
 

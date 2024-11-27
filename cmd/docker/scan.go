@@ -24,7 +24,7 @@ var scan = &cobra.Command{
 				return err
 			}
 
-			dockerTag = data.SourceTag
+			dockerTag = data.Sdkr.SourceTag
 			sarifFile = "scan.json"
 		}
 

@@ -48,8 +48,8 @@ var provisionHubCmd = &cobra.Command{
 			}
 
 			envVars := map[string]string{
-				"DOCKER_USERNAME": data.DockerUsername,
-				"DOCKER_PASSWORD": data.DockerPassword,
+				"DOCKER_USERNAME": data.Sdkr.DockerUsername,
+				"DOCKER_PASSWORD": data.Sdkr.DockerPassword,
 			}
 
 			if err := configs.ExportEnvironmentVariables(envVars); err != nil {

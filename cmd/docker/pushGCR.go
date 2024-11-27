@@ -32,7 +32,7 @@ var pushGcrCmd = &cobra.Command{
 			}
 
 			envVars := map[string]string{
-				"GOOGLE_APPLICATION_CREDENTIALS": data.GoogleApplicationCredentials,
+				"GOOGLE_APPLICATION_CREDENTIALS": data.Sdkr.GoogleApplicationCredentials,
 			}
 
 			if err := configs.ExportEnvironmentVariables(envVars); err != nil {
@@ -42,7 +42,7 @@ var pushGcrCmd = &cobra.Command{
 
 			sampleImageNameForGcr := "my-image"
 
-			gcrProjectID = data.ProvisionGcrProjectID
+			gcrProjectID = data.Sdkr.ProvisionGcrProjectID
 			gcrImageName = sampleImageNameForGcr
 		}
 

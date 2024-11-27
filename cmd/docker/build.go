@@ -35,7 +35,7 @@ var buildCmd = &cobra.Command{
 				return err
 			}
 
-			args = append(args, data.SourceTag, "latest")
+			args = append(args, data.Sdkr.SourceTag, "latest")
 
 			if _, err := os.Stat("Dockerfile"); os.IsNotExist(err) {
 				return fmt.Errorf(color.RedString("Dockerfile not found at %s", "Dockerfile"))
