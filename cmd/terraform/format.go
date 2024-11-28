@@ -12,6 +12,9 @@ var formatCmd = &cobra.Command{
 
 		return terraform.Format()
 	},
+	Example: `
+	smurf stf format
+	`,
 }
 
 func init() {

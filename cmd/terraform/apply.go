@@ -12,6 +12,9 @@ var applyCmd = &cobra.Command{
 
 		return terraform.Apply()
 	},
+	Example: `
+	smurf stf apply
+	`,
 }
 
 func init() {
