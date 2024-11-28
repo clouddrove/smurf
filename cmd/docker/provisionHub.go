@@ -2,9 +2,11 @@ package docker
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 
+	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/docker"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
@@ -12,24 +14,62 @@ import (
 
 // Flags for the provision command
 var (
-	provisionImageName      string
-	provisionImageTag       string
-	provisionDockerfilePath string
-	provisionNoCache        bool
-	provisionBuildArgs      []string
-	provisionTarget         string
-	provisionSarifFile      string
-	provisionTargetTag      string
-	provisionConfirmPush    bool
+	provisionImageName       string
+	provisionImageTag        string
+	provisionDockerfilePath  string
+	provisionNoCache         bool
+	provisionBuildArgs       []string
+	provisionTarget          string
+	provisionSarifFile       string
+	provisionTargetTag       string
+	provisionConfirmPush     bool
 	provisionDeleteAfterPush bool
-	provisionPlatform       string
+	provisionPlatform        string
+	provisionAuto            bool
 )
 
 var provisionHubCmd = &cobra.Command{
 	Use:   "provision-hub",
 	Short: "Build, scan, tag, and push a Docker image.",
+	Long: `Build, scan, tag, and push a Docker image.
+	export DOCKER_USERNAME="your-username" 
+	export DOCKER_PASSWORD="your-password"
+	for Docker Hub authentication.
+	`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		fullImageName := fmt.Sprintf("%s:%s", provisionImageName, provisionImageTag)
+
+		if provisionAuto {
+			args = append(args, "my-image", "latest")
+
+			data, err := configs.LoadConfig(configs.FileName)
+
+			if err != nil {
+				return err
+			}
+
+			var envVars map[string]string
+
+			if os.Getenv("DOCKER_USERNAME") == "" && os.Getenv("DOCKER_PASSWORD") == "" {
+				envVars = map[string]string{
+					"DOCKER_USERNAME": data.Sdkr.DockerUsername,
+					"DOCKER_PASSWORD": data.Sdkr.DockerPassword,
+				}
+			}
+
+			if err := configs.ExportEnvironmentVariables(envVars); err != nil {
+				fmt.Println("Error exporting variables:", err)
+				return err
+			}
+
+			if provisionImageName == "" {
+				provisionImageName = data.Sdkr.SourceTag
+			}
+		}
+
+		if provisionImageName == "" {
+			cmd.Help()
+		}
 
 		buildArgsMap := make(map[string]string)
 		for _, arg := range provisionBuildArgs {
@@ -139,6 +179,10 @@ var provisionHubCmd = &cobra.Command{
 		pterm.Success.Println("Provisioning completed successfully.")
 		return nil
 	},
+	Example: `
+	smurf sdkr provision-hub --image-name my-image --tag my-tag
+	smurf sdkr provision-hub --image-name my-image --tag my-tag --file Dockerfile --no-cache --build-arg key1=value1 --build-arg key2=value2 --target my-target --platform linux/amd64 --output report.sarif --target-tag my-tag --yes --delete
+	`,
 }
 
 func init() {
@@ -153,8 +197,8 @@ func init() {
 	provisionHubCmd.Flags().BoolVarP(&provisionConfirmPush, "yes", "y", false, "Push the image without confirmation")
 	provisionHubCmd.Flags().BoolVarP(&provisionDeleteAfterPush, "delete", "d", false, "Delete the local image after pushing")
 	provisionHubCmd.Flags().StringVar(&provisionPlatform, "platform", "", "Set the platform for the image")
+	provisionHubCmd.Flags().BoolVarP(&provisionAuto, "auto", "a", false, "Auto provision the image")
 
-	provisionHubCmd.MarkFlagRequired("image-name")
 
 	sdkrCmd.AddCommand(provisionHubCmd)
 }

@@ -1,7 +1,6 @@
 package docker
 
 import (
-	"archive/tar"
 	"bytes"
 	"context"
 	"encoding/base64"
@@ -11,7 +10,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerregistry/armcontainerregistry"
@@ -19,103 +21,66 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ecr"
+	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/registry"
 	"github.com/docker/docker/client"
+	"github.com/docker/docker/pkg/archive"
 	"github.com/docker/docker/pkg/jsonmessage"
-	"github.com/docker/docker/api/types"
 	"github.com/fatih/color"
 	"github.com/pterm/pterm"
 	"golang.org/x/oauth2/google"
 )
 
-// BuildOptions struct to hold options for Docker build
-type BuildOptions struct {
-	DockerfilePath string
-	NoCache        bool
-	BuildArgs      map[string]string
-	Target         string
-	Platform       string
-}
-
-// createTarArchive creates a tar archive of the entire build context directory.
-func createTarArchive(contextDir string) (io.Reader, error) {
-	buf := new(bytes.Buffer)
-	tw := tar.NewWriter(buf)
-	defer tw.Close()
-
-	err := filepath.Walk(contextDir, func(file string, fi os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		if fi.IsDir() || strings.HasPrefix(fi.Name(), ".") {
-			return nil
-		}
-
-		header, err := tar.FileInfoHeader(fi, file)
-		if err != nil {
-			return err
-		}
-
-		header.Name = filepath.ToSlash(file)
-		if err := tw.WriteHeader(header); err != nil {
-			return err
-		}
-
-		data, err := os.Open(file)
-		if err != nil {
-			return err
-		}
-		defer data.Close()
-
-		if _, err := io.Copy(tw, data); err != nil {
-			return err
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	if err := tw.Close(); err != nil {
-		return nil, err
-	}
-
-	return buf, nil
-}
-
-func convertToInterfaceMap(args map[string]string) map[string]*string {
-	result := make(map[string]*string)
-	for key, value := range args {
-		v := value
-		result[key] = &v
-	}
-	return result
-}
-
-// Build builds a Docker image from a specified Dockerfile.
+// Build executes a Docker image build with comprehensive error handling and optimization
 func Build(imageName, tag string, opts BuildOptions) error {
-	ctx := context.Background()
+	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Minute)
+	defer cancel()
+
+	cli, err := client.NewClientWithOpts(
+		client.FromEnv,
+		client.WithAPIVersionNegotiation(),
+		client.WithTimeout(25*time.Minute),
+	)
 	if err != nil {
-		return fmt.Errorf("failed to create Docker client: %w", err)
+		return fmt.Errorf("docker client creation failed: %w", err)
 	}
-	fmt.Println("Docker client created successfully")
+	defer cli.Close()
 
-	contextDir := filepath.Dir(opts.DockerfilePath)
-	fmt.Println("Context Directory: ", contextDir)
+	var tarStream io.Reader
+	var contextErr error
+	var wg sync.WaitGroup
+	errChan := make(chan error, 2)
 
-	tarStream, err := createTarArchive(contextDir)
-	if err != nil {
-		return fmt.Errorf("failed to create tar archive from context directory: %w", err)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		tarStream, contextErr = createOptimizedTarArchive(opts.ContextDir)
+		if contextErr != nil {
+			errChan <- fmt.Errorf("tar archive error: %w", contextErr)
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if err := validateBuildContext(opts.ContextDir); err != nil {
+			errChan <- err
+		}
+	}()
+
+	wg.Wait()
+	close(errChan)
+
+	for err := range errChan {
+		if err != nil {
+			return err
+		}
 	}
-	fmt.Println("Tar archive created successfully")
 
-	options := types.ImageBuildOptions{
+	buildOptions := types.ImageBuildOptions{
 		Tags:        []string{fmt.Sprintf("%s:%s", imageName, tag)},
 		Dockerfile:  filepath.Base(opts.DockerfilePath),
 		NoCache:     opts.NoCache,
@@ -127,27 +92,79 @@ func Build(imageName, tag string, opts BuildOptions) error {
 		Platform:    opts.Platform,
 	}
 
+	spinner, _ := pterm.DefaultSpinner.Start("Docker build...")
 
-	spinner, _ := pterm.DefaultSpinner.Start("Building Docker image...")
-	buildResponse, err := cli.ImageBuild(ctx, tarStream, options)
+	buildResponse, err := cli.ImageBuild(ctx, tarStream, buildOptions)
 	if err != nil {
-		spinner.Fail("Failed to start the build process")
-		return fmt.Errorf("failed to start image build (context: %s, Dockerfile: %s): %w", contextDir, opts.DockerfilePath, err)
+		spinner.Fail("Build initialization failed")
+		return fmt.Errorf("image build error: %w", err)
 	}
-
-	io.Copy(os.Stdout, buildResponse.Body)
 	defer buildResponse.Body.Close()
 
-	err = jsonmessage.DisplayJSONMessagesStream(buildResponse.Body, os.Stdout, os.Stderr.Fd(), true, nil)
+	err = jsonmessage.DisplayJSONMessagesStream(
+		buildResponse.Body,
+		os.Stdout,
+		os.Stderr.Fd(),
+		true,
+		nil,
+	)
 	if err != nil {
-		spinner.Fail("Failed during the build process")
-		return fmt.Errorf("error during build process: %w", err)
+		spinner.Fail("Build process encountered errors")
+		return fmt.Errorf("build streaming error: %w", err)
 	}
 
 	spinner.Success("Docker image built successfully")
-	color.New(color.FgGreen).Printf("Successfully built %s:%s\n", imageName, tag)
+	color.Green("Successfully built %s:%s", imageName, tag)
 
 	return nil
+}
+
+
+// Optimized tar archive creation
+func createOptimizedTarArchive(contextDir string) (io.Reader, error) {
+	return archive.Tar(contextDir, archive.Uncompressed)
+}
+
+// Context validation
+func validateBuildContext(contextDir string) error {
+	info, err := os.Stat(contextDir)
+	if err != nil {
+		return fmt.Errorf("invalid context directory: %w", err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("context must be a directory")
+	}
+	return nil
+}
+
+// Concurrent map conversion
+func convertToInterfaceMap(args map[string]string) map[string]*string {
+	result := make(map[string]*string, len(args))
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
+	for key, value := range args {
+		wg.Add(1)
+		go func(k, v string) {
+			defer wg.Done()
+			mu.Lock()
+			defer mu.Unlock()
+			result[k] = &v
+		}(key, value)
+	}
+
+	wg.Wait()
+	return result
+}
+
+// BuildOptions struct to hold options for Docker build
+type BuildOptions struct {
+	ContextDir     string
+	DockerfilePath string
+	NoCache        bool
+	BuildArgs      map[string]string
+	Target         string
+	Platform       string
 }
 
 // TagOptions struct to hold options for tagging a Docker image
@@ -250,6 +267,8 @@ func handleDockerResponse(responseBody io.ReadCloser, spinner *pterm.SpinnerPrin
 	}
 
 	spinner.Success("Image push complete.")
+	link := fmt.Sprint("https://hub.docker.com/repository/")
+	pterm.Info.Println("Image Pushed on Docker Hub:", link)
 	pterm.Success.Println("Successfully pushed image:", opts.ImageName)
 	return nil
 }
@@ -447,6 +466,8 @@ func PushImageToECR(imageName, region, repositoryName string) error {
 		}
 	}
 
+	link := fmt.Sprintf("https://%s.console.aws.amazon.com/ecr/repositories/%s", region, repositoryName)
+	pterm.Info.Println("Image pushed to ECR:", link)
 	fmt.Println()
 	pterm.Success.Println("Image successfully pushed to ECR:", ecrImage)
 	return nil
@@ -564,7 +585,8 @@ func PushImageToACR(subscriptionID, resourceGroupName, registryName, imageName s
 		}
 	}
 	spinner.Success("Image pushed to ACR")
-
+	link := fmt.Sprintf("https://%s.azurecr.io", registryName)
+	color.New(color.FgGreen).Printf("Image pushed to ACR: %s\n", link)
 	color.New(color.FgGreen).Printf("Successfully pushed image '%s' to ACR '%s'\n", imageName, registryName)
 	return nil
 }
@@ -669,6 +691,8 @@ func PushImageToGCR(projectID, imageName string) error {
 	progressBar.Stop()
 	spinner.Success("Image pushed to GCR")
 
+	link := fmt.Sprintf("https://console.cloud.google.com/gcr/images/%s/%s?project=%s", projectID, imageName, projectID)
+	color.New(color.FgGreen).Printf("Image pushed to GCR: %s\n", link)
 	color.New(color.FgGreen).Printf("Successfully pushed image '%s' to GCR\n", taggedImage)
 	return nil
 }

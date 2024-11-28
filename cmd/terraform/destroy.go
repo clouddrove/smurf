@@ -12,6 +12,9 @@ var destroyCmd = &cobra.Command{
 
 		return terraform.Destroy()
 	},
+	Example: `
+	smurf stf destroy
+	`,
 }
 
 func init() {

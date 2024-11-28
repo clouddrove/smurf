@@ -12,6 +12,9 @@ var initCmd = &cobra.Command{
 
 		return terraform.Init()
 	},
+	Example: `
+	smurf stf init
+	`,
 }
 
 func init() {

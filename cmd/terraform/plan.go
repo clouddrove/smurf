@@ -14,6 +14,9 @@ var planCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return terraform.Plan(varNameValue, varFile)
 	},
+	Example: `
+	smurf stf plan
+	`,
 }
 
 func init() {

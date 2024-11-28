@@ -15,6 +15,7 @@ var selmCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("Use 'smurf selm [command]' to run Helm-related actions")
 	},
+	Example: `smurf selm --help`,
 }
 
 func init() {
