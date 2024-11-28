@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/docker"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
@@ -12,27 +13,49 @@ import (
 
 // Flags for the provisionEcr command
 var (
-	provisionEcrImageName      string
-	provisionEcrImageTag       string
-	provisionEcrDockerfilePath string
-	provisionEcrNoCache        bool
-	provisionEcrBuildArgs      []string
-	provisionEcrTarget         string
-	provisionEcrSarifFile      string
-	provisionEcrTargetTag      string
-	provisionEcrConfirmPush    bool
+	provisionEcrImageName       string
+	provisionEcrImageTag        string
+	provisionEcrDockerfilePath  string
+	provisionEcrNoCache         bool
+	provisionEcrBuildArgs       []string
+	provisionEcrTarget          string
+	provisionEcrSarifFile       string
+	provisionEcrTargetTag       string
+	provisionEcrConfirmPush     bool
 	provisionEcrDeleteAfterPush bool
-	provisionEcrRegion         string
-	provisionEcrRepository     string
-	provisionEcrPlatform       string
+	provisionEcrRegion          string
+	provisionEcrRepository      string
+	provisionEcrPlatform        string
+	provisionEcrAuto            bool
 )
 
 var provisionEcrCmd = &cobra.Command{
 	Use:   "provision-ecr",
 	Short: "Build, scan, tag, and push a Docker image to AWS ECR.",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if provisionEcrRegion == "" || provisionEcrRepository == "" {
-			return fmt.Errorf("ECR provisioning requires both --region and --repository flags")
+
+		if provisionEcrAuto {
+			data, err := configs.LoadConfig(configs.FileName)
+			if err != nil {
+				return err
+			}
+			sampleImageNameForEcr := "my-image"
+
+			if provisionEcrImageName == "" {
+				provisionEcrImageName = sampleImageNameForEcr
+			}
+
+			if provisionEcrRegion == "" {
+				provisionEcrRegion = data.Sdkr.ProvisionEcrRegion
+			}
+
+			if provisionEcrRepository == "" {
+				provisionEcrRepository = data.Sdkr.ProvisionEcrRepository
+			}
+		}
+
+		if provisionEcrRegion == "" || provisionEcrRepository == "" || provisionEcrImageName == "" {
+			cmd.Help()
 		}
 
 		fullEcrImage := fmt.Sprintf("%s.dkr.ecr.%s.amazonaws.com/%s:%s", provisionEcrImageName, provisionEcrRegion, provisionEcrRepository, provisionEcrImageTag)
@@ -125,6 +148,9 @@ var provisionEcrCmd = &cobra.Command{
 		pterm.Success.Println("ECR provisioning completed successfully.")
 		return nil
 	},
+	Example: `
+	smurf sdkr provision-ecr --image-name my-image --tag my-tag --region us-west-2 --repository my-repo
+	smurf sdkr provision-ecr --image-name my-image --tag my-tag --region us-west-2 --repository my-repo --file Dockerfile --no-cache --build-arg key1=value1 --build-arg key2=value2 --target my-target --platform linux/amd64 --output my-sarif.sarif --target-tag my-tag --yes --delete`,
 }
 
 func init() {
@@ -141,10 +167,7 @@ func init() {
 	provisionEcrCmd.Flags().StringVarP(&provisionEcrRegion, "region", "r", "", "AWS region (required)")
 	provisionEcrCmd.Flags().StringVarP(&provisionEcrRepository, "repository", "R", "", "AWS ECR repository name (required)")
 	provisionEcrCmd.Flags().StringVar(&provisionEcrPlatform, "platform", "", "Platform for the build")
-
-	provisionEcrCmd.MarkFlagRequired("image-name")
-	provisionEcrCmd.MarkFlagRequired("region")
-	provisionEcrCmd.MarkFlagRequired("repository")
+	provisionEcrCmd.Flags().BoolVar(&provisionEcrAuto, "auto", false, "Automatically push the image to ECR after building and tagging")
 
 	sdkrCmd.AddCommand(provisionEcrCmd)
 }

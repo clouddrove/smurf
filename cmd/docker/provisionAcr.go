@@ -5,12 +5,12 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/docker"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 )
 
-// Flags for the provisionAcr command
 var (
 	provisionAcrSubscriptionID  string
 	provisionAcrResourceGroup   string
@@ -26,14 +26,42 @@ var (
 	provisionAcrConfirmPush     bool
 	provisionAcrDeleteAfterPush bool
 	provisionAcrPlatform        string
+	provisionAcrAuto            bool
 )
 
 var provisionAcrCmd = &cobra.Command{
 	Use:   "provision-acr",
 	Short: "Build, scan, tag, and push a Docker image to Azure Container Registry.",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if provisionAcrSubscriptionID == "" || provisionAcrResourceGroup == "" || provisionAcrRegistryName == "" {
-			return fmt.Errorf("ACR provisioning requires --subscription-id, --resource-group, and --registry-name flags")
+
+		if provisionAcrAuto {
+			data, err := configs.LoadConfig(configs.FileName)
+			if err != nil {
+				return err
+			}
+
+			sampleImageNameForAcr := "my-image"
+
+			if provisionAcrSubscriptionID == "" {
+				provisionAcrSubscriptionID = data.Sdkr.ProvisionAcrSubscriptionID
+			}
+
+			if provisionAcrResourceGroup == "" {
+				provisionAcrResourceGroup = data.Sdkr.ProvisionAcrResourceGroup
+			}
+
+			if provisionAcrRegistryName == "" {
+				provisionAcrRegistryName = data.Sdkr.ProvisionAcrRegistryName
+			}
+
+			if provisionAcrImageName == "" {
+				provisionAcrImageName = sampleImageNameForAcr
+			}
+
+		}
+
+		if provisionAcrSubscriptionID == "" || provisionAcrResourceGroup == "" || provisionAcrRegistryName == "" || provisionAcrImageName == "" {
+			cmd.Help()
 		}
 
 		fullAcrImage := fmt.Sprintf("%s.azurecr.io/%s:%s", provisionAcrRegistryName, provisionAcrImageName, provisionAcrImageTag)
@@ -51,7 +79,7 @@ var provisionAcrCmd = &cobra.Command{
 			NoCache:        provisionAcrNoCache,
 			BuildArgs:      buildArgsMap,
 			Target:         provisionAcrTarget,
-			Platform:	   provisionAcrPlatform,
+			Platform:       provisionAcrPlatform,
 		}
 
 		pterm.Info.Println("Starting ACR build...")
@@ -126,6 +154,10 @@ var provisionAcrCmd = &cobra.Command{
 		pterm.Success.Println("ACR provisioning completed successfully.")
 		return nil
 	},
+	Example: `
+	smurf sdkr provision-acr --subscription-id <SUBSCRIPTION_ID> --resource-group <RESOURCE_GROUP> --registry-name <REGISTRY_NAME> --image-name <IMAGE_NAME> --tag <TAG>
+	smurf sdkr provision-acr --subscription-id <SUBSCRIPTION_ID> --resource-group <RESOURCE_GROUP> --registry-name <REGISTRY_NAME> --image-name <IMAGE_NAME> --tag <TAG> --file Dockerfile --no-cache --build-arg key1=value1 --build-arg key2=value2 --target my-target --platform linux/amd64 --output report.sarif --target-tag my-tag --yes --delete
+	`,
 }
 
 func init() {
@@ -143,11 +175,7 @@ func init() {
 	provisionAcrCmd.Flags().StringVar(&provisionAcrResourceGroup, "resource-group", "", "Azure resource group name (required)")
 	provisionAcrCmd.Flags().StringVar(&provisionAcrRegistryName, "registry-name", "", "Azure Container Registry name (required)")
 	provisionAcrCmd.Flags().StringVar(&provisionAcrPlatform, "platform", "", "Platform for the image")
-
-	provisionAcrCmd.MarkFlagRequired("subscription-id")
-	provisionAcrCmd.MarkFlagRequired("resource-group")
-	provisionAcrCmd.MarkFlagRequired("registry-name")
-	provisionAcrCmd.MarkFlagRequired("image-name")
+	provisionAcrCmd.Flags().BoolVar(&provisionAcrAuto, "auto", false, "Auto provision ACR")
 
 	sdkrCmd.AddCommand(provisionAcrCmd)
 }

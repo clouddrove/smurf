@@ -15,6 +15,7 @@ var sdkrCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("Use 'smurf sdkr [command]' to run Docker-related actions")
 	},
+	Example: `smurf sdkr --help`,
 }
 
 func init() {

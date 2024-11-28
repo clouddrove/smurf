@@ -12,6 +12,9 @@ var outputCmd = &cobra.Command{
 
 		return terraform.Output()
 	},
+	Example: `
+	smurf stf output
+	`,
 }
 
 func init() {

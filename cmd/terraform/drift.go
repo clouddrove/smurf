@@ -12,6 +12,9 @@ var driftCmd = &cobra.Command{
 
 		return terraform.DetectDrift()
 	},
+	Example: `
+	smurf stf drift
+	`,
 }
 
 func init() {

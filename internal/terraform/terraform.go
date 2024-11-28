@@ -15,14 +15,12 @@ import (
 
 // getTerraform locates the Terraform binary and initializes a Terraform instance
 func getTerraform() (*tfexec.Terraform, error) {
-	// Attempt to find the Terraform binary in the system's PATH
 	terraformBinary, err := exec.LookPath("terraform")
 	if err != nil {
 		pterm.Error.Println("Terraform binary not found in PATH. Please install Terraform.")
 		return nil, err
 	}
 
-	// Create a new Terraform instance using the found binary
 	tf, err := tfexec.NewTerraform(".", terraformBinary)
 	if err != nil {
 		pterm.Error.Printf("Error creating Terraform instance: %v\n", err)
@@ -48,6 +46,12 @@ func Init() error {
 		pterm.Error.Printf("Terraform init failed: %v\n", err)
 		return err
 	}
+
+	customWriter := &configs.CustomColorWriter{Writer: os.Stdout}
+
+	tf.SetStdout(customWriter)
+	tf.SetStderr(os.Stderr)
+
 	spinner.Success("Terraform initialized successfully")
 
 	pterm.Success.Println("Terraform configuration validated successfully.")
@@ -64,13 +68,17 @@ func Validate() error {
 	pterm.Info.Println("Validating Terraform configuration...")
 	spinner, _ := pterm.DefaultSpinner.Start("Running terraform validate")
 
-	// Run the validate command
 	valid, err := tf.Validate(context.Background())
 	if err != nil {
 		spinner.Fail("Terraform validation failed")
 		pterm.Error.Printf("Terraform validation failed: %v\n", err)
 		return err
 	}
+
+	customWriter := &configs.CustomColorWriter{Writer: os.Stdout}
+
+	tf.SetStdout(customWriter)
+	tf.SetStderr(os.Stderr)
 
 	if valid.Valid {
 		spinner.Success("Terraform configuration is valid.")
@@ -88,18 +96,15 @@ func Plan(varNameValue string, varFile string) error {
 		return err
 	}
 
-	// Create a buffer to store the output
 	var outputBuffer bytes.Buffer
 
-	// Set up custom writer
 	customWriter := &configs.CustomColorWriter{
 		Buffer: &outputBuffer,
 		Writer: os.Stdout,
 	}
 
-	// Set the stdout and stderr
 	tf.SetStdout(customWriter)
-	tf.SetStderr(customWriter)
+	tf.SetStderr(os.Stderr)
 
 	pterm.Info.Println("Running Terraform plan...")
 	spinner, _ := pterm.DefaultSpinner.Start("Running terraform plan")
@@ -119,7 +124,6 @@ func Plan(varNameValue string, varFile string) error {
 		}
 	}
 
-	// Run the plan and output to console
 	_, err = tf.Plan(context.Background())
 	if err != nil {
 		spinner.Fail("Terraform plan failed")
@@ -146,6 +150,12 @@ func Apply() error {
 		pterm.Error.Printf("Terraform apply failed: %v\n", err)
 		return err
 	}
+	
+	customWriter := &configs.CustomColorWriter{Writer: os.Stdout}
+
+	tf.SetStdout(customWriter)
+	tf.SetStderr(os.Stderr)
+	
 	spinner.Success("Terraform applied successfully.")
 
 	return nil
@@ -157,6 +167,11 @@ func Destroy() error {
 	if err != nil {
 		return err
 	}
+
+	customWriter := &configs.CustomColorWriter{Writer: os.Stdout}
+
+	tf.SetStdout(customWriter)
+	tf.SetStderr(os.Stderr)
 
 	pterm.Info.Println("Destroying Terraform resources...")
 	spinner, _ := pterm.DefaultSpinner.Start("Running terraform destroy")
@@ -196,10 +211,12 @@ func DetectDrift() error {
 		return err
 	}
 
+	tf.SetStderr(os.Stderr)
+
 	if len(plan.ResourceChanges) > 0 {
 		pterm.Warning.Println("Drift detected:")
 		for _, change := range plan.ResourceChanges {
-			pterm.Printf("- %s: %s\n", change.Address, change.Change.Actions)
+			pterm.Printf(color.YellowString("- %s: %s\n", change.Address, change.Change.Actions))
 		}
 	} else {
 		pterm.Success.Println("No drift detected.")
@@ -215,11 +232,9 @@ func Output() error {
 		return err
 	}
 
-	// Set stdout and stderr to capture any messages
 	tf.SetStdout(os.Stdout)
 	tf.SetStderr(os.Stderr)
 
-	// Refresh the state to ensure outputs are up to date
 	pterm.Info.Println("Refreshing Terraform state...")
 	spinner, _ := pterm.DefaultSpinner.Start("Running terraform refresh")
 	err = tf.Refresh(context.Background())
@@ -241,7 +256,6 @@ func Output() error {
 		return nil
 	}
 
-	// Create green color printer
 	green := color.New(color.FgGreen).SprintfFunc()
 
 	pterm.Info.Println("Terraform outputs:")
@@ -268,9 +282,8 @@ func Format() error {
 
 	cmd := exec.Command(tf.ExecPath(), "fmt")
 
-	cmd.Dir = "." // This formats files in the current directory
+	cmd.Dir = "." 
 
-	// Execute the command
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		spinner.Fail("Terraform format failed")

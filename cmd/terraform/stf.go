@@ -15,6 +15,7 @@ var stfCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("Use 'smurf stf [command]' to run Terraform-related actions")
 	},
+	Example: `smurf stf --help`,
 }
 
 func init() {

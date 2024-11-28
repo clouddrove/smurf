@@ -3,6 +3,7 @@ package docker
 import (
 	"fmt"
 
+	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/docker"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
@@ -15,14 +16,42 @@ var (
 	acrImageName       string
 	acrImageTag        string
 	acrDeleteAfterPush bool
+	acrAuto            bool
 )
 
 var pushAcrCmd = &cobra.Command{
 	Use:   "az",
 	Short: "push docker images to acr",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if acrSubscriptionID == "" || acrResourceGroup == "" || acrRegistryName == "" {
-			return fmt.Errorf("azure requires --subscription-id, --resource-group, and --registry-name flags")
+
+		if acrAuto {
+			data, err := configs.LoadConfig(configs.FileName)
+			if err != nil {
+				return err
+			}
+
+			sampleImageNameForAcr := "my-image"
+
+			if acrSubscriptionID == "" {
+				acrSubscriptionID = data.Sdkr.ProvisionAcrSubscriptionID
+			}
+
+			if acrResourceGroup == "" {
+				acrResourceGroup = data.Sdkr.ProvisionAcrResourceGroup
+			}
+
+			if acrRegistryName == "" {
+				acrRegistryName = data.Sdkr.ProvisionAcrRegistryName
+			}
+
+			if acrImageName == "" {
+				acrImageName = sampleImageNameForAcr
+			}
+
+		}
+
+		if acrSubscriptionID == "" || acrResourceGroup == "" || acrRegistryName == "" || acrImageName == "" {
+			cmd.Help()
 		}
 
 		acrImage := fmt.Sprintf("%s.azurecr.io/%s:%s", acrRegistryName, acrImageName, acrImageTag)
@@ -42,6 +71,10 @@ var pushAcrCmd = &cobra.Command{
 
 		return nil
 	},
+	Example: `
+	smurf sdkr push az --subscription-id <subscription-id> --resource-group <resource-group> --registry-name <registry-name> --image <image-name> --tag <image-tag>
+	smurf sdkr push az --subscription-id <subscription-id> --resource-group <resource-group> --registry-name <registry-name> --image <image-name> --tag <image-tag> --delete
+	`,
 }
 
 func init() {
@@ -52,11 +85,7 @@ func init() {
 	pushAcrCmd.Flags().StringVar(&acrSubscriptionID, "subscription-id", "", "Azure subscription ID (required with --azure)")
 	pushAcrCmd.Flags().StringVar(&acrResourceGroup, "resource-group", "", "Azure resource group name (required with --azure)")
 	pushAcrCmd.Flags().StringVar(&acrRegistryName, "registry-name", "", "Azure Container Registry name (required with --azure)")
-
-	pushAcrCmd.MarkFlagRequired("subscription-id")
-	pushAcrCmd.MarkFlagRequired("resource-group")
-	pushAcrCmd.MarkFlagRequired("registry-name")
-	pushAcrCmd.MarkFlagRequired("image")
+	pushAcrCmd.Flags().BoolVar(&acrAuto, "auto", false, "Automatically push the image to ACR after tagging")
 
 	pushCmd.AddCommand(pushAcrCmd)
 }

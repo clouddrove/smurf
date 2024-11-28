@@ -14,6 +14,7 @@ var pushCmd = &cobra.Command{
 		fmt.Println("Use 'smurf sdkr push [command]' to push images to Docker Hub, ACR, GCR, ECR ")
 		return nil
 	},
+	Example: `smurf sdkr push --help`,
 }
 
 func init() {

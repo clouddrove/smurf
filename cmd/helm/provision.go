@@ -1,19 +1,47 @@
 package helm
 
 import (
+	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/helm"
 	"github.com/spf13/cobra"
+)
+
+var (
+	provisionAuto bool
+	provisionNamespace string
 )
 
 var provisionCmd = &cobra.Command{
 	Use:   "provision [RELEASE] [CHART]",
 	Short: "Its the combination of install, upgrade, lint, template for Helm",
-	Args:  cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return helm.HelmProvision(args[0], args[1], "default")
+		if provisionAuto {
+			data, err := configs.LoadConfig(configs.FileName)
+			if err != nil {
+				return err
+			}
+
+			if len(args) < 2 {
+				args = append(args, data.Selm.ChartName, data.Selm.ReleaseName)
+			}
+			if provisionNamespace == "" {
+				provisionNamespace = data.Selm.Namespace
+			}
+
+			return helm.HelmProvision(args[0], args[1], provisionNamespace)
+		}
+		if provisionNamespace != "" {
+			provisionNamespace = "default"
+		}
+		return helm.HelmProvision(args[0], args[1], provisionNamespace)
 	},
+	Example: `
+	smurf selm provision my-release ./mychart
+	`,
 }
 
 func init() {
+	provisionCmd.Flags().BoolVarP(&provisionAuto, "auto", "a", false, "Provision Helm chart automatically")
+	provisionCmd.Flags().StringVarP(&provisionNamespace, "namespace", "n", "", "Specify the namespace to provision the Helm chart")
 	selmCmd.AddCommand(provisionCmd)
 }

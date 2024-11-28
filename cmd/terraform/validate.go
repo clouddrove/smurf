@@ -12,6 +12,9 @@ var validateCmd = &cobra.Command{
 
 		return terraform.Validate()
 	},
+	Example: `
+	smurf stf validate
+	`,
 }
 
 func init() {

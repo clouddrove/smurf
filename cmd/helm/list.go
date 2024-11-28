@@ -19,6 +19,9 @@ var listCmd = &cobra.Command{
 		}
 		return nil
 	},
+	Example: `
+	smurf selm list
+	`,
 }
 
 func init() {
