@@ -1,6 +1,8 @@
 package helm
 
 import (
+	"path/filepath"
+
 	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/helm"
 	"github.com/spf13/cobra"
@@ -15,14 +17,19 @@ var createChartCmd = &cobra.Command{
 
 		if createAuto {
 
-			data , err := configs.LoadConfig(configs.FileName)
+			data, err := configs.LoadConfig(configs.FileName)
 
 			if err != nil {
 				return err
 			}
 
+			releaseName := data.Selm.ReleaseName
+			if releaseName == "" {
+				releaseName = filepath.Base(data.Selm.ChartName)
+			}
+
 			if len(args) < 2 {
-				args = append(args, data.Selm.ReleaseName, data.Selm.ChartName)
+				args = []string{releaseName, data.Selm.ChartName}
 			}
 
 			return helm.CreateChart(args[0], args[1])
