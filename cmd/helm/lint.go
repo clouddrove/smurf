@@ -1,6 +1,8 @@
 package helm
 
 import (
+	"path/filepath"
+
 	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/helm"
 	"github.com/spf13/cobra"
@@ -22,10 +24,14 @@ var lintCmd = &cobra.Command{
 				return err
 			}
 
-			if len(args) < 1 {
-				args = append(args, data.Selm.ReleaseName)
+			releaseName := data.Selm.ReleaseName
+			if releaseName == "" {
+				releaseName = filepath.Base(data.Selm.ChartName)
 			}
 
+			if len(args) < 1 {
+				args = []string{releaseName}
+			}
 
 			return helm.HelmLint(args[0], lintFile)
 		}

@@ -2,6 +2,7 @@ package helm
 
 import (
 	"fmt"
+	"path/filepath"
 	"strconv"
 
 	"github.com/clouddrove/smurf/configs"
@@ -19,7 +20,6 @@ var rollbackOpts = helm.RollbackOptions{
 	Wait:      true,
 }
 
-// rollbackCmd represents the rollback command of helm
 var rollbackCmd = &cobra.Command{
 	Use:   "rollback RELEASE REVISION",
 	Short: "Roll back a release to a previous revision",
@@ -53,8 +53,13 @@ The first argument is the name of the release to roll back, and the second is th
 				return err
 			}
 
+			releaseName := data.Selm.ReleaseName
+			if releaseName == "" {
+				releaseName = filepath.Base(data.Selm.ChartName)
+			}
+
 			if len(args) < 2 {
-				args = append(args, data.Selm.ReleaseName, data.Selm.ChartName)
+				args = []string{releaseName, data.Selm.ChartName}
 			}
 
 			var nm string
