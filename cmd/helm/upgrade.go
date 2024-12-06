@@ -1,6 +1,8 @@
 package helm
 
 import (
+	"fmt"
+	"path/filepath"
 	"time"
 
 	"github.com/clouddrove/smurf/configs"
@@ -26,34 +28,56 @@ var upgradeCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 
 		if autoUpgrade {
+			data, err := configs.LoadConfig(configs.FileName)
+			if err != nil {
+				return err
+			}
+
+			if data.Selm.ChartName == "" {
+				return fmt.Errorf("chart name is required in config")
+			}
+
+			releaseName := data.Selm.ReleaseName
+			if releaseName == "" {
+				releaseName = filepath.Base(data.Selm.ChartName)
+			}
+
+			currentNamespace := namespace
+			if currentNamespace == "" {
+				currentNamespace = data.Selm.Namespace
+			}
+			if currentNamespace == "" {
+				currentNamespace = "default"
+			}
+
+			if len(args) < 2 {
+				args = []string{releaseName, data.Selm.ChartName}
+			}
+
 			if installIfNotPresent {
-				data, err := configs.LoadConfig(configs.FileName)
-				if err != nil {
-					return err
-				}
-
-				if len(args) < 2 {
-					args = append(args, data.Selm.ReleaseName, data.Selm.ChartName)
-				}
-
-				if namespace == "" {
-					namespace = data.Selm.Namespace
-				}
-
-
-				exists, err := helm.HelmReleaseExists(args[0], namespace)
-
+				exists, err := helm.HelmReleaseExists(args[0], currentNamespace)
 				if err != nil {
 					return err
 				}
 
 				if !exists {
-					if err := helm.HelmInstall(args[0], args[1], namespace, nil); err != nil {
+					if err := helm.HelmInstall(args[0], args[1], currentNamespace, nil, 300); err != nil {
 						return err
 					}
 				}
 			}
-            return helm.HelmUpgrade(args[0], args[1], namespace, setValues, valuesFiles, createNamespace, atomic, timeout, debug)
+
+			return helm.HelmUpgrade(
+				args[0],
+				args[1],
+				currentNamespace,
+				setValues,
+				valuesFiles,
+				createNamespace,
+				atomic,
+				timeout,
+				debug,
+			)
 		}
 
 		releaseName := args[0]
@@ -64,7 +88,7 @@ var upgradeCmd = &cobra.Command{
 				return err
 			}
 			if !exists {
-				if err := helm.HelmInstall(releaseName, chartPath, namespace, nil); err != nil {
+				if err := helm.HelmInstall(releaseName, chartPath, namespace, nil, 300); err != nil {
 					return err
 				}
 			}

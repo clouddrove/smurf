@@ -1,6 +1,8 @@
 package helm
 
 import (
+	"path/filepath"
+
 	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/helm"
 	"github.com/spf13/cobra"
@@ -9,7 +11,7 @@ import (
 var (
 	autoTemplate      bool
 	templateNamespace string
-    templateFiles     []string
+	templateFiles     []string
 )
 
 var templateCmd = &cobra.Command{
@@ -23,8 +25,13 @@ var templateCmd = &cobra.Command{
 				return err
 			}
 
+			releaseName := data.Selm.ReleaseName
+			if releaseName == "" {
+				releaseName = filepath.Base(data.Selm.ChartName)
+			}
+
 			if len(args) < 2 {
-				args = append(args, data.Selm.ReleaseName, data.Selm.ChartName)
+				args = []string{releaseName, data.Selm.ChartName}
 			}
 			if templateNamespace == "" {
 				templateNamespace = data.Selm.Namespace
@@ -33,9 +40,9 @@ var templateCmd = &cobra.Command{
 			return helm.HelmTemplate(args[0], args[1], templateNamespace, templateFiles)
 		}
 
-        if templateNamespace == "" {
-            templateNamespace = "default"
-        }
+		if templateNamespace == "" {
+			templateNamespace = "default"
+		}
 
 		return helm.HelmTemplate(args[0], args[1], templateNamespace, templateFiles)
 	},
@@ -47,6 +54,6 @@ var templateCmd = &cobra.Command{
 func init() {
 	templateCmd.Flags().BoolVarP(&autoTemplate, "auto", "a", false, "Template Helm chart automatically")
 	templateCmd.Flags().StringVarP(&templateNamespace, "namespace", "n", "", "Specify the namespace to template the Helm chart")
-    templateCmd.Flags().StringArrayVarP(&templateFiles, "values", "f", []string{}, "Specify values in a YAML file")
+	templateCmd.Flags().StringArrayVarP(&templateFiles, "values", "f", []string{}, "Specify values in a YAML file")
 	selmCmd.AddCommand(templateCmd)
 }
