@@ -9,6 +9,7 @@ require (
 	github.com/docker/docker v27.4.0+incompatible
 	github.com/fatih/color v1.18.0
 	github.com/hashicorp/terraform-exec v0.21.0
+	github.com/moby/term v0.5.0
 	github.com/pterm/pterm v0.12.80
 	github.com/spf13/cobra v1.8.1
 	golang.org/x/oauth2 v0.24.0
@@ -125,7 +126,6 @@ require (
 	github.com/moby/sys/sequential v0.5.0 // indirect
 	github.com/moby/sys/user v0.3.0 // indirect
 	github.com/moby/sys/userns v0.1.0 // indirect
-	github.com/moby/term v0.5.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/monochromegane/go-gitignore v0.0.0-20200626010858-205db1a8cc00 // indirect
