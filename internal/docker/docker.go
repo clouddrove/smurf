@@ -28,56 +28,37 @@ import (
 	"github.com/docker/docker/pkg/archive"
 	"github.com/docker/docker/pkg/jsonmessage"
 	"github.com/fatih/color"
+	"github.com/moby/term"
 	"github.com/pterm/pterm"
 	"golang.org/x/oauth2/google"
 )
 
-// Build executes a Docker image build with comprehensive error handling and optimization
+// Build executes a Docker image build with Mac M1 fix and performance optimizations.
 func Build(imageName, tag string, opts BuildOptions) error {
-	runtime.GOMAXPROCS(runtime.NumCPU())
+	if opts.Platform == "" && isM1Mac() {
+		opts.Platform = "linux/amd64"
+	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Minute)
+	if err := validateBuildContext(opts.ContextDir); err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), opts.Timeout)
 	defer cancel()
 
 	cli, err := client.NewClientWithOpts(
 		client.FromEnv,
 		client.WithAPIVersionNegotiation(),
-		client.WithTimeout(25*time.Minute),
+		client.WithTimeout(opts.Timeout),
 	)
 	if err != nil {
 		return fmt.Errorf("docker client creation failed: %w", err)
 	}
 	defer cli.Close()
 
-	var tarStream io.Reader
-	var contextErr error
-	var wg sync.WaitGroup
-	errChan := make(chan error, 2)
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		tarStream, contextErr = createOptimizedTarArchive(opts.ContextDir)
-		if contextErr != nil {
-			errChan <- fmt.Errorf("tar archive error: %w", contextErr)
-		}
-	}()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		if err := validateBuildContext(opts.ContextDir); err != nil {
-			errChan <- err
-		}
-	}()
-
-	wg.Wait()
-	close(errChan)
-
-	for err := range errChan {
-		if err != nil {
-			return err
-		}
+	tarStream, err := createOptimizedTarArchive(opts.ContextDir)
+	if err != nil {
+		return fmt.Errorf("tar archive error: %w", err)
 	}
 
 	buildOptions := types.ImageBuildOptions{
@@ -88,7 +69,7 @@ func Build(imageName, tag string, opts BuildOptions) error {
 		Target:      opts.Target,
 		Remove:      true,
 		ForceRemove: true,
-		PullParent:  true,
+		PullParent:  false, 
 		Platform:    opts.Platform,
 	}
 
@@ -101,11 +82,14 @@ func Build(imageName, tag string, opts BuildOptions) error {
 	}
 	defer buildResponse.Body.Close()
 
+	outFd := os.Stdout.Fd()
+	isTerminal := term.IsTerminal(outFd)
+
 	err = jsonmessage.DisplayJSONMessagesStream(
 		buildResponse.Body,
 		os.Stdout,
-		os.Stderr.Fd(),
-		true,
+		outFd,
+		isTerminal,
 		nil,
 	)
 	if err != nil {
@@ -115,17 +99,26 @@ func Build(imageName, tag string, opts BuildOptions) error {
 
 	spinner.Success("Docker image built successfully")
 	color.Green("Successfully built %s:%s", imageName, tag)
-
 	return nil
 }
 
-
-// Optimized tar archive creation
+// createOptimizedTarArchive uses TarWithOptions to exclude large/unnecessary directories.
 func createOptimizedTarArchive(contextDir string) (io.Reader, error) {
-	return archive.Tar(contextDir, archive.Uncompressed)
+	excludePatterns := []string{
+		".git",
+		"node_modules",
+		".DS_Store",
+		".idea",
+	}
+
+	tarOpts := &archive.TarOptions{
+		ExcludePatterns: excludePatterns,
+	}
+
+	return archive.TarWithOptions(contextDir, tarOpts)
 }
 
-// Context validation
+// validateBuildContext checks if the given context directory is valid.
 func validateBuildContext(contextDir string) error {
 	info, err := os.Stat(contextDir)
 	if err != nil {
@@ -137,7 +130,7 @@ func validateBuildContext(contextDir string) error {
 	return nil
 }
 
-// Concurrent map conversion
+// convertToInterfaceMap converts build arguments to the map[string]*string format required by Docker API.
 func convertToInterfaceMap(args map[string]string) map[string]*string {
 	result := make(map[string]*string, len(args))
 	var mu sync.Mutex
@@ -157,6 +150,11 @@ func convertToInterfaceMap(args map[string]string) map[string]*string {
 	return result
 }
 
+// isM1Mac checks if running on Apple Silicon (M1) Mac.
+func isM1Mac() bool {
+	return runtime.GOOS == "darwin" && runtime.GOARCH == "arm64"
+}
+
 // BuildOptions struct to hold options for Docker build
 type BuildOptions struct {
 	ContextDir     string
@@ -165,6 +163,7 @@ type BuildOptions struct {
 	BuildArgs      map[string]string
 	Target         string
 	Platform       string
+	Timeout        time.Duration
 }
 
 // TagOptions struct to hold options for tagging a Docker image
@@ -248,7 +247,7 @@ func handleDockerResponse(responseBody io.ReadCloser, spinner *pterm.SpinnerPrin
 
 		if msg.Error != nil {
 			pterm.Error.Println("Error from Docker:", msg.Error.Message)
-			return fmt.Errorf(msg.Error.Message)
+			return fmt.Errorf("%s", msg.Error.Message)
 		}
 
 		if msg.Progress != nil && msg.Progress.Total > 0 {
