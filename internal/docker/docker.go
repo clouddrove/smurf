@@ -33,7 +33,8 @@ import (
 	"golang.org/x/oauth2/google"
 )
 
-// Build executes a Docker image build with Mac M1 fix and performance optimizations.
+
+// Build builds a Docker image using the provided options.
 func Build(imageName, tag string, opts BuildOptions) error {
 	if opts.Platform == "" && isM1Mac() {
 		opts.Platform = "linux/amd64"
@@ -69,11 +70,11 @@ func Build(imageName, tag string, opts BuildOptions) error {
 		Target:      opts.Target,
 		Remove:      true,
 		ForceRemove: true,
-		PullParent:  false, 
+		PullParent:  false,
 		Platform:    opts.Platform,
 	}
 
-	spinner, _ := pterm.DefaultSpinner.Start("Docker build...")
+	spinner, _ := pterm.DefaultSpinner.Start("Building Docker image... \n")
 
 	buildResponse, err := cli.ImageBuild(ctx, tarStream, buildOptions)
 	if err != nil {
@@ -83,26 +84,54 @@ func Build(imageName, tag string, opts BuildOptions) error {
 	defer buildResponse.Body.Close()
 
 	outFd := os.Stdout.Fd()
-	isTerminal := term.IsTerminal(outFd)
+	_ = term.IsTerminal(outFd)
 
-	err = jsonmessage.DisplayJSONMessagesStream(
-		buildResponse.Body,
-		os.Stdout,
-		outFd,
-		isTerminal,
-		nil,
-	)
-	if err != nil {
-		spinner.Fail("Build process encountered errors")
-		return fmt.Errorf("build streaming error: %w", err)
+	dec := json.NewDecoder(buildResponse.Body)
+BuildLoop:
+	for {
+		var msg jsonmessage.JSONMessage
+		if err := dec.Decode(&msg); err == io.EOF {
+			break
+		} else if err != nil {
+			spinner.Fail("Build logging encountered errors")
+			return fmt.Errorf("error decoding build output: %w", err)
+		}
+
+		if msg.Error != nil {
+			spinner.Fail("Build failed")
+			color.Red("Error: %v\n", msg.Error)
+			return fmt.Errorf("docker build error: %v", msg.Error)
+		}
+
+		if msg.Stream != "" {
+			line := strings.TrimSpace(msg.Stream)
+			if strings.HasPrefix(line, "Step ") ||
+				strings.HasPrefix(line, "Successfully built") ||
+				strings.HasPrefix(line, "Successfully tagged") ||
+				strings.HasPrefix(line, "--->") ||
+				strings.Contains(line, "Using cache") {
+
+				if strings.HasPrefix(line, "Step ") {
+					color.Cyan(line + "\n")
+				} else if strings.HasPrefix(line, "Successfully") {
+					color.Green(line + "\n")
+				} else {
+					fmt.Println(line)
+				}
+				if strings.HasPrefix(line, "Successfully built") {
+					spinner.Success("Docker image built successfully")
+					color.Green("Successfully built %s:%s\n", imageName, tag)
+					break BuildLoop
+				}
+			}
+		}
+
+		
 	}
 
-	spinner.Success("Docker image built successfully")
-	color.Green("Successfully built %s:%s", imageName, tag)
 	return nil
 }
 
-// createOptimizedTarArchive uses TarWithOptions to exclude large/unnecessary directories.
 func createOptimizedTarArchive(contextDir string) (io.Reader, error) {
 	excludePatterns := []string{
 		".git",
@@ -118,7 +147,6 @@ func createOptimizedTarArchive(contextDir string) (io.Reader, error) {
 	return archive.TarWithOptions(contextDir, tarOpts)
 }
 
-// validateBuildContext checks if the given context directory is valid.
 func validateBuildContext(contextDir string) error {
 	info, err := os.Stat(contextDir)
 	if err != nil {
@@ -130,7 +158,6 @@ func validateBuildContext(contextDir string) error {
 	return nil
 }
 
-// convertToInterfaceMap converts build arguments to the map[string]*string format required by Docker API.
 func convertToInterfaceMap(args map[string]string) map[string]*string {
 	result := make(map[string]*string, len(args))
 	var mu sync.Mutex
@@ -150,12 +177,10 @@ func convertToInterfaceMap(args map[string]string) map[string]*string {
 	return result
 }
 
-// isM1Mac checks if running on Apple Silicon (M1) Mac.
 func isM1Mac() bool {
 	return runtime.GOOS == "darwin" && runtime.GOARCH == "arm64"
 }
 
-// BuildOptions struct to hold options for Docker build
 type BuildOptions struct {
 	ContextDir     string
 	DockerfilePath string
