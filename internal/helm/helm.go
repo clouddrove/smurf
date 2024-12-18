@@ -75,31 +75,31 @@ func CreateChart(chartName, saveDir string) error {
 		return err
 	}
 	homePathOfCreatedChart := filepath.Join(saveDir, chartName)
-	spinner.Success(fmt.Sprintf("Chart '%s' created successfully at '%s' \n", chartName, homePathOfCreatedChart))
+	spinner.Success(fmt.Sprintf("Chart '%s' created successfully at '%s'", chartName, homePathOfCreatedChart))
 	return nil
 }
 
 func logDetailedError(operation string, err error, namespace, releaseName string) {
-	color.Red("%s FAILED: %v", strings.ToUpper(operation), err)
+	color.Red("%s FAILED: %v \n", strings.ToUpper(operation), err)
 
 	switch {
 	case strings.Contains(err.Error(), "context deadline exceeded"):
-		color.Yellow("Timeout Suggestions:")
-		color.Yellow("- Increase operation timeout using the '--timeout' flag")
-		color.Yellow("- Check cluster resource availability and networking")
-		color.Yellow("- Ensure the cluster is not overloaded")
+		color.Yellow("Timeout Suggestions: \n")
+		color.Yellow("- Increase operation timeout using the '--timeout' flag \n")
+		color.Yellow("- Check cluster resource availability and networking \n")
+		color.Yellow("- Ensure the cluster is not overloaded \n")
 	case strings.Contains(err.Error(), "connection refused"):
-		color.Yellow("Connection Suggestions:")
-		color.Yellow("- Verify cluster connectivity")
-		color.Yellow("- Check the kubeconfig file and cluster endpoint")
-		color.Yellow("- Ensure the Kubernetes API server is reachable")
+		color.Yellow("Connection Suggestions: \n")
+		color.Yellow("- Verify cluster connectivity \n")
+		color.Yellow("- Check the kubeconfig file and cluster endpoint \n")
+		color.Yellow("- Ensure the Kubernetes API server is reachable \n")
 	case strings.Contains(err.Error(), "no matches for kind"),
 		strings.Contains(err.Error(), "failed to create"),
 		strings.Contains(err.Error(), "YAML parse error"):
-		color.Yellow("Chart/Configuration Suggestions:")
-		color.Yellow("- Run 'helm lint' on your chart to detect errors.")
-		color.Yellow("- Check if your CRDs or resources exist on the cluster.")
-		color.Yellow("- Validate your values files for incorrect syntax.")
+		color.Yellow("Chart/Configuration Suggestions: \n")
+		color.Yellow("- Run 'helm lint' on your chart to detect errors. \n")
+		color.Yellow("- Check if your CRDs or resources exist on the cluster. \n")
+		color.Yellow("- Validate your values files for incorrect syntax. \n")
 	}
 
 	describeFailedResources(namespace, releaseName)
@@ -107,9 +107,10 @@ func logDetailedError(operation string, err error, namespace, releaseName string
 
 func debugLog(format string, v ...interface{}) {
 	fmt.Printf(format, v...)
+	fmt.Println()
 }
 
-func HelmInstall(releaseName, chartPath, namespace string, valuesFiles []string, duration time.Duration) error {
+func HelmInstall(releaseName, chartPath, namespace string, valuesFiles []string, duration time.Duration, Atomic bool, debug bool, setValues []string) error {
 	spinner, _ := pterm.DefaultSpinner.Start(fmt.Sprintf("Starting Helm Install for release: %s", releaseName))
 	defer spinner.Stop()
 
@@ -121,7 +122,14 @@ func HelmInstall(releaseName, chartPath, namespace string, valuesFiles []string,
 	settings.SetNamespace(namespace)
 	actionConfig := new(action.Configuration)
 
-	if err := actionConfig.Init(settings.RESTClientGetter(), namespace, os.Getenv("HELM_DRIVER"), debugLog); err != nil {
+	logFn := func(format string, v ...interface{}) {
+        if debug {
+            fmt.Printf(format, v...)
+			fmt.Println()
+        }
+    }
+
+	if err := actionConfig.Init(settings.RESTClientGetter(), namespace, os.Getenv("HELM_DRIVER"), logFn); err != nil {
 		logDetailedError("helm action configuration", err, namespace, releaseName)
 		return err
 	}
@@ -135,19 +143,20 @@ func HelmInstall(releaseName, chartPath, namespace string, valuesFiles []string,
 	client := action.NewInstall(actionConfig)
 	client.ReleaseName = releaseName
 	client.Namespace = namespace
+	client.Atomic = Atomic
 	client.Wait = true
 	client.Timeout = duration 
 	client.CreateNamespace = true
 
 	chartObj, err := loader.Load(chartPath)
 	if err != nil {
-		color.Red("Chart Loading Failed: %s", chartPath)
-		color.Red("Error: %v", err)
-		color.Yellow("Try 'helm lint %s' to identify chart issues.", chartPath)
+		color.Red("Chart Loading Failed: %s \n", chartPath)
+		color.Red("Error: %v \n", err)
+		color.Yellow("Try 'helm lint %s' to identify chart issues. \n", chartPath)
 		return err
 	}
 
-	vals, err := loadAndMergeValues(valuesFiles)
+	vals, err := loadAndMergeValuesWithSets(valuesFiles, setValues)
 	if err != nil {
 		logDetailedError("values loading", err, namespace, releaseName)
 		return err
@@ -165,7 +174,7 @@ func HelmInstall(releaseName, chartPath, namespace string, valuesFiles []string,
 		return err
 	}
 
-	spinner.Success(fmt.Sprintf("Installation Completed Successfully for release: %s", releaseName))
+	spinner.Success(fmt.Sprintf("Installation Completed Successfully for release: %s \n", releaseName))
 	printReleaseInfo(rel)
 
 	printResourcesFromRelease(rel)
@@ -176,12 +185,12 @@ func HelmInstall(releaseName, chartPath, namespace string, valuesFiles []string,
 		return err
 	}
 
-	color.Green("All resources for release '%s' are ready and running.", releaseName)
+	color.Green("All resources for release '%s' are ready and running.\n", releaseName)
 	return nil
 }
 
 func HelmUpgrade(releaseName, chartPath, namespace string, setValues []string, valuesFiles []string, createNamespace, atomic bool, timeout time.Duration, debug bool) error {
-	color.Green("Starting Helm Upgrade for release: %s", releaseName)
+	color.Green("Starting Helm Upgrade for release: %s \n", releaseName)
 
 	if createNamespace {
 		if err := ensureNamespace(namespace, true); err != nil {
@@ -193,7 +202,15 @@ func HelmUpgrade(releaseName, chartPath, namespace string, setValues []string, v
 	settings.SetNamespace(namespace)
 	actionConfig := new(action.Configuration)
 
-	if err := actionConfig.Init(settings.RESTClientGetter(), namespace, os.Getenv("HELM_DRIVER"), debugLog); err != nil {
+
+	logFn := func(format string, v ...interface{}) {
+        if debug {
+            fmt.Printf(format, v...)
+			fmt.Println()
+        }
+    }
+
+	if err := actionConfig.Init(settings.RESTClientGetter(), namespace, os.Getenv("HELM_DRIVER"), logFn); err != nil {
 		logDetailedError("helm action configuration", err, namespace, releaseName)
 		return err
 	}
@@ -212,9 +229,9 @@ func HelmUpgrade(releaseName, chartPath, namespace string, setValues []string, v
 
 	chartObj, err := loader.Load(chartPath)
 	if err != nil {
-		color.Red("Chart Loading Failed: %s", chartPath)
-		color.Red("Error: %v", err)
-		color.Yellow("Try 'helm lint %s' to identify chart issues.", chartPath)
+		color.Red("Chart Loading Failed: %s \n", chartPath)
+		color.Red("Error: %v \n", err)
+		color.Yellow("Try 'helm lint %s' to identify chart issues. \n", chartPath)
 		return err
 	}
 
@@ -236,11 +253,11 @@ func HelmUpgrade(releaseName, chartPath, namespace string, setValues []string, v
 		return err
 	}
 
-	color.Green("Upgrade Completed Successfully for release: %s", releaseName)
+	color.Green("Upgrade Completed Successfully for release: %s \n", releaseName)
 	printReleaseInfo(rel)
 	printResourcesFromRelease(rel)
 
-	color.Green("All resources for release '%s' after upgrade are ready and running.", releaseName)
+	color.Green("All resources for release '%s' after upgrade are ready and running.\n", releaseName)
 	return nil
 }
 
@@ -252,7 +269,7 @@ func ensureNamespace(namespace string, create bool) error {
 
 	_, err = clientset.CoreV1().Namespaces().Get(context.Background(), namespace, metav1.GetOptions{})
 	if err == nil {
-		color.Green("Namespace '%s' already exists.", namespace)
+		color.Green("Namespace '%s' already exists.  \n", namespace)
 		return nil
 	}
 
@@ -262,12 +279,12 @@ func ensureNamespace(namespace string, create bool) error {
 		}
 		_, err = clientset.CoreV1().Namespaces().Create(context.Background(), ns, metav1.CreateOptions{})
 		if err != nil {
-			color.Red("Failed to create namespace '%s': %v", namespace, err)
-			return fmt.Errorf("failed to create namespace '%s': %v", namespace, err)
+			color.Red("Failed to create namespace '%s': %v \n", namespace, err)
+			return fmt.Errorf("failed to create namespace '%s': %v \n", namespace, err)
 		}
-		color.Green("Namespace '%s' created successfully.", namespace)
+		color.Green("Namespace '%s' created successfully. \n", namespace)
 	} else {
-		return fmt.Errorf("namespace '%s' does not exist and was not created", namespace)
+		return fmt.Errorf("namespace '%s' does not exist and was not created \n", namespace)
 	}
 
 	return nil
@@ -276,10 +293,10 @@ func ensureNamespace(namespace string, create bool) error {
 func loadAndMergeValues(valuesFiles []string) (map[string]interface{}, error) {
 	vals := make(map[string]interface{})
 	for _, f := range valuesFiles {
-		color.Green("Loading values from file: %s", f)
+		color.Green("Loading values from file: %s \n", f)
 		additionalVals, err := chartutil.ReadValuesFile(f)
 		if err != nil {
-			color.Red("Error reading values file %s: %v", f, err)
+			color.Red("Error reading values file %s: %v \n", f, err)
 			return nil, err
 		}
 		for key, value := range additionalVals {
@@ -296,9 +313,9 @@ func loadAndMergeValuesWithSets(valuesFiles, setValues []string) (map[string]int
 	}
 
 	for _, set := range setValues {
-		color.Green("Parsing set value: %s", set)
+		color.Green("Parsing set value: %s \n", set)
 		if err := strvals.ParseInto(set, vals); err != nil {
-			color.Red("Error parsing set value '%s': %v", set, err)
+			color.Red("Error parsing set value '%s': %v \n", set, err)
 			return nil, err
 		}
 	}
@@ -306,17 +323,17 @@ func loadAndMergeValuesWithSets(valuesFiles, setValues []string) (map[string]int
 }
 
 func printReleaseInfo(rel *release.Release) {
-	color.Cyan("----- RELEASE INFO -----")
-	color.Green("NAME: %s", rel.Name)
-	color.Green("CHART: %s-%s", rel.Chart.Metadata.Name, rel.Chart.Metadata.Version)
-	color.Green("NAMESPACE: %s", rel.Namespace)
-	color.Green("LAST DEPLOYED: %s", rel.Info.LastDeployed)
-	color.Green("STATUS: %s", rel.Info.Status)
-	color.Green("REVISION: %d", rel.Version)
+	color.Cyan("----- RELEASE INFO ----- \n")
+	color.Green("NAME: %s \n", rel.Name)
+	color.Green("CHART: %s-%s \n", rel.Chart.Metadata.Name, rel.Chart.Metadata.Version)
+	color.Green("NAMESPACE: %s \n", rel.Namespace)
+	color.Green("LAST DEPLOYED: %s \n", rel.Info.LastDeployed)
+	color.Green("STATUS: %s \n", rel.Info.Status)
+	color.Green("REVISION: %d \n", rel.Version)
 	if rel.Info.Notes != "" {
-		color.Green("NOTES:\n%s", rel.Info.Notes)
+		color.Green("NOTES:\n%s \n", rel.Info.Notes)
 	}
-	color.Cyan("------------------------")
+	color.Cyan("------------------------ \n")
 }
 
 type Resource struct {
@@ -373,24 +390,24 @@ func parseResourcesFromManifest(manifest string) ([]Resource, error) {
 func printResourcesFromRelease(rel *release.Release) {
 	resources, err := parseResourcesFromManifest(rel.Manifest)
 	if err != nil {
-		color.Red("Error parsing manifest: %v", err)
+		color.Red("Error parsing manifest: %v \n", err)
 		return
 	}
 
 	if len(resources) == 0 {
-		color.Green("No Kubernetes resources were created by this release.")
+		color.Green("No Kubernetes resources were created by this release.\n")
 		return
 	}
 
-	color.Cyan("----- RESOURCES -----")
+	color.Cyan("----- RESOURCES ----- \n")
 
 	clientset, getClientErr := getKubeClient()
 	if getClientErr != nil {
-		color.Red("Error getting kube client for detailed resource info: %v", getClientErr)
+		color.Red("Error getting kube client for detailed resource info: %v \n", getClientErr)
 		for _, r := range resources {
-			color.Green("%s: %s", r.Kind, r.Name)
+			color.Green("%s: %s \n", r.Kind, r.Name)
 		}
-		color.Cyan("--------------------------------")
+		color.Cyan("-------------------------------- \n")
 		return
 	}
 
@@ -399,54 +416,54 @@ func printResourcesFromRelease(rel *release.Release) {
 		case "Deployment":
 			dep, err := clientset.AppsV1().Deployments(rel.Namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
 			if err != nil {
-				color.Red("%s: %s (Failed to get details: %v)", r.Kind, r.Name, err)
+				color.Red("%s: %s (Failed to get details: %v) \n", r.Kind, r.Name, err)
 				continue
 			}
-			color.Green("Deployment: %s", r.Name)
-			color.Green("- Desired Replicas: %d", *dep.Spec.Replicas)
-			color.Green("- Ready Replicas:   %d", dep.Status.ReadyReplicas)
+			color.Green("Deployment: %s \n", r.Name)
+			color.Green("- Desired Replicas: %d \n", *dep.Spec.Replicas)
+			color.Green("- Ready Replicas:   %d \n", dep.Status.ReadyReplicas)
 
 		case "ReplicaSet":
 			rs, err := clientset.AppsV1().ReplicaSets(rel.Namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
 			if err != nil {
-				color.Red("%s: %s (Failed to get details: %v)", r.Kind, r.Name, err)
+				color.Red("%s: %s (Failed to get details: %v) \n", r.Kind, r.Name, err)
 				continue
 			}
-			color.Green("ReplicaSet: %s", r.Name)
-			color.Green("- Desired Replicas: %d", *rs.Spec.Replicas)
-			color.Green("- Current Replicas: %d", rs.Status.Replicas)
-			color.Green("- Ready Replicas:   %d", rs.Status.ReadyReplicas)
+			color.Green("ReplicaSet: %s \n", r.Name)
+			color.Green("- Desired Replicas: %d \n", *rs.Spec.Replicas)
+			color.Green("- Current Replicas: %d \n", rs.Status.Replicas)
+			color.Green("- Ready Replicas:   %d \n", rs.Status.ReadyReplicas)
 
 		case "StatefulSet":
 			ss, err := clientset.AppsV1().StatefulSets(rel.Namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
 			if err != nil {
-				color.Red("%s: %s (Failed to get details: %v)", r.Kind, r.Name, err)
+				color.Red("%s: %s (Failed to get details: %v) \n", r.Kind, r.Name, err)
 				continue
 			}
-			color.Green("StatefulSet: %s", r.Name)
-			color.Green("- Desired Replicas: %d", *ss.Spec.Replicas)
-			color.Green("- Current Replicas: %d", ss.Status.CurrentReplicas)
-			color.Green("- Ready Replicas:   %d", ss.Status.ReadyReplicas)
+			color.Green("StatefulSet: %s \n", r.Name)
+			color.Green("- Desired Replicas: %d \n", *ss.Spec.Replicas)
+			color.Green("- Current Replicas: %d \n", ss.Status.CurrentReplicas)
+			color.Green("- Ready Replicas:   %d \n", ss.Status.ReadyReplicas)
 
 		case "DaemonSet":
 			ds, err := clientset.AppsV1().DaemonSets(rel.Namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
 			if err != nil {
-				color.Red("%s: %s (Failed to get details: %v)", r.Kind, r.Name, err)
+				color.Red("%s: %s (Failed to get details: %v) \n", r.Kind, r.Name, err)
 				continue
 			}
-			color.Green("DaemonSet: %s", r.Name)
-			color.Green("- Desired Number Scheduled: %d", ds.Status.DesiredNumberScheduled)
-			color.Green("- Number Scheduled:         %d", ds.Status.CurrentNumberScheduled)
-			color.Green("- Number Ready:             %d", ds.Status.NumberReady)
+			color.Green("DaemonSet: %s \n", r.Name)
+			color.Green("- Desired Number Scheduled: %d \n", ds.Status.DesiredNumberScheduled)
+			color.Green("- Number Scheduled:         %d \n", ds.Status.CurrentNumberScheduled)
+			color.Green("- Number Ready:             %d \n", ds.Status.NumberReady)
 
 		case "Pod":
 			pod, err := clientset.CoreV1().Pods(rel.Namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
 			if err != nil {
-				color.Red("%s: %s (Failed to get details: %v)", r.Kind, r.Name, err)
+				color.Red("%s: %s (Failed to get details: %v) \n", r.Kind, r.Name, err)
 				continue
 			}
-			color.Green("Pod: %s", r.Name)
-			color.Green("- Phase: %s", pod.Status.Phase)
+			color.Green("Pod: %s \n", r.Name)
+			color.Green("- Phase: %s \n", pod.Status.Phase)
 			ready := false
 			for _, cond := range pod.Status.Conditions {
 				if cond.Type == corev1.PodReady && cond.Status == corev1.ConditionTrue {
@@ -454,97 +471,97 @@ func printResourcesFromRelease(rel *release.Release) {
 					break
 				}
 			}
-			color.Green("- Ready: %v", ready)
-			color.Green("- IP: %s", pod.Status.PodIP)
+			color.Green("- Ready: %v \n", ready)
+			color.Green("- IP: %s \n", pod.Status.PodIP)
 			for _, cs := range pod.Status.ContainerStatuses {
-				color.Green("  Container: %s", cs.Name)
+				color.Green("  Container: %s \n", cs.Name)
 				if cs.State.Waiting != nil {
-					color.Red("    State: Waiting")
-					color.Red("    Reason: %s", cs.State.Waiting.Reason)
-					color.Red("    Message: %s", cs.State.Waiting.Message)
+					color.Red("    State: Waiting \n")
+					color.Red("    Reason: %s \n", cs.State.Waiting.Reason)
+					color.Red("    Message: %s \n", cs.State.Waiting.Message)
 				}
 				if cs.State.Terminated != nil {
-					color.Red("    State: Terminated")
-					color.Red("    Reason: %s", cs.State.Terminated.Reason)
-					color.Red("    Message: %s", cs.State.Terminated.Message)
+					color.Red("    State: Terminated \n")
+					color.Red("    Reason: %s \n", cs.State.Terminated.Reason)
+					color.Red("    Message: %s \n", cs.State.Terminated.Message)
 				}
 				if cs.State.Running != nil {
-					color.Green("    State: Running")
-					color.Green("    Started at: %s", cs.State.Running.StartedAt)
+					color.Green("    State: Running \n")
+					color.Green("    Started at: %s \n", cs.State.Running.StartedAt)
 				}
-				color.Green("    Ready: %v", cs.Ready)
-				color.Green("    Restart Count: %d", cs.RestartCount)
+				color.Green("    Ready: %v \n", cs.Ready)
+				color.Green("    Restart Count: %d \n", cs.RestartCount)
 			}
 
 		case "Service":
 			svc, err := clientset.CoreV1().Services(rel.Namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
 			if err != nil {
-				color.Red("%s: %s (Failed to get details: %v)", r.Kind, r.Name, err)
+				color.Red("%s: %s (Failed to get details: %v) \n", r.Kind, r.Name, err)
 				continue
 			}
-			color.Green("Service: %s", r.Name)
-			color.Green("- Type: %s", svc.Spec.Type)
-			color.Green("- ClusterIP: %s", svc.Spec.ClusterIP)
+			color.Green("Service: %s \n", r.Name)
+			color.Green("- Type: %s \n", svc.Spec.Type)
+			color.Green("- ClusterIP: %s \n", svc.Spec.ClusterIP)
 			if len(svc.Spec.Ports) > 0 {
 				for _, p := range svc.Spec.Ports {
-					color.Green("- Port: %d (Protocol: %s, TargetPort: %v)", p.Port, p.Protocol, p.TargetPort)
+					color.Green("- Port: %d (Protocol: %s, TargetPort: %v) \n", p.Port, p.Protocol, p.TargetPort)
 				}
 			}
 
 		case "ServiceAccount":
 			sa, err := clientset.CoreV1().ServiceAccounts(rel.Namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
 			if err != nil {
-				color.Red("%s: %s (Failed to get details: %v)", r.Kind, r.Name, err)
+				color.Red("%s: %s (Failed to get details: %v) \n", r.Kind, r.Name, err)
 				continue
 			}
-			color.Green("ServiceAccount: %s", r.Name)
-			color.Green("- CreationTimestamp: %s", sa.CreationTimestamp.String())
+			color.Green("ServiceAccount: %s \n", r.Name)
+			color.Green("- CreationTimestamp: %s \n", sa.CreationTimestamp.String())
 
 		case "ConfigMap":
 			cm, err := clientset.CoreV1().ConfigMaps(rel.Namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
 			if err != nil {
-				color.Red("%s: %s (Failed to get details: %v)", r.Kind, r.Name, err)
+				color.Red("%s: %s (Failed to get details: %v) \n", r.Kind, r.Name, err)
 				continue
 			}
-			color.Green("ConfigMap: %s", r.Name)
-			color.Green("- Data keys: %d", len(cm.Data))
+			color.Green("ConfigMap: %s \n", r.Name)
+			color.Green("- Data keys: %d \n", len(cm.Data))
 
 		case "Secret":
 			secret, err := clientset.CoreV1().Secrets(rel.Namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
 			if err != nil {
-				color.Red("%s: %s (Failed to get details: %v)", r.Kind, r.Name, err)
+				color.Red("%s: %s (Failed to get details: %v) \n", r.Kind, r.Name, err)
 				continue
 			}
-			color.Green("Secret: %s", r.Name)
-			color.Green("- Type: %s", secret.Type)
-			color.Green("- Data keys: %d", len(secret.Data))
+			color.Green("Secret: %s \n", r.Name)
+			color.Green("- Type: %s \n", secret.Type)
+			color.Green("- Data keys: %d \n", len(secret.Data))
 
 		case "Namespace":
 			ns, err := clientset.CoreV1().Namespaces().Get(context.Background(), r.Name, metav1.GetOptions{})
 			if err != nil {
-				color.Red("%s: %s (Failed to get details: %v)", r.Kind, r.Name, err)
+				color.Red("%s: %s (Failed to get details: %v) \n", r.Kind, r.Name, err)
 				continue
 			}
-			color.Green("Namespace: %s", r.Name)
-			color.Green("- Status: %s", ns.Status.Phase)
+			color.Green("Namespace: %s \n", r.Name)
+			color.Green("- Status: %s \n", ns.Status.Phase)
 
 		default:
-			color.Green("%s: %s", r.Kind, r.Name)
+			color.Green("%s: %s \n", r.Kind, r.Name)
 		}
 	}
 
-	color.Cyan("----- PODS ASSOCIATED WITH THE RELEASE -----")
+	color.Cyan("----- PODS ASSOCIATED WITH THE RELEASE ----- \n")
 	podList, err := clientset.CoreV1().Pods(rel.Namespace).List(context.Background(), metav1.ListOptions{
 		LabelSelector: fmt.Sprintf("app.kubernetes.io/instance=%s", rel.Name),
 	})
 	if err != nil {
-		color.Red("Error listing pods for release '%s': %v", rel.Name, err)
+		color.Red("Error listing pods for release '%s': %v \n", rel.Name, err)
 	} else if len(podList.Items) == 0 {
-		color.Yellow("No pods found for release '%s'", rel.Name)
+		color.Yellow("No pods found for release '%s' \n", rel.Name)
 	} else {
 		for _, pod := range podList.Items {
-			color.Green("Pod: %s", pod.Name)
-			color.Green("- Phase: %s", pod.Status.Phase)
+			color.Green("Pod: %s \n", pod.Name)
+			color.Green("- Phase: %s \n", pod.Status.Phase)
 			ready := false
 			for _, cond := range pod.Status.Conditions {
 				if cond.Type == corev1.PodReady && cond.Status == corev1.ConditionTrue {
@@ -552,52 +569,52 @@ func printResourcesFromRelease(rel *release.Release) {
 					break
 				}
 			}
-			color.Green("- Ready: %v", ready)
-			color.Green("- IP: %s", pod.Status.PodIP)
+			color.Green("- Ready: %v \n", ready)
+			color.Green("- IP: %s \n", pod.Status.PodIP)
 			for _, cs := range pod.Status.ContainerStatuses {
-				color.Green("  Container: %s", cs.Name)
+				color.Green("  Container: %s \n", cs.Name)
 				if cs.State.Waiting != nil {
-					color.Red("    State: Waiting")
-					color.Red("    Reason: %s", cs.State.Waiting.Reason)
-					color.Red("    Message: %s", cs.State.Waiting.Message)
+					color.Red("    State: Waiting \n")
+					color.Red("    Reason: %s \n", cs.State.Waiting.Reason)
+					color.Red("    Message: %s \n", cs.State.Waiting.Message)
 				}
 				if cs.State.Terminated != nil {
-					color.Red("    State: Terminated")
-					color.Red("    Reason: %s", cs.State.Terminated.Reason)
-					color.Red("    Message: %s", cs.State.Terminated.Message)
+					color.Red("    State: Terminated \n")
+					color.Red("    Reason: %s \n", cs.State.Terminated.Reason)
+					color.Red("    Message: %s \n", cs.State.Terminated.Message)
 				}
 				if cs.State.Running != nil {
-					color.Green("    State: Running")
-					color.Green("    Started at: %s", cs.State.Running.StartedAt)
+					color.Green("    State: Running \n")
+					color.Green("    Started at: %s \n", cs.State.Running.StartedAt)
 				}
-				color.Green("    Ready: %v", cs.Ready)
-				color.Green("    Restart Count: %d", cs.RestartCount)
+				color.Green("    Ready: %v \n", cs.Ready)
+				color.Green("    Restart Count: %d \n", cs.RestartCount)
 			}
-			color.Green("- Node Name: %s", pod.Spec.NodeName)
-			color.Green("- Host IP: %s", pod.Status.HostIP)
-			color.Green("- Pod IP: %s", pod.Status.PodIP)
-			color.Green("- Start Time: %s", pod.Status.StartTime.String())
+			color.Green("- Node Name: %s \n", pod.Spec.NodeName)
+			color.Green("- Host IP: %s \n", pod.Status.HostIP)
+			color.Green("- Pod IP: %s \n", pod.Status.PodIP)
+			color.Green("- Start Time: %s \n", pod.Status.StartTime.String())
 
 			evts, err := clientset.CoreV1().Events(rel.Namespace).List(context.Background(), metav1.ListOptions{
 				FieldSelector: fmt.Sprintf("involvedObject.name=%s", pod.Name),
 			})
 			if err != nil {
-				color.Yellow("  Error fetching events for pod %s: %v", pod.Name, err)
+				color.Yellow("  Error fetching events for pod %s: %v \n", pod.Name, err)
 				continue
 			}
 
 			if len(evts.Items) == 0 {
-				color.Yellow("  No events found for pod %s", pod.Name)
+				color.Yellow("  No events found for pod %s \n", pod.Name)
 			} else {
-				color.Green("  Events for pod %s:", pod.Name)
+				color.Green("  Events for pod %s: \n", pod.Name)
 				for _, evt := range evts.Items {
-					color.Green("    %s: %s", evt.Reason, evt.Message)
+					color.Green("    %s: %s \n", evt.Reason, evt.Message)
 				}
 			}
-			color.Cyan("-------------------------------------------------------")
+			color.Cyan("------------------------------------------------------- \n")
 		}
 	}
-	color.Cyan("-----------------------------------------------")
+	color.Cyan("----------------------------------------------- \n")
 }
 
 func monitorResources(rel *release.Release, namespace string, timeout time.Duration) error {
@@ -611,26 +628,26 @@ func monitorResources(rel *release.Release, namespace string, timeout time.Durat
 		return err
 	}
 
-	spinner, _ := pterm.DefaultSpinner.Start("Checking resource readiness...")
+	spinner, _ := pterm.DefaultSpinner.Start("Checking resource readiness... \n")
 	defer spinner.Stop() 
 
 	deadline := time.Now().Add(timeout)
 	for {
 		allReady, notReadyResources, err := resourcesReady(clientset, namespace, resources)
 		if err != nil {
-			spinner.Fail("Error checking resources readiness")
-			return fmt.Errorf("error checking resources readiness: %v", err)
+			spinner.Fail("Error checking resources readiness \n")
+			return fmt.Errorf("error checking resources readiness: %v \n", err)
 		}
 		if allReady {
-			spinner.Success("All resources are ready.")
+			spinner.Success("All resources are ready. \n")
 			return nil
 		}
 		if time.Now().After(deadline) {
-			spinner.Fail("Timeout waiting for all resources to become ready")
-			return fmt.Errorf("timeout waiting for all resources to become ready")
+			spinner.Fail("Timeout waiting for all resources to become ready \n")
+			return fmt.Errorf("timeout waiting for all resources to become ready \n")
 		}
 
-		spinner.UpdateText(fmt.Sprintf("Waiting for resources: %s", strings.Join(notReadyResources, ", ")))
+		spinner.UpdateText(fmt.Sprintf("Waiting for resources: %s \n", strings.Join(notReadyResources, ", ")))
 
 		time.Sleep(5 * time.Second)
 	}
@@ -678,10 +695,10 @@ func resourcesReady(clientset *kubernetes.Clientset, namespace string, resources
 }
 
 func describeFailedResources(namespace, releaseName string) {
-	color.Cyan("----- TROUBLESHOOTING FAILED RESOURCES -----")
+	color.Cyan("----- TROUBLESHOOTING FAILED RESOURCES ----- \n")
 	clientset, err := getKubeClient()
 	if err != nil {
-		color.Red("Error getting kube client: %v", err)
+		color.Red("Error getting kube client: %v \n", err)
 		return
 	}
 
@@ -689,23 +706,23 @@ func describeFailedResources(namespace, releaseName string) {
 		LabelSelector: fmt.Sprintf("app.kubernetes.io/instance=%s", releaseName),
 	})
 	if err != nil {
-		color.Red("Failed to list pods for troubleshooting: %v", err)
+		color.Red("Failed to list pods for troubleshooting: %v \n", err)
 		return
 	}
 
 	if len(podList.Items) == 0 {
-		color.Yellow("No pods found for release '%s', cannot diagnose further.", releaseName)
+		color.Yellow("No pods found for release '%s', cannot diagnose further.\n", releaseName)
 		return
 	}
 
 	for _, pod := range podList.Items {
-		color.Green("Pod: %s", pod.Name)
-		color.Green("Phase: %s", pod.Status.Phase)
+		color.Green("Pod: %s \n", pod.Name)
+		color.Green("Phase: %s \n", pod.Status.Phase)
 		for _, cs := range pod.Status.ContainerStatuses {
 			if cs.State.Waiting != nil {
-				color.Red("Container: %s is waiting with reason: %s, message: %s", cs.Name, cs.State.Waiting.Reason, cs.State.Waiting.Message)
+				color.Red("Container: %s is waiting with reason: %s, message: %s \n", cs.Name, cs.State.Waiting.Reason, cs.State.Waiting.Message)
 			} else if cs.State.Terminated != nil {
-				color.Red("Container: %s is terminated with reason: %s, message: %s", cs.Name, cs.State.Terminated.Reason, cs.State.Terminated.Message)
+				color.Red("Container: %s is terminated with reason: %s, message: %s \n", cs.Name, cs.State.Terminated.Reason, cs.State.Terminated.Message)
 			}
 		}
 
@@ -713,21 +730,21 @@ func describeFailedResources(namespace, releaseName string) {
 			FieldSelector: fmt.Sprintf("involvedObject.name=%s", pod.Name),
 		})
 		if err != nil {
-			color.Yellow("Error fetching events for pod %s: %v", pod.Name, err)
+			color.Yellow("Error fetching events for pod %s: %v \n", pod.Name, err)
 			continue
 		}
 
 		if len(evts.Items) == 0 {
-			color.Yellow("No events found for pod %s", pod.Name)
+			color.Yellow("No events found for pod %s \n", pod.Name)
 		} else {
-			color.Green("Events for pod %s:", pod.Name)
+			color.Green("Events for pod %s: \n", pod.Name)
 			for _, evt := range evts.Items {
-				color.Green("  %s: %s", evt.Reason, evt.Message)
+				color.Green("  %s: %s \n", evt.Reason, evt.Message)
 			}
 		}
-		color.Cyan("-------------------------------------------------------")
+		color.Cyan("------------------------------------------------------- \n")
 	}
-	color.Cyan("-----------------------------------------------")
+	color.Cyan("----------------------------------------------- \n")
 }
 
 func HelmList(namespace string) ([]*release.Release, error) {
@@ -736,7 +753,7 @@ func HelmList(namespace string) ([]*release.Release, error) {
 
 	actionConfig := new(action.Configuration)
 	if err := actionConfig.Init(settings.RESTClientGetter(), namespace, "secrets", nil); err != nil {
-		color.Red("Failed to initialize action configuration: %v", err)
+		color.Red("Failed to initialize action configuration: %v \n", err)
 		return nil, err
 	}
 
@@ -745,19 +762,19 @@ func HelmList(namespace string) ([]*release.Release, error) {
 
 	releases, err := client.Run()
 	if err != nil {
-		color.Red("Failed to list releases: %v", err)
+		color.Red("Failed to list releases: %v \n", err)
 		return nil, err
 	}
 
 	fmt.Println()
-	color.Cyan("%-17s %-10s %-8s %-20s %-7s %-30s", "NAME", "NAMESPACE", "REVISION", "UPDATED", "STATUS", "CHART")
+	color.Cyan("%-17s %-10s %-8s %-20s %-7s %-30s \n", "NAME", "NAMESPACE", "REVISION", "UPDATED", "STATUS", "CHART")
 	for _, rel := range releases {
 		updatedStr := rel.Info.LastDeployed.Local().Format("2006-01-02 15:04:05")
-		color.Yellow("%-17s %-10s %-8d %-20s %-7s %-30s",
+		color.Yellow("%-17s %-10s %-8d %-20s %-7s %-30s \n",
 			rel.Name, rel.Namespace, rel.Version, updatedStr, rel.Info.Status.String(), rel.Chart.Metadata.Name+"-"+rel.Chart.Metadata.Version)
 	}
 
-	spinner.Success("Releases listed successfully.")
+	spinner.Success("Releases listed successfully. \n")
 	return releases, nil
 }
 
@@ -766,6 +783,7 @@ func HelmUninstall(releaseName, namespace string) error {
 	defer spinner.Stop()
 
 	actionConfig := new(action.Configuration)
+
 	if err := actionConfig.Init(settings.RESTClientGetter(), namespace, os.Getenv("HELM_DRIVER"), debugLog); err != nil {
 		logDetailedError("helm uninstall", err, namespace, releaseName)
 		return err
@@ -777,7 +795,7 @@ func HelmUninstall(releaseName, namespace string) error {
 	if preErr == nil && rel != nil {
 		printResourcesFromRelease(rel)
 	} else {
-		color.Yellow("Could not retrieve release '%s' status before uninstall: %v", releaseName, preErr)
+		color.Yellow("Could not retrieve release '%s' status before uninstall: %v \n", releaseName, preErr)
 	}
 
 	client := action.NewUninstall(actionConfig)
@@ -793,7 +811,7 @@ func HelmUninstall(releaseName, namespace string) error {
 		return err
 	}
 
-	color.Green("Uninstall Completed Successfully for release: %s", releaseName)
+	color.Green("Uninstall Completed Successfully for release: %s \n", releaseName)
 
 	var resources []Resource
 	if len(resources) == 0 && resp != nil && resp.Release != nil {
@@ -801,39 +819,39 @@ func HelmUninstall(releaseName, namespace string) error {
 		if err == nil {
 			resources = rs
 		} else {
-			color.Yellow("Could not parse manifest from uninstall response for release '%s': %v", releaseName, err)
+			color.Yellow("Could not parse manifest from uninstall response for release '%s': %v \n", releaseName, err)
 		}
 	}
 
 	if resp != nil && resp.Release != nil {
-		color.Cyan("Detailed Information After Uninstall:")
+		color.Cyan("Detailed Information After Uninstall: \n")
 		printResourcesFromRelease(resp.Release)
 	}
 
 	if len(resources) > 0 {
-		color.Cyan("----- RESOURCES REMOVED -----")
+		color.Cyan("----- RESOURCES REMOVED ----- \n")
 		clientset, getErr := getKubeClient()
 		if getErr != nil {
-			color.Yellow("Could not verify resource removal due to kubeclient error: %v", getErr)
+			color.Yellow("Could not verify resource removal due to kubeclient error: %v \n", getErr)
 			for _, r := range resources {
-				color.Green("%s: %s (Assumed Removed)", r.Kind, r.Name)
+				color.Green("%s: %s (Assumed Removed) \n", r.Kind, r.Name)
 			}
 		} else {
 			for _, r := range resources {
 				removed := resourceRemoved(clientset, namespace, r)
 				if removed {
-					color.Green("%s: %s (Removed)", r.Kind, r.Name)
+					color.Green("%s: %s (Removed) \n", r.Kind, r.Name)
 				} else {
-					color.Yellow("%s: %s might still exist. Check your cluster.", r.Kind, r.Name)
+					color.Yellow("%s: %s might still exist. Check your cluster. \n", r.Kind, r.Name)
 				}
 			}
 		}
-		color.Cyan("--------------------------------")
+		color.Cyan("-------------------------------- \n")
 	} else {
-		color.Green("No resources recorded for this release or unable to parse manifest. Assuming all are removed.")
+		color.Green("No resources recorded for this release or unable to parse manifest. Assuming all are removed. \n")
 	}
 
-	color.Green("All resources associated with release '%s' have been removed (or no longer found).", releaseName)
+	color.Green("All resources associated with release '%s' have been removed (or no longer found). \n", releaseName)
 	return nil
 }
 
@@ -888,7 +906,7 @@ func HelmLint(chartPath string, fileValues []string) error {
 	for _, f := range fileValues {
 		additionalVals, err := chartutil.ReadValuesFile(f)
 		if err != nil {
-			color.Red("Failed to read values file '%s': %v", f, err)
+			color.Red("Failed to read values file '%s': %v \n", f, err)
 			return err
 		}
 		for key, value := range additionalVals {
@@ -898,7 +916,7 @@ func HelmLint(chartPath string, fileValues []string) error {
 
 	for _, set := range fileValues {
 		if err := strvals.ParseInto(set, vals); err != nil {
-			color.Red("Failed to parse set values '%s': %v", set, err)
+			color.Red("Failed to parse set values '%s': %v \n", set, err)
 			return err
 		}
 	}
@@ -906,15 +924,15 @@ func HelmLint(chartPath string, fileValues []string) error {
 	result := client.Run([]string{chartPath}, vals)
 	if len(result.Messages) > 0 {
 		for _, msg := range result.Messages {
-			color.Yellow("Severity: %s", msg.Severity)
-			color.Yellow("Path: %s", msg.Path)
+			color.Yellow("Severity: %s \n", msg.Severity)
+			color.Yellow("Path: %s \n", msg.Path)
 			fmt.Println(msg)
 			fmt.Println()
 		}
-		spinner.Fail("Linting issues found")
+		spinner.Fail("Linting issues found \n")
 	} else {
-		color.Green("No linting issues found in the chart %s", chartPath)
-		spinner.Success("Linting completed successfully")
+		color.Green("No linting issues found in the chart %s \n", chartPath)
+		spinner.Success("Linting completed successfully \n")
 	}
 	return nil
 }
@@ -924,7 +942,7 @@ func HelmTemplate(releaseName, chartPath, namespace string, valuesFiles []string
 	actionConfig := new(action.Configuration)
 
 	if err := actionConfig.Init(settings.RESTClientGetter(), namespace, os.Getenv("HELM_DRIVER"), nil); err != nil {
-		color.Red("Failed to initialize action configuration: %v", err)
+		color.Red("Failed to initialize action configuration: %v \n", err)
 		return err
 	}
 
@@ -937,7 +955,7 @@ func HelmTemplate(releaseName, chartPath, namespace string, valuesFiles []string
 
 	chart, err := loader.Load(chartPath)
 	if err != nil {
-		color.Red("Failed to load chart '%s': %v", chartPath, err)
+		color.Red("Failed to load chart '%s': %v \n", chartPath, err)
 		return err
 	}
 
@@ -945,7 +963,7 @@ func HelmTemplate(releaseName, chartPath, namespace string, valuesFiles []string
 	for _, f := range valuesFiles {
 		additionalVals, err := chartutil.ReadValuesFile(f)
 		if err != nil {
-			color.Red("Error reading values file '%s': %v", f, err)
+			color.Red("Error reading values file '%s': %v \n", f, err)
 			return err
 		}
 		for key, value := range additionalVals {
@@ -955,18 +973,18 @@ func HelmTemplate(releaseName, chartPath, namespace string, valuesFiles []string
 
 	for _, set := range valuesFiles {
 		if err := strvals.ParseInto(set, vals); err != nil {
-			color.Red("Error parsing set values '%s': %v", set, err)
+			color.Red("Error parsing set values '%s': %v \n", set, err)
 			return err
 		}
 	}
 
-	spinner, _ := pterm.DefaultSpinner.Start("Rendering Helm templates...")
+	spinner, _ := pterm.DefaultSpinner.Start("Rendering Helm templates...\n")
 	rel, err := client.Run(chart, vals)
 	if err != nil {
-		spinner.Fail(fmt.Sprintf("Failed to render templates: %v", err))
+		spinner.Fail(fmt.Sprintf("Failed to render templates: %v \n", err))
 		return err
 	}
-	spinner.Success("Templates rendered successfully")
+	spinner.Success("Templates rendered successfully \n")
 
 	green := color.New(color.FgGreen).SprintFunc()
 	fmt.Println(green(rel.Manifest))
@@ -977,14 +995,14 @@ func HelmTemplate(releaseName, chartPath, namespace string, valuesFiles []string
 func HelmProvision(releaseName, chartPath, namespace string) error {
 	actionConfig := new(action.Configuration)
 	if err := actionConfig.Init(settings.RESTClientGetter(), namespace, os.Getenv("HELM_DRIVER"), nil); err != nil {
-		color.Red("Failed to initialize Helm action configuration: %v", err)
+		color.Red("Failed to initialize Helm action configuration: %v \n", err)
 		return err
 	}
 
 	client := action.NewList(actionConfig)
 	results, err := client.Run()
 	if err != nil {
-		color.Red("Failed to list releases: %v", err)
+		color.Red("Failed to list releases: %v \n", err)
 		return err
 	}
 
@@ -1008,7 +1026,7 @@ func HelmProvision(releaseName, chartPath, namespace string) error {
 	} else {
 		go func() {
 			defer wg.Done()
-			installErr = HelmInstall(releaseName, chartPath, namespace, nil, 300)
+			installErr = HelmInstall(releaseName, chartPath, namespace, nil, 300, false, false, []string{})
 		}()
 	}
 
@@ -1027,21 +1045,21 @@ func HelmProvision(releaseName, chartPath, namespace string) error {
 
 	if installErr != nil || upgradeErr != nil || lintErr != nil || templateErr != nil {
 		if installErr != nil {
-			color.Red("Install failed: %v", installErr)
+			color.Red("Install failed: %v \n", installErr)
 		}
 		if upgradeErr != nil {
-			color.Red("Upgrade failed: %v", upgradeErr)
+			color.Red("Upgrade failed: %v \n", upgradeErr)
 		}
 		if lintErr != nil {
-			color.Red("Lint failed: %v", lintErr)
+			color.Red("Lint failed: %v \n", lintErr)
 		}
 		if templateErr != nil {
-			color.Red("Template rendering failed: %v", templateErr)
+			color.Red("Template rendering failed: %v \n", templateErr)
 		}
-		return fmt.Errorf("provisioning failed")
+		return fmt.Errorf("provisioning failed \n")
 	}
 
-	color.Green("Provisioning completed successfully.")
+	color.Green("Provisioning completed successfully. \n")
 	return nil
 }
 
@@ -1096,42 +1114,42 @@ func HelmStatus(releaseName, namespace string) error {
 	pterm.DefaultTable.WithHasHeader(false).WithData(data).Render()
 
 	if rel.Info.Notes != "" {
-		color.Green("NOTES:\n%s", rel.Info.Notes)
+		color.Green("NOTES: %s\n", rel.Info.Notes)
 	} else {
-		color.Yellow("No additional notes provided for this release.")
+		color.Yellow("No additional notes provided for this release.\n")
 	}
 
 	printResourcesFromRelease(rel)
 
 	resources, err := parseResourcesFromManifest(rel.Manifest)
 	if err != nil {
-		color.Red("Error parsing manifest for readiness check: %v", err)
+		color.Red("Error parsing manifest for readiness check: %v \n", err)
 		return nil
 	}
 
 	clientset, err := getKubeClient()
 	if err != nil {
-		color.Red("Error getting kube client for readiness check: %v", err)
+		color.Red("Error getting kube client for readiness check: %v \n", err)
 		return err
 	}
 
 	allReady, notReadyResources, err := resourcesReady(clientset, rel.Namespace, resources)
 	if err != nil {
-		color.Red("Error checking resource readiness: %v", err)
+		color.Red("Error checking resource readiness: %v \n", err)
 		return err
 	}
 
 	if !allReady {
-		color.Yellow("Some resources are not ready:")
+		color.Yellow("Some resources are not ready: \n")
 		for _, nr := range notReadyResources {
-			color.Yellow("- %s", nr)
+			color.Yellow("- %s \n", nr)
 		}
 		describeFailedResources(rel.Namespace, rel.Name)
 	} else {
-		color.Green("All resources for release '%s' are ready.", rel.Name)
+		color.Green("All resources for release '%s' are ready.\n", rel.Name)
 	}
 
-	spinner.Success(fmt.Sprintf("Status retrieved successfully for release: %s", releaseName))
+	spinner.Success(fmt.Sprintf("Status retrieved successfully for release: %s \n", releaseName))
 	return nil
 }
 
@@ -1145,13 +1163,13 @@ type RollbackOptions struct {
 
 func HelmRollback(releaseName string, revision int, opts RollbackOptions) error {
 	if releaseName == "" {
-		return fmt.Errorf("release name cannot be empty")
+		return fmt.Errorf("release name cannot be empty \n")
 	}
 	if revision < 1 {
-		return fmt.Errorf("revision must be a positive integer")
+		return fmt.Errorf("revision must be a positive integer \n")
 	}
 
-	color.Green("Starting Helm Rollback for release: %s to revision %d", releaseName, revision)
+	color.Green("Starting Helm Rollback for release: %s to revision %d \n", releaseName, revision)
 
 	settings := cli.New()
 	settings.Debug = opts.Debug
@@ -1163,7 +1181,7 @@ func HelmRollback(releaseName string, revision int, opts RollbackOptions) error 
 		}
 	}); err != nil {
 		logDetailedError("helm rollback", err, opts.Namespace, releaseName)
-		return fmt.Errorf("failed to initialize Helm action configuration: %w", err)
+		return fmt.Errorf("failed to initialize Helm action configuration: %w \n", err)
 	}
 
 	rollbackAction := action.NewRollback(actionConfig)
@@ -1178,10 +1196,10 @@ func HelmRollback(releaseName string, revision int, opts RollbackOptions) error 
 	}
 
 	if err := HelmStatus(releaseName, opts.Namespace); err != nil {
-		color.Yellow("Rollback completed, but status retrieval failed. Check the release status manually.")
+		color.Yellow("Rollback completed, but status retrieval failed. Check the release status manually.\n")
 		return nil
 	}
 
-	color.Green("Rollback Completed Successfully for release: %s to revision %d", releaseName, revision)
+	color.Green("Rollback Completed Successfully for release: %s to revision %d \n", releaseName, revision)
 	return nil
 }
