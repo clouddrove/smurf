@@ -55,7 +55,7 @@ var pushHubCmd = &cobra.Command{
 		}
 
 		if hubImageName == "" {
-			cmd.Help()
+			pterm.Error.Println("Required flags are missing. Please provide the required flags.")
 		}
 
 		opts := docker.PushOptions{

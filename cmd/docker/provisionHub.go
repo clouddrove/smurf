@@ -68,7 +68,7 @@ var provisionHubCmd = &cobra.Command{
 		}
 
 		if provisionImageName == "" {
-			cmd.Help()
+			pterm.Error.Println("Image name is required")
 		}
 
 		buildArgsMap := make(map[string]string)

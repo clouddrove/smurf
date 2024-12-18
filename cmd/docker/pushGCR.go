@@ -53,7 +53,7 @@ var pushGcrCmd = &cobra.Command{
 		}
 
 		if gcrProjectID == "" || gcrImageName == "" {
-			cmd.Help()
+			pterm.Error.Println("Required flags are missing. Please provide the required flags.")
 		}
 
 		gcrImage := fmt.Sprintf("gcr.io/%s/%s:%s", gcrProjectID, gcrImageName, gcrImageTag)

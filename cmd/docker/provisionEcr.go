@@ -55,7 +55,7 @@ var provisionEcrCmd = &cobra.Command{
 		}
 
 		if provisionEcrRegion == "" || provisionEcrRepository == "" || provisionEcrImageName == "" {
-			cmd.Help()
+			pterm.Error.Println("Required flags are missing. Please provide the required flags.")
 		}
 
 		fullEcrImage := fmt.Sprintf("%s.dkr.ecr.%s.amazonaws.com/%s:%s", provisionEcrImageName, provisionEcrRegion, provisionEcrRepository, provisionEcrImageTag)

@@ -51,7 +51,7 @@ var pushAcrCmd = &cobra.Command{
 		}
 
 		if acrSubscriptionID == "" || acrResourceGroup == "" || acrRegistryName == "" || acrImageName == "" {
-			cmd.Help()
+			pterm.Error.Println("Required flags are missing. Please provide the required flags.")
 		}
 
 		acrImage := fmt.Sprintf("%s.azurecr.io/%s:%s", acrRegistryName, acrImageName, acrImageTag)

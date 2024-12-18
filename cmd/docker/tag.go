@@ -4,6 +4,7 @@ import (
 	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/docker"
 	"github.com/spf13/cobra"
+	"github.com/pterm/pterm"
 )
 
 var (
@@ -32,7 +33,7 @@ var tagCmd = &cobra.Command{
 		}
 
 		if sourceTag == "" || targetTag == "" {
-			return cmd.Help() // Show help if required flags are missing
+			pterm.Error.Println("Required flags are missing. Please provide the required flags.")
 		}
 
 		opts := docker.TagOptions{

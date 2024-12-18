@@ -34,7 +34,7 @@ var scan = &cobra.Command{
 		}
 
 		if dockerTag == "" {
-			cmd.Help()
+			pterm.Error.Println("Required flags are missing. Please provide the required flags.")
 		}
 
 		err := docker.Scout(dockerTag, sarifFile)

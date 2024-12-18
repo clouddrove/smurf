@@ -69,7 +69,7 @@ var provisionGcrCmd = &cobra.Command{
 		}
 
 		if provisionGcrProjectID == "" || provisionGcrImageName == "" {
-			cmd.Help()
+			pterm.Error.Println("Required flags are missing. Please provide the required flags.")
 		}
 
 		fullGcrImage := fmt.Sprintf("gcr.io/%s/%s:%s", provisionGcrProjectID, provisionGcrImageName, provisionGcrImageTag)

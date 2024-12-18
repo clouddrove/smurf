@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -22,27 +23,26 @@ var (
 	contextDir     string
 	buildAuto      bool
 	buildTimeout   time.Duration
-
 )
 
 var buildCmd = &cobra.Command{
 	Use:   "build [IMAGE_NAME] [TAG]",
 	Short: "Build a Docker image with the given name and tag.",
+	Args:  cobra.MaximumNArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
-
 		buildArgsMap := make(map[string]string)
-		if buildAuto  {
+		if buildAuto {
 			data, err := configs.LoadConfig(configs.FileName)
 			if err != nil {
 				return err
 			}
 
 			if len(args) < 2 {
-				args = append(args, data.Sdkr.SourceTag, "latest")
+				args = []string{data.Sdkr.SourceTag, "latest"}
 			}
 
 			if _, err := os.Stat("Dockerfile"); os.IsNotExist(err) {
-				return fmt.Errorf("%s", color.RedString("Dockerfile not found at %s", "Dockerfile"))
+				return fmt.Errorf(color.RedString("Dockerfile not found at %s", "Dockerfile"))
 			}
 
 			currentDir, err := os.Getwd()
@@ -57,13 +57,16 @@ var buildCmd = &cobra.Command{
 				BuildArgs:      buildArgsMap,
 				Target:         target,
 				Platform:       platform,
-				Timeout:		buildTimeout,
+				Timeout:        buildTimeout,
 			}
 
 			return docker.Build(args[0], args[1], opts)
 		}
 
-		
+		if len(args) < 2 {
+			return errors.New("requires exactly two arguments: [IMAGE_NAME] [TAG]")
+		}
+
 		for _, arg := range buildArgs {
 			parts := strings.SplitN(arg, "=", 2)
 			if len(parts) == 2 {
@@ -96,14 +99,16 @@ var buildCmd = &cobra.Command{
 			BuildArgs:      buildArgsMap,
 			Target:         target,
 			Platform:       platform,
-			Timeout:		buildTimeout,
+			Timeout:        buildTimeout,
 		}
 
 		return docker.Build(args[0], args[1], opts)
 	},
 	Example: `
-	smurf sdkr build my-image my-tag
-	smurf sdkr build my-image my-tag --file Dockerfile --context ./build-context --no-cache --build-arg key1=value1 --build-arg key2=value2 --target my-target --platform linux/amd64 --timeout 10m`,
+smurf sdkr build my-image my-tag
+smurf sdkr build my-image my-tag --file Dockerfile --context ./build-context --no-cache --build-arg key1=value1 --build-arg key2=value2 --target my-target --platform linux/amd64 --timeout 10m
+smurf sdkr build --auto
+`,
 }
 
 func init() {
@@ -114,7 +119,7 @@ func init() {
 	buildCmd.Flags().StringVar(&target, "target", "", "Set the target build stage to build")
 	buildCmd.Flags().StringVar(&platform, "platform", "", "Set the platform for the build (e.g., linux/amd64, linux/arm64)")
 	buildCmd.Flags().BoolVar(&buildAuto, "auto", false, "Build the image automatically")
-	buildCmd.Flags().DurationVar(&buildTimeout, "timeout", 12*time.Minute, "Set the build timeout")
+	buildCmd.Flags().DurationVar(&buildTimeout, "timeout", 25*time.Minute, "Set the build timeout")
 
 	sdkrCmd.AddCommand(buildCmd)
 }

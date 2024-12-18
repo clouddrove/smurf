@@ -61,7 +61,7 @@ var provisionAcrCmd = &cobra.Command{
 		}
 
 		if provisionAcrSubscriptionID == "" || provisionAcrResourceGroup == "" || provisionAcrRegistryName == "" || provisionAcrImageName == "" {
-			cmd.Help()
+			pterm.Error.Println("Azure subscription ID, resource group name, registry name, and image name are required")
 		}
 
 		fullAcrImage := fmt.Sprintf("%s.azurecr.io/%s:%s", provisionAcrRegistryName, provisionAcrImageName, provisionAcrImageTag)

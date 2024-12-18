@@ -31,7 +31,7 @@ var remove = &cobra.Command{
 		}
 
 		if imageTag == "" {
-			cmd.Help()
+			pterm.Error.Println("Required flags are missing. Please provide the required flags.")
 		}
 
 		err := docker.RemoveImage(imageTag)
