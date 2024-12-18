@@ -71,7 +71,7 @@ var installCmd = &cobra.Command{
 func init() {
 	installCmd.Flags().StringVarP(&installNamespace, "namespace", "n", "", "Specify the namespace to install the Helm chart")
 	installCmd.Flags().BoolVarP(&installAuto, "auto", "a", false, "Install Helm chart automatically")
-	installCmd.Flags().IntVar(&installTimeout, "timeout", 300, "Specify the timeout in seconds to wait for any individual Kubernetes operation")
+	installCmd.Flags().IntVar(&installTimeout, "timeout", 150, "Specify the timeout in seconds to wait for any individual Kubernetes operation")
 	installCmd.Flags().StringArrayVarP(&installFiles, "values", "f", []string{}, "Specify values in a YAML file")
 	installCmd.Flags().BoolVar(&installAtomic, "atomic", false, "If set, installation process purges chart on fail")
 	installCmd.Flags().BoolVar(&installdebug, "debug", false, "Enable verbose output")
