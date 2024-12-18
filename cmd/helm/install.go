@@ -1,7 +1,7 @@
 package helm
 
 import (
-	"fmt"
+	"errors"
 	"path/filepath"
 	"time"
 
@@ -14,7 +14,10 @@ var (
 	installNamespace string
 	installAuto      bool
 	installFiles     []string
-	installTimeout   int 
+	installTimeout   int
+	installAtomic    bool
+	installdebug     bool
+	installSet       []string
 )
 
 var installCmd = &cobra.Command{
@@ -41,11 +44,11 @@ var installCmd = &cobra.Command{
 			}
 
 			timeoutDuration := time.Duration(installTimeout) * time.Second
-			return helm.HelmInstall(args[0], args[1], installNamespace, installFiles, timeoutDuration)
+			return helm.HelmInstall(args[0], args[1], installNamespace, installFiles, timeoutDuration, installAtomic, installdebug, installSet)
 		}
 
 		if len(args) < 2 {
-			return fmt.Errorf("requires RELEASE and CHART arguments")
+			return errors.New("requires exactly two arguments: [NAME] [DIRECTORY]")
 		}
 
 		releaseName := args[0]
@@ -55,7 +58,7 @@ var installCmd = &cobra.Command{
 		}
 
 		timeoutDuration := time.Duration(installTimeout) * time.Second
-		return helm.HelmInstall(releaseName, chartPath, installNamespace, installFiles, timeoutDuration)
+		return helm.HelmInstall(releaseName, chartPath, installNamespace, installFiles, timeoutDuration, installAtomic, installdebug, installSet)
 	},
 	Example: `
   smurf selm install my-release ./mychart
@@ -70,5 +73,8 @@ func init() {
 	installCmd.Flags().BoolVarP(&installAuto, "auto", "a", false, "Install Helm chart automatically")
 	installCmd.Flags().IntVar(&installTimeout, "timeout", 300, "Specify the timeout in seconds to wait for any individual Kubernetes operation")
 	installCmd.Flags().StringArrayVarP(&installFiles, "values", "f", []string{}, "Specify values in a YAML file")
+	installCmd.Flags().BoolVar(&installAtomic, "atomic", false, "If set, installation process purges chart on fail")
+	installCmd.Flags().BoolVar(&installdebug, "debug", false, "Enable verbose output")
+	installCmd.Flags().StringSliceVar(&installSet, "set", []string{}, "Set values on the command line (can specify multiple or separate values with commas: key1=val1,key2=val2)")
 	selmCmd.AddCommand(installCmd)
 }
