@@ -1,6 +1,7 @@
 package helm
 
 import (
+	"fmt"
 	"path/filepath"
 
 	"github.com/clouddrove/smurf/configs"
@@ -15,12 +16,13 @@ var (
 
 var provisionCmd = &cobra.Command{
 	Use:   "provision [RELEASE] [CHART]",
-	Short: "Its the combination of install, upgrade, lint, template for Helm",
+	Short: "Combination of install, upgrade, lint, and template for Helm",
+	Args:  cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if provisionAuto {
 			data, err := configs.LoadConfig(configs.FileName)
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to load config: %w", err)
 			}
 
 			releaseName := data.Selm.ReleaseName
@@ -37,14 +39,17 @@ var provisionCmd = &cobra.Command{
 
 			return helm.HelmProvision(args[0], args[1], provisionNamespace)
 		}
-		if provisionNamespace != "" {
+
+		if provisionNamespace == "" {
 			provisionNamespace = "default"
 		}
 		return helm.HelmProvision(args[0], args[1], provisionNamespace)
 	},
 	Example: `
-	smurf selm provision my-release ./mychart
-	`,
+  smurf selm provision my-release ./mychart
+  smurf selm provision --auto
+  smurf selm provision --namespace custom-namespace my-release ./mychart
+  `,
 }
 
 func init() {
