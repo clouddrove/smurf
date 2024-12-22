@@ -29,6 +29,7 @@ var generateConfig = &cobra.Command{
 				"releaseName":                "",
 				"namespace":                  "",
 				"chartName":                  "",
+				"revision":                   0,
 			},
 		}
 
