@@ -2,59 +2,63 @@ package helm
 
 import (
 	"errors"
-	"path/filepath"
+	"fmt"
 
 	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/helm"
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
-var createAuto bool
+var (
+	directory string
+	values    []string 
+)
 
 var createChartCmd = &cobra.Command{
-	Use:   "create [NAME] [DIRECTORY]",
+	Use:   "create [NAME]",
 	Short: "Create a new Helm chart in the specified directory.",
-	Args:  cobra.MaximumNArgs(2),
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if createAuto {
+		var name string
+
+		if len(args) >= 1 {
+			name = args[0]
+		}
+
+		if name == "" {
 			data, err := configs.LoadConfig(configs.FileName)
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to load config: %w", err)
 			}
 
-			releaseName := data.Selm.ReleaseName
-			if releaseName == "" {
-				releaseName = filepath.Base(data.Selm.ChartName)
-			}
-
-			chartName := data.Selm.ChartName
-			if chartName == "" {
-				return errors.New("chart name is not specified in the configuration")
-			}
-
-			if len(args) < 2 {
-				args = []string{releaseName, chartName}
-			} else {
-				args[0] = releaseName
-				args[1] = chartName
-			}
-
-			return helm.CreateChart(args[0], args[1])
+			name = data.Selm.ChartName
 		}
 
-		if len(args) < 2 {
-			return errors.New("requires exactly two arguments: [NAME] [DIRECTORY]")
+		if name == "" {
+			return errors.New(color.RedString("NAME must be provided either as an argument or in the config"))
 		}
 
-		return helm.CreateChart(args[0], args[1])
+		if len(values) > 0 {
+			fmt.Printf("Using values files: %v\n", values)
+		}
+
+		err := helm.CreateChart(name, directory)
+		if err != nil {
+			return fmt.Errorf(color.RedString("failed to create Helm chart: %v", err))
+		}
+		return nil
 	},
 	Example: `
-smurf selm create mychart ./mychart
-smurf selm create --auto
+smurf selm create mychart
+# In this example, it will create 'mychart' in the current directory
+smurf selm create
+# In this example, it will create a chart with the name specified in the config in the current directory
 `,
 }
 
 func init() {
-	createChartCmd.Flags().BoolVarP(&createAuto, "auto", "a", false, "Create Helm chart automatically")
+	createChartCmd.Flags().StringArrayVarP(&values, "values", "f", []string{}, "Specify values in a YAML file")
+	createChartCmd.Flags().StringVarP(&directory, "directory", "d", ".", "Specify the directory to create the Helm chart in")
 	selmCmd.AddCommand(createChartCmd)
 }

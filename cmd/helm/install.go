@@ -7,12 +7,13 @@ import (
 
 	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/helm"
+	"github.com/fatih/color"
+	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 )
 
 var (
 	installNamespace string
-	installAuto      bool
 	installFiles     []string
 	installTimeout   int
 	installAtomic    bool
@@ -23,54 +24,91 @@ var (
 var installCmd = &cobra.Command{
 	Use:   "install [RELEASE] [CHART]",
 	Short: "Install a Helm chart into a Kubernetes cluster.",
+	Args:  cobra.MaximumNArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if installAuto {
+		var releaseName, chartPath string
+		if len(args) >= 1 {
+			releaseName = args[0]
+		}
+		if len(args) >= 2 {
+			chartPath = args[1]
+		}
+
+		if releaseName == "" || chartPath == "" {
 			data, err := configs.LoadConfig(configs.FileName)
 			if err != nil {
 				return err
 			}
 
-			if installNamespace == "" {
+			if releaseName == "" {
+				releaseName = data.Selm.ReleaseName
+				if releaseName == "" {
+					releaseName = filepath.Base(data.Selm.ChartName)
+				}
+			}
+			if chartPath == "" {
+				chartPath = data.Selm.ChartName
+			}
+
+			if releaseName == "" || chartPath == "" {
+				return errors.New(color.RedString("both RELEASE and CHART must be provided either as arguments or in the config"))
+			}
+
+			if installNamespace == "" && data.Selm.Namespace != "" {
 				installNamespace = data.Selm.Namespace
 			}
-
-			releaseName := data.Selm.ReleaseName
-			if releaseName == "" {
-				releaseName = filepath.Base(data.Selm.ChartName)
-			}
-
-			if len(args) < 2 {
-				args = []string{releaseName, data.Selm.ChartName}
-			}
-
-			timeoutDuration := time.Duration(installTimeout) * time.Second
-			return helm.HelmInstall(args[0], args[1], installNamespace, installFiles, timeoutDuration, installAtomic, installdebug, installSet)
 		}
 
-		if len(args) < 2 {
-			return errors.New("requires exactly two arguments: [NAME] [DIRECTORY]")
+		if releaseName == "" || chartPath == "" {
+			return errors.New(color.RedString("RELEASE and CHART must be provided"))
 		}
 
-		releaseName := args[0]
-		chartPath := args[1]
+		timeoutDuration := time.Duration(installTimeout) * time.Second
+
+		buildArgsMap := make(map[string]string)
+		for _, arg := range installSet {
+			parts := splitKeyValue(arg)
+			if len(parts) == 2 {
+				buildArgsMap[parts[0]] = parts[1]
+			}
+		}
+
 		if installNamespace == "" {
 			installNamespace = "default"
 		}
 
-		timeoutDuration := time.Duration(installTimeout) * time.Second
-		return helm.HelmInstall(releaseName, chartPath, installNamespace, installFiles, timeoutDuration, installAtomic, installdebug, installSet)
+		pterm.Info.Println("Starting Helm install...")
+		err := helm.HelmInstall(releaseName, chartPath, installNamespace, installFiles, timeoutDuration, installAtomic, installdebug, installSet)
+		if err != nil {
+			return errors.New(color.RedString("Helm install failed: %v", err))
+		}
+		pterm.Success.Println("Helm chart installed successfully.")
+		return nil
 	},
 	Example: `
   smurf selm install my-release ./mychart
   smurf selm install my-release ./mychart -n my-namespace
   smurf selm install my-release ./mychart -f values.yaml
   smurf selm install my-release ./mychart --timeout=600
+  smurf selm install
+  # In the last example, it will read RELEASE and CHART from the config file
   `,
+}
+
+func splitKeyValue(arg string) []string {
+	parts := make([]string, 2)
+	for i, part := range []rune(arg) {
+		if part == '=' {
+			parts[0] = string([]rune(arg)[:i])
+			parts[1] = string([]rune(arg)[i+1:])
+			break
+		}
+	}
+	return parts
 }
 
 func init() {
 	installCmd.Flags().StringVarP(&installNamespace, "namespace", "n", "", "Specify the namespace to install the Helm chart")
-	installCmd.Flags().BoolVarP(&installAuto, "auto", "a", false, "Install Helm chart automatically")
 	installCmd.Flags().IntVar(&installTimeout, "timeout", 150, "Specify the timeout in seconds to wait for any individual Kubernetes operation")
 	installCmd.Flags().StringArrayVarP(&installFiles, "values", "f", []string{}, "Specify values in a YAML file")
 	installCmd.Flags().BoolVar(&installAtomic, "atomic", false, "If set, installation process purges chart on fail")
