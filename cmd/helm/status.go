@@ -11,9 +11,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	statusNamespace string
-)
 
 var statusCmd = &cobra.Command{
 	Use:   "status [NAME]",
@@ -41,16 +38,16 @@ var statusCmd = &cobra.Command{
 				return errors.New(color.RedString("NAME must be provided either as an argument or in the config"))
 			}
 
-			if statusNamespace == "" && data.Selm.Namespace != "" {
-				statusNamespace = data.Selm.Namespace
+			if configs.Namespace == "" && data.Selm.Namespace != "" {
+				configs.Namespace = data.Selm.Namespace
 			}
 		}
 
-		if statusNamespace == "" {
-			statusNamespace = "default"
+		if configs.Namespace == "" {
+			configs.Namespace = "default"
 		}
 
-		err := helm.HelmStatus(releaseName, statusNamespace)
+		err := helm.HelmStatus(releaseName, configs.Namespace)
 		if err != nil {
 			return fmt.Errorf(color.RedString("Helm status failed: %v", err))
 		}
@@ -69,6 +66,6 @@ var statusCmd = &cobra.Command{
 }
 
 func init() {
-	statusCmd.Flags().StringVarP(&statusNamespace, "namespace", "n", "", "Specify the namespace to get status of the Helm chart")
+	statusCmd.Flags().StringVarP(&configs.Namespace, "namespace", "n", "", "Specify the namespace to get status of the Helm chart")
 	selmCmd.AddCommand(statusCmd)
 }

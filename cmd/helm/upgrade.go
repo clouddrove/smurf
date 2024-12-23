@@ -14,13 +14,7 @@ import (
 )
 
 var (
-	setValues           []string
-	valuesFiles         []string
-	namespace           string
 	createNamespace     bool
-	atomic              bool
-	timeout             int
-	debug               bool
 	installIfNotPresent bool
 )
 
@@ -58,8 +52,8 @@ var upgradeCmd = &cobra.Command{
 				return errors.New(color.RedString("RELEASE and CHART must be provided either as arguments or in the config"))
 			}
 
-			if namespace == "default" && data.Selm.Namespace != "" {
-				namespace = data.Selm.Namespace
+			if configs.Namespace == "default" && data.Selm.Namespace != "" {
+				configs.Namespace = data.Selm.Namespace
 			}
 		}
 
@@ -67,34 +61,34 @@ var upgradeCmd = &cobra.Command{
 			return errors.New(color.RedString("RELEASE and CHART must be provided"))
 		}
 
-		timeoutDuration := time.Duration(timeout) * time.Second
+		timeoutDuration := time.Duration(configs.Timeout) * time.Second
 
 		if installIfNotPresent {
-			exists, err := helm.HelmReleaseExists(releaseName, namespace)
+			exists, err := helm.HelmReleaseExists(releaseName, configs.Namespace)
 			if err != nil {
 				return fmt.Errorf("failed to check if Helm release exists: %w", err)
 			}
 			if !exists {
-				if err := helm.HelmInstall(releaseName, chartPath, namespace, valuesFiles, timeoutDuration, atomic, debug, setValues); err != nil {
+				if err := helm.HelmInstall(releaseName, chartPath, configs.Namespace, configs.File, timeoutDuration, configs.Atomic, configs.Debug, configs.Set); err != nil {
 					return fmt.Errorf(color.RedString("Helm install failed: %v", err))
 				}
 			}
 		}
 
-		if namespace == "" {
-			namespace = "default"
+		if configs.Namespace == "" {
+			configs.Namespace = "default"
 		}
 
 		err := helm.HelmUpgrade(
 			releaseName,
 			chartPath,
-			namespace,
-			setValues,
-			valuesFiles,
+			configs.Namespace,
+			configs.Set,
+			configs.File,
 			createNamespace,
-			atomic,
+			configs.Atomic,
 			timeoutDuration,
-			debug,
+			configs.Debug,
 		)
 		if err != nil {
 			return fmt.Errorf(color.RedString("Helm upgrade failed: %v", err))
@@ -113,13 +107,13 @@ smurf selm upgrade
 }
 
 func init() {
-	upgradeCmd.Flags().StringSliceVar(&setValues, "set", []string{}, "Set values on the command line (can specify multiple or separate values with commas: key1=val1,key2=val2)")
-	upgradeCmd.Flags().StringSliceVarP(&valuesFiles, "values", "f", []string{}, "Specify values in a YAML file (can specify multiple)")
-	upgradeCmd.Flags().StringVarP(&namespace, "namespace", "n", "default", "Specify the namespace to install the release into")
+	upgradeCmd.Flags().StringSliceVar(&configs.Set, "set", []string{}, "Set values on the command line (can specify multiple or separate values with commas: key1=val1,key2=val2)")
+	upgradeCmd.Flags().StringSliceVarP(&configs.File, "values", "f", []string{}, "Specify values in a YAML file (can specify multiple)")
+	upgradeCmd.Flags().StringVarP(&configs.Namespace, "namespace", "n", "default", "Specify the namespace to install the release into")
 	upgradeCmd.Flags().BoolVar(&createNamespace, "create-namespace", false, "Create the namespace if it does not exist")
-	upgradeCmd.Flags().BoolVar(&atomic, "atomic", false, "If set, the installation process purges the chart on fail, the upgrade process rolls back changes, and the upgrade process waits for the resources to be ready")
-	upgradeCmd.Flags().IntVar(&timeout, "timeout", 150, "Time to wait for any individual Kubernetes operation (like Jobs for hooks)")
-	upgradeCmd.Flags().BoolVar(&debug, "debug", false, "Enable verbose output")
+	upgradeCmd.Flags().BoolVar(&configs.Atomic, "atomic", false, "If set, the installation process purges the chart on fail, the upgrade process rolls back changes, and the upgrade process waits for the resources to be ready")
+	upgradeCmd.Flags().IntVar(&configs.Timeout, "timeout", 150, "Time to wait for any individual Kubernetes operation (like Jobs for hooks)")
+	upgradeCmd.Flags().BoolVar(&configs.Debug, "debug", false, "Enable verbose output")
 	upgradeCmd.Flags().BoolVar(&installIfNotPresent, "install", false, "Install the chart if it is not already installed")
 	selmCmd.AddCommand(upgradeCmd)
 }

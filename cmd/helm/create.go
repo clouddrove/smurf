@@ -10,11 +10,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	directory string
-	values    []string 
-)
-
 var createChartCmd = &cobra.Command{
 	Use:   "create [NAME]",
 	Short: "Create a new Helm chart in the specified directory.",
@@ -39,11 +34,11 @@ var createChartCmd = &cobra.Command{
 			return errors.New(color.RedString("NAME must be provided either as an argument or in the config"))
 		}
 
-		if len(values) > 0 {
-			fmt.Printf("Using values files: %v\n", values)
+		if len(configs.File) > 0 {
+			fmt.Printf("Using values files: %v\n", configs.File)
 		}
 
-		err := helm.CreateChart(name, directory)
+		err := helm.CreateChart(name, configs.Directory)
 		if err != nil {
 			return fmt.Errorf(color.RedString("failed to create Helm chart: %v", err))
 		}
@@ -58,7 +53,7 @@ smurf selm create
 }
 
 func init() {
-	createChartCmd.Flags().StringArrayVarP(&values, "values", "f", []string{}, "Specify values in a YAML file")
-	createChartCmd.Flags().StringVarP(&directory, "directory", "d", ".", "Specify the directory to create the Helm chart in")
+	createChartCmd.Flags().StringArrayVarP(&configs.File, "values", "f", []string{}, "Specify values in a YAML file")
+	createChartCmd.Flags().StringVarP(&configs.Directory, "directory", "d", ".", "Specify the directory to create the Helm chart in")
 	selmCmd.AddCommand(createChartCmd)
 }

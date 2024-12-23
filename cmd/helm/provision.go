@@ -11,10 +11,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	provisionNamespace string
-)
-
 var provisionCmd = &cobra.Command{
 	Use:   "provision [RELEASE] [CHART]",
 	Short: "Combination of install, upgrade, lint, and template for Helm",
@@ -50,8 +46,8 @@ var provisionCmd = &cobra.Command{
 				return errors.New(color.RedString("RELEASE and CHART must be provided either as arguments or in the config"))
 			}
 
-			if provisionNamespace == "" && data.Selm.Namespace != "" {
-				provisionNamespace = data.Selm.Namespace
+			if configs.Namespace == "" && data.Selm.Namespace != "" {
+				configs.Namespace = data.Selm.Namespace
 			}
 		}
 
@@ -59,11 +55,11 @@ var provisionCmd = &cobra.Command{
 			return errors.New(color.RedString("RELEASE and CHART must be provided"))
 		}
 
-		if provisionNamespace == "" {
-			provisionNamespace = "default"
+		if configs.Namespace == "" {
+			configs.Namespace = "default"
 		}
 
-		err := helm.HelmProvision(releaseName, chartPath, provisionNamespace)
+		err := helm.HelmProvision(releaseName, chartPath, configs.Namespace)
 		if err != nil {
 			return fmt.Errorf(color.RedString("Helm provision failed: %v", err))
 		}
@@ -78,6 +74,6 @@ smurf selm provision my-release ./mychart -n custom-namespace
 }
 
 func init() {
-	provisionCmd.Flags().StringVarP(&provisionNamespace, "namespace", "n", "", "Specify the namespace to provision the Helm chart")
+	provisionCmd.Flags().StringVarP(&configs.Namespace, "namespace", "n", "", "Specify the namespace to provision the Helm chart")
 	selmCmd.AddCommand(provisionCmd)
 }

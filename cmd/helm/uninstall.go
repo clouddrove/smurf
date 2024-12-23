@@ -11,9 +11,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	uninstallNamespace string
-)
 
 var uninstallCmd = &cobra.Command{
 	Use:   "uninstall [NAME]",
@@ -41,16 +38,16 @@ var uninstallCmd = &cobra.Command{
 				return errors.New(color.RedString("NAME must be provided either as an argument or in the config"))
 			}
 
-			if uninstallNamespace == "" && data.Selm.Namespace != "" {
-				uninstallNamespace = data.Selm.Namespace
+			if configs.Namespace == "" && data.Selm.Namespace != "" {
+				configs.Namespace = data.Selm.Namespace
 			}
 		}
 
-		if uninstallNamespace == "" {
-			uninstallNamespace = "default"
+		if configs.Namespace == "" {
+			configs.Namespace = "default"
 		}
 
-		err := helm.HelmUninstall(releaseName, uninstallNamespace)
+		err := helm.HelmUninstall(releaseName, configs.Namespace)
 		if err != nil {
 			return fmt.Errorf(color.RedString("Helm uninstall failed: %v", err))
 		}
@@ -69,6 +66,6 @@ smurf selm uninstall
 }
 
 func init() {
-	uninstallCmd.Flags().StringVarP(&uninstallNamespace, "namespace", "n", "", "Specify the namespace to uninstall the Helm chart")
+	uninstallCmd.Flags().StringVarP(&configs.Namespace, "namespace", "n", "", "Specify the namespace to uninstall the Helm chart")
 	selmCmd.AddCommand(uninstallCmd)
 }

@@ -11,9 +11,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	lintFiles []string
-)
 
 var lintCmd = &cobra.Command{
 	Use:   "lint [CHART]",
@@ -37,7 +34,7 @@ var lintCmd = &cobra.Command{
 			}
 		}
 
-		err := helm.HelmLint(chartPath, lintFiles)
+		err := helm.HelmLint(chartPath, configs.File)
 		if err != nil {
 			return fmt.Errorf(color.RedString("Helm lint failed: %v", err))
 		}
@@ -51,6 +48,6 @@ smurf selm lint
 }
 
 func init() {
-	lintCmd.Flags().StringArrayVarP(&lintFiles, "values", "f", []string{}, "Specify values in a YAML file")
+	lintCmd.Flags().StringArrayVarP(&configs.File, "values", "f", []string{}, "Specify values in a YAML file")
 	selmCmd.AddCommand(lintCmd)
 }

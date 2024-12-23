@@ -11,11 +11,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	templateNamespace string
-	templateFiles     []string
-)
-
 var templateCmd = &cobra.Command{
 	Use:   "template [RELEASE] [CHART]",
 	Short: "Render chart templates",
@@ -50,16 +45,16 @@ var templateCmd = &cobra.Command{
 				return errors.New(color.RedString("RELEASE and CHART must be provided either as arguments or in the config"))
 			}
 
-			if templateNamespace == "" && data.Selm.Namespace != "" {
-				templateNamespace = data.Selm.Namespace
+			if configs.Namespace == "" && data.Selm.Namespace != "" {
+				configs.Namespace = data.Selm.Namespace
 			}
 		}
 
-		if templateNamespace == "" {
-			templateNamespace = "default"
+		if configs.Namespace == "" {
+			configs.Namespace = "default"
 		}
 
-		err := helm.HelmTemplate(releaseName, chartPath, templateNamespace, templateFiles)
+		err := helm.HelmTemplate(releaseName, chartPath, configs.Namespace, configs.File)
 		if err != nil {
 			return fmt.Errorf(color.RedString("Helm template failed: %v", err))
 		}
@@ -78,7 +73,7 @@ smurf selm template my-release ./mychart -n my-namespace -f values.yaml
 }
 
 func init() {
-	templateCmd.Flags().StringVarP(&templateNamespace, "namespace", "n", "", "Specify the namespace to template the Helm chart")
-	templateCmd.Flags().StringArrayVarP(&templateFiles, "values", "f", []string{}, "Specify values in a YAML file")
+	templateCmd.Flags().StringVarP(&configs.Namespace, "namespace", "n", "", "Specify the namespace to template the Helm chart")
+	templateCmd.Flags().StringArrayVarP(&configs.File, "values", "f", []string{}, "Specify values in a YAML file")
 	selmCmd.AddCommand(templateCmd)
 }

@@ -12,15 +12,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	installNamespace string
-	installFiles     []string
-	installTimeout   int
-	installAtomic    bool
-	installdebug     bool
-	installSet       []string
-)
-
 var installCmd = &cobra.Command{
 	Use:   "install [RELEASE] [CHART]",
 	Short: "Install a Helm chart into a Kubernetes cluster.",
@@ -54,8 +45,8 @@ var installCmd = &cobra.Command{
 				return errors.New(color.RedString("both RELEASE and CHART must be provided either as arguments or in the config"))
 			}
 
-			if installNamespace == "" && data.Selm.Namespace != "" {
-				installNamespace = data.Selm.Namespace
+			if configs.Namespace == "" && data.Selm.Namespace != "" {
+				configs.Namespace = data.Selm.Namespace
 			}
 		}
 
@@ -63,22 +54,22 @@ var installCmd = &cobra.Command{
 			return errors.New(color.RedString("RELEASE and CHART must be provided"))
 		}
 
-		timeoutDuration := time.Duration(installTimeout) * time.Second
+		timeoutDuration := time.Duration(configs.Timeout) * time.Second
 
 		buildArgsMap := make(map[string]string)
-		for _, arg := range installSet {
+		for _, arg := range configs.Set {
 			parts := splitKeyValue(arg)
 			if len(parts) == 2 {
 				buildArgsMap[parts[0]] = parts[1]
 			}
 		}
 
-		if installNamespace == "" {
-			installNamespace = "default"
+		if configs.Namespace == "" {
+			configs.Namespace = "default"
 		}
 
 		pterm.Info.Println("Starting Helm install...")
-		err := helm.HelmInstall(releaseName, chartPath, installNamespace, installFiles, timeoutDuration, installAtomic, installdebug, installSet)
+		err := helm.HelmInstall(releaseName, chartPath, configs.Namespace, configs.File, timeoutDuration, configs.Atomic, configs.Debug, configs.Set)
 		if err != nil {
 			return errors.New(color.RedString("Helm install failed: %v", err))
 		}
@@ -108,11 +99,11 @@ func splitKeyValue(arg string) []string {
 }
 
 func init() {
-	installCmd.Flags().StringVarP(&installNamespace, "namespace", "n", "", "Specify the namespace to install the Helm chart")
-	installCmd.Flags().IntVar(&installTimeout, "timeout", 150, "Specify the timeout in seconds to wait for any individual Kubernetes operation")
-	installCmd.Flags().StringArrayVarP(&installFiles, "values", "f", []string{}, "Specify values in a YAML file")
-	installCmd.Flags().BoolVar(&installAtomic, "atomic", false, "If set, installation process purges chart on fail")
-	installCmd.Flags().BoolVar(&installdebug, "debug", false, "Enable verbose output")
-	installCmd.Flags().StringSliceVar(&installSet, "set", []string{}, "Set values on the command line (can specify multiple or separate values with commas: key1=val1,key2=val2)")
+	installCmd.Flags().StringVarP(&configs.Namespace, "namespace", "n", "", "Specify the namespace to install the Helm chart")
+	installCmd.Flags().IntVar(&configs.Timeout, "timeout", 150, "Specify the timeout in seconds to wait for any individual Kubernetes operation")
+	installCmd.Flags().StringArrayVarP(&configs.File, "values", "f", []string{}, "Specify values in a YAML file")
+	installCmd.Flags().BoolVar(&configs.Atomic, "atomic", false, "If set, installation process purges chart on fail")
+	installCmd.Flags().BoolVar(&configs.Debug, "debug", false, "Enable verbose output")
+	installCmd.Flags().StringSliceVar(&configs.Set, "set", []string{}, "Set values on the command line (can specify multiple or separate values with commas: key1=val1,key2=val2)")
 	selmCmd.AddCommand(installCmd)
 }

@@ -13,16 +13,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	rollbackOpts = helm.RollbackOptions{
-		Namespace: "default",
-		Debug:     false,
-		Force:     false,
-		Timeout:   300,
-		Wait:      true,
-	}
-)
-
 var rollbackCmd = &cobra.Command{
 	Use:   "rollback [RELEASE] [REVISION]",
 	Short: "Roll back a release to a previous revision",
@@ -75,8 +65,8 @@ The first argument is the name of the release to roll back, and the second is th
 				return fmt.Errorf("revision must be a positive integer")
 			}
 
-			if rollbackOpts.Namespace == "default" && data.Selm.Namespace != "" {
-				rollbackOpts.Namespace = data.Selm.Namespace
+			if configs.Namespace == "default" && data.Selm.Namespace != "" {
+				configs.Namespace = data.Selm.Namespace
 			}
 		}
 
@@ -84,8 +74,16 @@ The first argument is the name of the release to roll back, and the second is th
 			return errors.New(color.RedString("RELEASE and REVISION must be provided either as arguments or in the config"))
 		}
 
-		if rollbackOpts.Namespace == "" {
-			rollbackOpts.Namespace = "default"
+		if configs.Namespace == "" {
+			configs.Namespace = "default"
+		}
+
+		rollbackOpts := helm.RollbackOptions{
+			Namespace: configs.Namespace,
+			Debug:     configs.Debug,
+			Force:     configs.Force,
+			Timeout:   configs.Timeout,
+			Wait:      configs.Wait,
 		}
 
 		err := helm.HelmRollback(releaseName, revision, rollbackOpts)
@@ -98,10 +96,10 @@ The first argument is the name of the release to roll back, and the second is th
 }
 
 func init() {
-	rollbackCmd.Flags().StringVarP(&rollbackOpts.Namespace, "namespace", "n", rollbackOpts.Namespace, "Namespace of the release")
-	rollbackCmd.Flags().BoolVar(&rollbackOpts.Debug, "debug", rollbackOpts.Debug, "Enable debug logging")
-	rollbackCmd.Flags().BoolVar(&rollbackOpts.Force, "force", rollbackOpts.Force, "Force rollback even if there are conflicts")
-	rollbackCmd.Flags().IntVar(&rollbackOpts.Timeout, "timeout", rollbackOpts.Timeout, "Timeout for the rollback operation in seconds")
-	rollbackCmd.Flags().BoolVar(&rollbackOpts.Wait, "wait", rollbackOpts.Wait, "Wait until all resources are rolled back successfully")
+	rollbackCmd.Flags().StringVarP(&configs.Namespace, "namespace", "n", "default", "Namespace of the release")
+	rollbackCmd.Flags().BoolVar(&configs.Debug, "debug", false, "Enable debug logging")
+	rollbackCmd.Flags().BoolVar(&configs.Force, "force", false, "Force rollback even if there are conflicts")
+	rollbackCmd.Flags().IntVar(&configs.Timeout, "timeout", 300, "Timeout for the rollback operation in seconds")
+	rollbackCmd.Flags().BoolVar(&configs.Wait, "wait", true, "Wait until all resources are rolled back successfully")
 	selmCmd.AddCommand(rollbackCmd)
 }
