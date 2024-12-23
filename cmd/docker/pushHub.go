@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -10,79 +11,94 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	hubImageName       string
-	hubImageTag        string
-	hubDeleteAfterPush bool
-	hubAuto            bool
-)
-
 var pushHubCmd = &cobra.Command{
-	Use:   "hub",
-	Short: "push Docker images to Docker Hub",
+	Use:   "hub [IMAGE_NAME[:TAG]]",
+	Short: "Push Docker images to Docker Hub",
 	Long: `
-	Push Docker images to Docker Hub
-	export DOCKER_USERNAME=<username>
-	export DOCKER_PASSWORD=<password>
-	`,
+Push Docker images to Docker Hub.
+Export DOCKER_USERNAME and DOCKER_PASSWORD as environment variables for Docker Hub authentication, for example:
+  export DOCKER_USERNAME="your-username"
+  export DOCKER_PASSWORD="your-password"`,
+	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		var imageRef string
+		var envVars map[string]string
 
-		if hubAuto {
+		if len(args) == 1 {
+			imageRef = args[0]
+		} else {
 			data, err := configs.LoadConfig(configs.FileName)
 			if err != nil {
 				return err
 			}
+			if data.Sdkr.ImageName == "" {
+				return errors.New("image name (with optional tag) must be provided either as an argument or in the config")
+			}
+			imageRef = data.Sdkr.ImageName
+		}
 
-			var envVars map[string]string
-
-			if os.Getenv("DOCKER_USERNAME") == "" && os.Getenv("DOCKER_PASSWORD") == "" {
-				envVars = map[string]string{
-					"DOCKER_USERNAME": data.Sdkr.DockerUsername,
-					"DOCKER_PASSWORD": data.Sdkr.DockerPassword,
-				}
+		if os.Getenv("DOCKER_USERNAME") == "" && os.Getenv("DOCKER_PASSWORD") == "" {
+			data, err := configs.LoadConfig(configs.FileName)
+			if err != nil {
+				return fmt.Errorf("failed to load config: %w", err)
 			}
 
+			envVars = map[string]string{
+				"DOCKER_USERNAME": data.Sdkr.DockerUsername,
+				"DOCKER_PASSWORD": data.Sdkr.DockerPassword,
+			}
 			if err := configs.ExportEnvironmentVariables(envVars); err != nil {
-				fmt.Println("Error exporting variables:", err)
+				pterm.Error.Println("Error exporting Docker Hub credentials:", err)
 				return err
 			}
-
-			sampleImageNameForHub := fmt.Sprintf("%s/my-image:%s", data.Sdkr.DockerUsername, "latest")
-
-			if hubImageName == "" {
-				hubImageName = sampleImageNameForHub
-			}
 		}
 
-		if hubImageName == "" {
-			pterm.Error.Println("Required flags are missing. Please provide the required flags.")
+		if os.Getenv("DOCKER_USERNAME") == "" || os.Getenv("DOCKER_PASSWORD") == "" {
+			pterm.Error.Println("Docker Hub credentials are required")
+			return errors.New("missing required Docker Hub credentials")
 		}
+
+		repoName, tag, parseErr := parseImage(imageRef)
+		if parseErr != nil {
+			return fmt.Errorf("invalid image format: %w", parseErr)
+		}
+		if repoName == "" {
+			return errors.New("invalid image reference")
+		}
+		if tag == "" {
+			tag = "latest"
+		}
+
+		fullImageName := fmt.Sprintf("%s:%s", repoName, tag)
+		pterm.Info.Printf("Pushing image %s to Docker Hub...\n", fullImageName)
 
 		opts := docker.PushOptions{
-			ImageName: hubImageName,
+			ImageName: fullImageName,
 		}
 		if err := docker.PushImage(opts); err != nil {
+			pterm.Error.Println("Failed to push image to Docker Hub:", err)
 			return err
 		}
-		if hubDeleteAfterPush {
-			if err := docker.RemoveImage(hubImageName); err != nil {
+		pterm.Success.Println("Successfully pushed image to Docker Hub:", fullImageName)
+
+		if configs.DeleteAfterPush {
+			pterm.Info.Printf("Deleting local image %s...\n", fullImageName)
+			if err := docker.RemoveImage(fullImageName); err != nil {
+				pterm.Error.Println("Failed to delete local image:", err)
 				return err
 			}
-			pterm.Success.Println("Successfully deleted local image:", hubImageName)
+			pterm.Success.Println("Successfully deleted local image:", fullImageName)
 		}
+
 		return nil
 	},
 	Example: `
-	smurf sdkr push hub --image <image-name> --tag <image-tag>
-	smurf sdkr push hub --image <image-name> --tag <image-tag> --delete
-	`,
+  smurf sdkr push hub myapp:v1
+  smurf sdkr push hub myapp:v1 --delete
+`,
 }
 
 func init() {
-	pushHubCmd.Flags().StringVarP(&hubImageName, "image", "i", "", "Image name (e.g., myapp)")
-	pushHubCmd.Flags().StringVarP(&hubImageTag, "tag", "t", "latest", "Image tag (default: latest)")
-	pushHubCmd.Flags().BoolVarP(&hubDeleteAfterPush, "delete", "d", false, "Delete the local image after pushing")
-	pushHubCmd.Flags().BoolVarP(&hubAuto, "auto", "a", false, "Auto push image to Docker Hub")
-
+	pushHubCmd.Flags().BoolVarP(&configs.DeleteAfterPush, "delete", "d", false, "Delete the local image after pushing")
 	pushCmd.AddCommand(pushHubCmd)
 }

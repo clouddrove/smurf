@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/clouddrove/smurf/configs"
@@ -9,74 +10,80 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	ecrImageName       string
-	ecrRepositoryName  string
-	ecrRegionName      string
-	ecrImageTag        string
-	ecrDeleteAfterPush bool
-	ecrAuto            bool
-)
 
 var pushEcrCmd = &cobra.Command{
-	Use:   "aws",
-	Short: "push Docker images to ECR",
+	Use:   "aws [IMAGE_NAME[:TAG]]",
+	Short: "Push Docker images to ECR",
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		var imageRef string
 
-		if ecrAuto {
+		if len(args) == 1 {
+			imageRef = args[0]
+		} else {
 			data, err := configs.LoadConfig(configs.FileName)
 			if err != nil {
 				return err
 			}
-
-			sampleImageNameForEcr := "my-image"
-
-			if ecrRegionName == "" {
-				ecrRegionName = data.Sdkr.ProvisionEcrRegion
+			if data.Sdkr.ImageName == "" {
+				return errors.New("image name (with optional tag) must be provided either as an argument or in the config")
 			}
+			imageRef = data.Sdkr.ImageName
 
-			if ecrRepositoryName == "" {
-				ecrRepositoryName = data.Sdkr.ProvisionEcrRepository
+			if configs.Region == "" {
+				configs.Region = data.Sdkr.ProvisionEcrRegion
 			}
-
-			if ecrImageName == "" {
-				ecrImageName = sampleImageNameForEcr
+			if configs.Repository == "" {
+				configs.Repository = data.Sdkr.ProvisionEcrRepository
 			}
 		}
 
-		if ecrRegionName == "" || ecrRepositoryName == "" || ecrImageName == "" {
+		repoName, tag, parseErr := parseImage(imageRef)
+		if parseErr != nil {
+			return fmt.Errorf("invalid image format: %w", parseErr)
+		}
+		if repoName == "" {
+			return errors.New("invalid image reference")
+		}
+		if tag == "" {
+			tag = "latest"
+		}
+
+		if configs.Region == "" || configs.Repository == "" {
 			pterm.Error.Println("Required flags are missing. Please provide the required flags.")
+			return errors.New("missing required ECR parameters")
 		}
 
-		ecrImage := fmt.Sprintf("%s.dkr.ecr.%s.amazonaws.com/%s:%s", ecrImageName, ecrRegionName, ecrRepositoryName, ecrImageTag)
+		fullEcrImage := fmt.Sprintf("%s.dkr.ecr.%s.amazonaws.com/%s:%s", repoName, configs.Region, configs.RegistryName, tag)
 		pterm.Info.Println("Pushing image to AWS ECR...")
-		if err := docker.PushImageToECR(ecrImageName, ecrRegionName, ecrRepositoryName); err != nil {
+
+		if err := docker.PushImageToECR(repoName, configs.Region, configs.RegistryName); err != nil {
+			pterm.Error.Println("Failed to push image to ECR:", err)
 			return err
 		}
-		pterm.Success.Println("Successfully pushed image to ECR:", ecrImage)
+		pterm.Success.Println("Successfully pushed image to ECR:", fullEcrImage)
 
-		if ecrDeleteAfterPush {
-			if err := docker.RemoveImage(ecrImageName); err != nil {
+		if configs.DeleteAfterPush {
+			pterm.Info.Printf("Deleting local image %s...\n", repoName)
+			if err := docker.RemoveImage(repoName); err != nil {
+				pterm.Error.Println("Failed to delete local image:", err)
 				return err
 			}
-			pterm.Success.Println("Successfully deleted local image:", ecrImageName)
+			pterm.Success.Println("Successfully deleted local image:", repoName)
 		}
+
 		return nil
 	},
 	Example: `
-	smurf sdkr push aws --region <region> --repository <repository> --image <image-name> --tag <image-tag>
-	smurf sdkr push aws --region <region> --repository <repository> --image <image-name> --tag <image-tag> --delete
-	`,
+  smurf sdkr push aws myapp:v1 --region <region> --repository <repository>
+  smurf sdkr push aws myapp:v1 --region <region> --repository <repository> --delete
+`,
 }
 
 func init() {
-	pushEcrCmd.Flags().StringVarP(&ecrImageName, "image", "i", "", "Image name (e.g., myapp)")
-	pushEcrCmd.Flags().StringVarP(&ecrImageTag, "tag", "t", "latest", "Image tag (default: latest)")
-	pushEcrCmd.Flags().BoolVarP(&ecrDeleteAfterPush, "delete", "d", false, "Delete the local image after pushing")
-	pushEcrCmd.Flags().BoolVarP(&ecrAuto, "auto", "a", false, "Use the default image name and tag from the config file")
-	pushEcrCmd.Flags().StringVarP(&ecrRegionName, "region", "r", "", "AWS region (required with --aws)")
-	pushEcrCmd.Flags().StringVarP(&ecrRepositoryName, "repository", "R", "", "AWS ECR repository name (required with --aws)")
-
+	pushEcrCmd.Flags().StringVarP(&configs.Region, "region", "r", "", "AWS region (required)")
+	pushEcrCmd.Flags().StringVarP(&configs.Repository, "repository", "R", "", "AWS ECR repository name (required)")
+	pushEcrCmd.Flags().BoolVarP(&configs.DeleteAfterPush, "delete", "d", false, "Delete the local image after pushing")
 
 	pushCmd.AddCommand(pushEcrCmd)
 }

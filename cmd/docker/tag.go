@@ -1,56 +1,65 @@
 package docker
 
 import (
+	"errors"
+	"fmt"
+
 	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/docker"
-	"github.com/spf13/cobra"
 	"github.com/pterm/pterm"
-)
-
-var (
-	sourceTag string
-	targetTag string
-	tagAuto   bool
+	"github.com/spf13/cobra"
 )
 
 var tagCmd = &cobra.Command{
-	Use:   "tag",
+	Use:   "tag [SOURCE_IMAGE[:TAG]] [TARGET_IMAGE[:TAG]]",
 	Short: "Tag a Docker image for a remote repository",
+	Args:  cobra.MaximumNArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if tagAuto  {
+		var source, target string
+
+		if len(args) >= 1 {
+			source = args[0]
+		}
+		if len(args) >= 2 {
+			target = args[1]
+		}
+
+		if source == "" || target == "" {
 			data, err := configs.LoadConfig(configs.FileName)
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to load config: %w", err)
 			}
 
-			if sourceTag == "" {
-				sourceTag = data.Sdkr.SourceTag
+			if source == "" {
+				source = data.Sdkr.ImageName
+			}
+			if target == "" {
+				target = data.Sdkr.TargetImageTag
 			}
 
-			if targetTag == "" {
-				targetTag = data.Sdkr.TargetTag
+			if source == "" || target == "" {
+				return errors.New("both SOURCE and TARGET must be provided either as arguments or in the config")
 			}
 		}
 
-		if sourceTag == "" || targetTag == "" {
-			pterm.Error.Println("Required flags are missing. Please provide the required flags.")
-		}
-
+		pterm.Info.Printf("Tagging image from %q to %q...\n", source, target)
 		opts := docker.TagOptions{
-			Source: sourceTag,
-			Target: targetTag,
+			Source: source,
+			Target: target,
 		}
-		return docker.TagImage(opts)
+		if err := docker.TagImage(opts); err != nil {
+			return fmt.Errorf("failed to tag image: %w", err)
+		}
+		pterm.Success.Printf("Successfully tagged image from %q to %q.\n", source, target)
+		return nil
 	},
 	Example: `
-	smurf sdkr tag --source <image:tag> --target <repository/image:tag>
-	`,
+  smurf sdkr tag my-app:latest my-org/my-app:prod
+  smurf sdkr tag
+  # In the second example, it reads SOURCE and TARGET from the config file
+`,
 }
 
 func init() {
-	tagCmd.Flags().StringVarP(&sourceTag, "source", "s", "", "Source image tag (format: image:tag)")
-	tagCmd.Flags().StringVarP(&targetTag, "target", "t", "", "Target image tag (format: repository/image:tag)")
-	tagCmd.Flags().BoolVarP(&tagAuto, "auto", "a", false, "Tag Docker image automatically")
-
 	sdkrCmd.AddCommand(tagCmd)
 }

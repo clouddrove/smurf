@@ -1,58 +1,60 @@
 package docker
 
 import (
+	"errors"
+	"fmt"
+
 	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/docker"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 )
 
-var (
-	dockerTag string
-	sarifFile string
-	scanAuto  bool
-)
-
-var scan = &cobra.Command{
-	Use:   "scan",
-	Short: "Scan Docker images for known vulnerabilities",
+var scanCmd = &cobra.Command{
+	Use:   "scan [IMAGE_NAME[:TAG]]",
+	Short: "Scan a Docker image for known vulnerabilities.",
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		var imageRef string
 
-		if scanAuto {
+		if len(args) == 1 {
+			imageRef = args[0]
+		} else {
 			data, err := configs.LoadConfig(configs.FileName)
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to load config: %w", err)
 			}
-
-			if dockerTag == "" {
-				dockerTag = data.Sdkr.SourceTag
+			if data.Sdkr.ImageName == "" {
+				return errors.New("image name (with optional tag) must be provided either as an argument or in the config")
 			}
-
-			if sarifFile == "" {
-				sarifFile = "scan.json"
-			}
+			imageRef = data.Sdkr.ImageName
 		}
 
-		if dockerTag == "" {
-			pterm.Error.Println("Required flags are missing. Please provide the required flags.")
+		if configs.SarifFile == "" {
+			configs.SarifFile = "scan.json"
 		}
 
-		err := docker.Scout(dockerTag, sarifFile)
+		pterm.Info.Printf("Scanning Docker image %q...\n", imageRef)
+		err := docker.Scout(imageRef, configs.SarifFile)
 		if err != nil {
-			pterm.Error.Println(err)
+			pterm.Error.Println("Scan failed:", err)
 			return err
 		}
+		pterm.Success.Println("Scan completed successfully.")
 		return nil
 	},
 	Example: `
-    smurf sdkr scan --tag <image-name> --output <sarif-file>
-    `,
+  smurf sdkr scan my-image:latest
+  smurf sdkr scan
+  # In the second example, it will read IMAGE_NAME from the config file
+
+  smurf sdkr scan my-image:latest --output scan.sarif
+  # Saves the scan report to 'scan.sarif'
+`,
 }
 
-func init() {
-	scan.Flags().StringVarP(&dockerTag, "tag", "t", "", "Docker image tag to scan")
-	scan.Flags().StringVarP(&sarifFile, "output", "o", "", "Output file for SARIF report")
-	scan.Flags().BoolVarP(&scanAuto, "auto", "a", false, "Scan Docker image automatically")
 
-	sdkrCmd.AddCommand(scan)
+func init() {
+	scanCmd.Flags().StringVarP(&configs.SarifFile, "output", "o", "", "Output file for SARIF report")
+	sdkrCmd.AddCommand(scanCmd)
 }

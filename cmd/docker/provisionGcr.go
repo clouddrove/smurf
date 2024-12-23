@@ -1,10 +1,13 @@
 package docker
 
 import (
+	"bufio"
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
-	"sync"
+	"time"
 
 	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/docker"
@@ -12,145 +15,143 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Flags for the provisionGcr command
-var (
-	provisionGcrProjectID       string
-	provisionGcrImageName       string
-	provisionGcrImageTag        string
-	provisionGcrDockerfilePath  string
-	provisionGcrNoCache         bool
-	provisionGcrBuildArgs       []string
-	provisionGcrTarget          string
-	provisionGcrSarifFile       string
-	provisionGcrTargetTag       string
-	provisionGcrConfirmPush     bool
-	provisionGcrDeleteAfterPush bool
-	provisionGcrPlatform        string
-	provisionGcrAuto            bool
-)
 
+// provisionGcrCmd builds, scans, and optionally pushes a Docker image to Google Container Registry.
 var provisionGcrCmd = &cobra.Command{
-	Use:   "provision-gcr",
+	Use:   "provision-gcr [IMAGE_NAME[:TAG]]",
 	Short: "Build, scan, tag, and push a Docker image to Google Container Registry.",
 	Long: `Build, scan, tag, and push a Docker image to Google Container Registry.
-	Set the GOOGLE_APPLICATION_CREDENTIALS environment variable to the path of your service account JSON key file.
-	export GOOGLE_APPLICATION_CREDENTIALS="/path/to/your/service-account-key.json"`,
+Set the GOOGLE_APPLICATION_CREDENTIALS environment variable to the path of your service account JSON key file, for example:
+  export GOOGLE_APPLICATION_CREDENTIALS="/path/to/your/service-account-key.json"
+`,
+	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		var imageRef string
+		var envVars map[string]string
 
-		if provisionGcrAuto {
-
+		if len(args) == 1 {
+			imageRef = args[0] 
+		} else {
 			data, err := configs.LoadConfig(configs.FileName)
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to load config: %w", err)
 			}
-
-			var envVars map[string]string
 
 			if os.Getenv("GOOGLE_APPLICATION_CREDENTIALS") == "" {
 				envVars = map[string]string{
 					"GOOGLE_APPLICATION_CREDENTIALS": data.Sdkr.GoogleApplicationCredentials,
 				}
 			}
-
-			if err := configs.ExportEnvironmentVariables(envVars); err != nil {
-				fmt.Println("Error exporting variables:", err)
-				return err
+			if envVars != nil {
+				if err := configs.ExportEnvironmentVariables(envVars); err != nil {
+					return err
+				}
 			}
 
-			sampleImageNameForGcr := "my-image"
-
-			if provisionGcrImageName == "" {
-				provisionGcrImageName = sampleImageNameForGcr
+			if envVars["GOOGLE_APPLICATION_CREDENTIALS"] == "" {
+				pterm.Error.Println("Google Application Credentials is required")
+				return errors.New("missing required Google Application Credentials")
 			}
 
-			if provisionGcrProjectID == "" {
-				provisionGcrProjectID = data.Sdkr.ProvisionGcrProjectID
+			if data.Sdkr.ImageName == "" {
+				return errors.New("image name (with optional tag) must be provided either as an argument or in the config")
 			}
+			imageRef = data.Sdkr.ImageName
 		}
 
-		if provisionGcrProjectID == "" || provisionGcrImageName == "" {
-			pterm.Error.Println("Required flags are missing. Please provide the required flags.")
+		if configs.ProjectID == "" {
+			data, err := configs.LoadConfig(configs.FileName)
+			if err != nil {
+				return fmt.Errorf("failed to load config: %w", err)
+			}
+			if data.Sdkr.ProvisionGcrProjectID != "" {
+				configs.ProjectID = data.Sdkr.ProvisionGcrProjectID
+			}
+		}
+		if configs.ProjectID == "" {
+			pterm.Error.Println("GCP project ID is required")
+			return errors.New("missing required GCP project ID")
 		}
 
-		fullGcrImage := fmt.Sprintf("gcr.io/%s/%s:%s", provisionGcrProjectID, provisionGcrImageName, provisionGcrImageTag)
+		localImageName, localTag, parseErr := parseImage(imageRef)
+		if parseErr != nil {
+			return fmt.Errorf("invalid image format: %w", parseErr)
+		}
+		if localTag == "" {
+			localTag = "latest"
+		}
+
+		fullGcrImage := fmt.Sprintf("gcr.io/%s/%s:%s", configs.ProjectID, localImageName, localTag)
 
 		buildArgsMap := make(map[string]string)
-		for _, arg := range provisionGcrBuildArgs {
+		for _, arg := range configs.BuildArgs {
 			parts := strings.SplitN(arg, "=", 2)
 			if len(parts) == 2 {
 				buildArgsMap[parts[0]] = parts[1]
 			}
 		}
 
+		if configs.ContextDir == "" {
+			wd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("failed to get current working directory: %w", err)
+			}
+			configs.ContextDir = wd
+		}
+
+		if configs.DockerfilePath == "" {
+			configs.DockerfilePath = filepath.Join(configs.ContextDir, "Dockerfile")
+		} else {
+			configs.DockerfilePath = filepath.Join(configs.ContextDir, configs.DockerfilePath)
+		}
+
 		buildOpts := docker.BuildOptions{
-			DockerfilePath: provisionGcrDockerfilePath,
-			NoCache:        provisionGcrNoCache,
+			ContextDir:     configs.ContextDir,
+			DockerfilePath: configs.DockerfilePath,
+			NoCache:        configs.NoCache,
 			BuildArgs:      buildArgsMap,
-			Target:         provisionGcrTarget,
-			Platform:       provisionGcrPlatform,
+			Target:         configs.Target,
+			Platform:       configs.Platform,
+			Timeout:        configs.BuildTimeout,
 		}
 
 		pterm.Info.Println("Starting GCR build...")
-		if err := docker.Build(provisionGcrImageName, provisionGcrImageTag, buildOpts); err != nil {
+		if err := docker.Build(localImageName, localTag, buildOpts); err != nil {
 			pterm.Error.Println("Build failed:", err)
 			return err
 		}
 		pterm.Success.Println("Build completed successfully.")
 
-		var wg sync.WaitGroup
-		var scanErr, tagErr error
-
-		wg.Add(2)
-
-		go func() {
-			defer wg.Done()
-			pterm.Info.Println("Starting scan...")
-			scanErr = docker.Scout(fullGcrImage, provisionGcrSarifFile)
-			if scanErr != nil {
-				pterm.Error.Println("Scan failed:", scanErr)
-			} else {
-				pterm.Success.Println("Scan completed successfully.")
-			}
-		}()
-
-		go func() {
-			defer wg.Done()
-			if provisionGcrTargetTag != "" {
-				pterm.Info.Printf("Tagging image as %s...\n", provisionGcrTargetTag)
-				tagOpts := docker.TagOptions{
-					Source: fullGcrImage,
-					Target: provisionGcrTargetTag,
-				}
-				tagErr = docker.TagImage(tagOpts)
-				if tagErr != nil {
-					pterm.Error.Println("Tagging failed:", tagErr)
-				} else {
-					pterm.Success.Println("Tagging completed successfully.")
-				}
-			}
-		}()
-
-		wg.Wait()
-
-		if scanErr != nil || tagErr != nil {
+		pterm.Info.Println("Starting scan...")
+		scanErr := docker.Scout(fullGcrImage, configs.SarifFile)
+		if scanErr != nil {
+			pterm.Error.Println("Scan failed:", scanErr)
+		} else {
+			pterm.Success.Println("Scan completed successfully.")
+		}
+		if scanErr != nil {
 			return fmt.Errorf("GCR provisioning failed due to previous errors")
 		}
 
-		pushImage := provisionGcrTargetTag
-		if pushImage == "" {
-			pushImage = fullGcrImage
+		pushImage := fullGcrImage
+
+		if !configs.ConfirmAfterPush {
+			pterm.Info.Println("Press Enter to continue...")
+			_, _ = bufio.NewReader(os.Stdin).ReadBytes('\n')
 		}
 
-		if provisionGcrConfirmPush {
+		if configs.ConfirmAfterPush {
 			pterm.Info.Printf("Pushing image %s to GCR...\n", pushImage)
-			if err := docker.PushImageToGCR(provisionGcrProjectID, provisionGcrImageName); err != nil {
+			if err := docker.PushImageToGCR(configs.ProjectID, localImageName+":"+localTag); err != nil {
 				pterm.Error.Println("Push to GCR failed:", err)
 				return err
 			}
 			pterm.Success.Println("Push to GCR completed successfully.")
 		}
 
-		if provisionGcrDeleteAfterPush {
+		
+
+		if configs.DeleteAfterPush {
 			pterm.Info.Printf("Deleting local image %s...\n", fullGcrImage)
 			if err := docker.RemoveImage(fullGcrImage); err != nil {
 				pterm.Error.Println("Failed to delete local image:", err)
@@ -163,24 +164,81 @@ var provisionGcrCmd = &cobra.Command{
 		return nil
 	},
 	Example: `
-	smurf sdkr provision-gcr --project-id my-project --image-name my-image --tag my-tag
-	smurf sdkr provision-gcr --project-id my-project --image-name my-image --tag my-tag --file Dockerfile --no-cache --build-arg key1=value1 --build-arg key2=value2 --target my-target --output my-sarif-file.sarif --target-tag my-target-tag --yes --delete --platform linux/amd64`,
+  # Provide image name[:tag], e.g. "my-app:1.0", along with the project ID:
+  smurf sdkr provision-gcr my-app:1.0 -p my-project --file Dockerfile --no-cache \
+    --build-arg key1=value1 --build-arg key2=value2 --target my-target --output scan.sarif \
+    --yes --delete --platform linux/amd64
+
+  # If you omit the argument, it will read from config and use the parseImage function
+  smurf sdkr provision-gcr -p my-project --file Dockerfile
+`,
 }
 
 func init() {
-	provisionGcrCmd.Flags().StringVarP(&provisionGcrProjectID, "project-id", "p", "", "GCP project ID (required)")
-	provisionGcrCmd.Flags().StringVarP(&provisionGcrImageName, "image-name", "i", "", "Name of the image to build")
-	provisionGcrCmd.Flags().StringVarP(&provisionGcrImageTag, "tag", "t", "latest", "Tag for the image")
-	provisionGcrCmd.Flags().StringVarP(&provisionGcrDockerfilePath, "file", "f", "Dockerfile", "Name of the Dockerfile (default is 'Dockerfile')")
-	provisionGcrCmd.Flags().BoolVar(&provisionGcrNoCache, "no-cache", false, "Do not use cache when building the image")
-	provisionGcrCmd.Flags().StringArrayVar(&provisionGcrBuildArgs, "build-arg", []string{}, "Set build-time variables")
-	provisionGcrCmd.Flags().StringVar(&provisionGcrTarget, "target", "", "Set the target build stage to build")
-	provisionGcrCmd.Flags().StringVarP(&provisionGcrSarifFile, "output", "o", "", "Output file for SARIF report")
-	provisionGcrCmd.Flags().StringVar(&provisionGcrTargetTag, "target-tag", "", "Target tag for tagging the image")
-	provisionGcrCmd.Flags().BoolVarP(&provisionGcrConfirmPush, "yes", "y", false, "Push the image to GCR without confirmation")
-	provisionGcrCmd.Flags().BoolVarP(&provisionGcrDeleteAfterPush, "delete", "d", false, "Delete the local image after pushing")
-	provisionGcrCmd.Flags().StringVar(&provisionGcrPlatform, "platform", "", "Set the platform for the image")
-	provisionGcrCmd.Flags().BoolVar(&provisionGcrAuto, "auto", false, "Automatically push the image to GCR after tagging")
+	provisionGcrCmd.Flags().StringVarP(&configs.ProjectID, "project-id", "p", "", "GCP project ID (required)")
+
+	provisionGcrCmd.Flags().StringVarP(
+		&configs.DockerfilePath,
+		"file", "f",
+		"",
+		"Name of the Dockerfile relative to the context directory (default: 'Dockerfile')",
+	)
+	provisionGcrCmd.Flags().BoolVarP(
+		&configs.NoCache,
+		"no-cache", "c",
+		false,
+		"Do not use cache when building the image",
+	)
+	provisionGcrCmd.Flags().StringArrayVarP(
+		&configs.BuildArgs,
+		"build-arg", "a",
+		[]string{},
+		"Set build-time variables (e.g. --build-arg key=value)",
+	)
+	provisionGcrCmd.Flags().StringVarP(
+		&configs.Target,
+		"target", "T",
+		"",
+		"Set the target build stage to build",
+	)
+	provisionGcrCmd.Flags().StringVarP(
+		&configs.Platform,
+		"platform", "P",
+		"",
+		"Set the platform for the image (e.g., linux/amd64)",
+	)
+	provisionGcrCmd.Flags().StringVar(
+		&configs.ContextDir,
+		"context",
+		"",
+		"Build context directory (default: current directory)",
+	)
+	provisionGcrCmd.Flags().DurationVar(
+		&configs.BuildTimeout,
+		"timeout",
+		25*time.Minute,
+		"Build timeout",
+	)
+
+	provisionGcrCmd.Flags().StringVarP(
+		&configs.SarifFile,
+		"output", "o",
+		"",
+		"Output file for SARIF report",
+	)
+
+	provisionGcrCmd.Flags().BoolVarP(
+		&configs.ConfirmAfterPush,
+		"yes", "y",
+		false,
+		"Push the image to GCR without confirmation",
+	)
+	provisionGcrCmd.Flags().BoolVarP(
+		&configs.DeleteAfterPush,
+		"delete", "d",
+		false,
+		"Delete the local image after pushing",
+	)
 
 	sdkrCmd.AddCommand(provisionGcrCmd)
 }

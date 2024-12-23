@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/clouddrove/smurf/configs"
@@ -9,83 +10,84 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	acrSubscriptionID  string
-	acrResourceGroup   string
-	acrRegistryName    string
-	acrImageName       string
-	acrImageTag        string
-	acrDeleteAfterPush bool
-	acrAuto            bool
-)
 
 var pushAcrCmd = &cobra.Command{
-	Use:   "az",
-	Short: "push docker images to acr",
+	Use:   "az [IMAGE_NAME[:TAG]]",
+	Short: "Push a Docker image to Azure Container Registry.",
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		var imageRef string
 
-		if acrAuto {
+		if len(args) == 1 {
+			imageRef = args[0]
+		} else {
 			data, err := configs.LoadConfig(configs.FileName)
 			if err != nil {
 				return err
 			}
-
-			sampleImageNameForAcr := "my-image"
-
-			if acrSubscriptionID == "" {
-				acrSubscriptionID = data.Sdkr.ProvisionAcrSubscriptionID
+			if data.Sdkr.ImageName == "" {
+				return errors.New("image name (with optional tag) must be provided either as an argument or in the config")
 			}
+			imageRef = data.Sdkr.ImageName
 
-			if acrResourceGroup == "" {
-				acrResourceGroup = data.Sdkr.ProvisionAcrResourceGroup
+			if configs.SubscriptionID == "" {
+				configs.SubscriptionID = data.Sdkr.ProvisionAcrSubscriptionID
 			}
-
-			if acrRegistryName == "" {
-				acrRegistryName = data.Sdkr.ProvisionAcrRegistryName
+			if configs.ResourceGroup == "" {
+				configs.ResourceGroup = data.Sdkr.ProvisionAcrResourceGroup
 			}
-
-			if acrImageName == "" {
-				acrImageName = sampleImageNameForAcr
+			if configs.RegistryName == "" {
+				configs.RegistryName = data.Sdkr.ProvisionAcrRegistryName
 			}
-
 		}
 
-		if acrSubscriptionID == "" || acrResourceGroup == "" || acrRegistryName == "" || acrImageName == "" {
+		repoName, tag, parseErr := parseImage(imageRef)
+		if parseErr != nil {
+			return fmt.Errorf("invalid image format: %w", parseErr)
+		}
+		if repoName == "" {
+			return errors.New("invalid image reference")
+		}
+		if tag == "" {
+			tag = "latest"
+		}
+
+		if configs.SubscriptionID == "" || configs.ResourceGroup == "" || configs.RegistryName == "" || repoName == "" {
 			pterm.Error.Println("Required flags are missing. Please provide the required flags.")
+			return errors.New("missing required ACR parameters")
 		}
 
-		acrImage := fmt.Sprintf("%s.azurecr.io/%s:%s", acrRegistryName, acrImageName, acrImageTag)
+		acrImage := fmt.Sprintf("%s.azurecr.io/%s:%s", configs.RegistryName, repoName, tag)
 
 		pterm.Info.Println("Pushing image to Azure Container Registry...")
-		if err := docker.PushImageToACR(acrSubscriptionID, acrResourceGroup, acrRegistryName, acrImageName); err != nil {
+		if err := docker.PushImageToACR(configs.SubscriptionID, configs.ResourceGroup, configs.RegistryName, repoName); err != nil {
+			pterm.Error.Println("Failed to push image:", err)
 			return err
 		}
 		pterm.Success.Println("Successfully pushed image to ACR:", acrImage)
 
-		if acrDeleteAfterPush {
-			if err := docker.RemoveImage(acrImageName); err != nil {
+		if configs.DeleteAfterPush {
+			pterm.Info.Printf("Deleting local image %s...\n", repoName)
+			if err := docker.RemoveImage(repoName); err != nil {
+				pterm.Error.Println("Failed to delete local image:", err)
 				return err
 			}
-			pterm.Success.Println("Successfully deleted local image:", acrImageName)
+			pterm.Success.Println("Successfully deleted local image:", repoName)
 		}
 
 		return nil
 	},
 	Example: `
-	smurf sdkr push az --subscription-id <subscription-id> --resource-group <resource-group> --registry-name <registry-name> --image <image-name> --tag <image-tag>
-	smurf sdkr push az --subscription-id <subscription-id> --resource-group <resource-group> --registry-name <registry-name> --image <image-name> --tag <image-tag> --delete
-	`,
+  smurf sdkr push az myapp:v1 -s <subscription-id> -r <resource-group> -g <registry-name> --delete
+  smurf sdkr push az myapp:v1 --subscription-id <subscription-id> --resource-group <resource-group> --registry-name <registry-name>
+  `,
 }
 
 func init() {
-	pushAcrCmd.Flags().StringVarP(&acrImageName, "image", "i", "", "Image name (e.g., myapp)")
-	pushAcrCmd.Flags().StringVarP(&acrImageTag, "tag", "t", "latest", "Image tag (default: latest)")
-	pushAcrCmd.Flags().BoolVarP(&acrDeleteAfterPush, "delete", "d", false, "Delete the local image after pushing")
-
-	pushAcrCmd.Flags().StringVar(&acrSubscriptionID, "subscription-id", "", "Azure subscription ID (required with --azure)")
-	pushAcrCmd.Flags().StringVar(&acrResourceGroup, "resource-group", "", "Azure resource group name (required with --azure)")
-	pushAcrCmd.Flags().StringVar(&acrRegistryName, "registry-name", "", "Azure Container Registry name (required with --azure)")
-	pushAcrCmd.Flags().BoolVar(&acrAuto, "auto", false, "Automatically push the image to ACR after tagging")
+	pushAcrCmd.Flags().StringVarP(&configs.SubscriptionID, "subscription-id", "s", "", "Azure subscription ID (required)")
+	pushAcrCmd.Flags().StringVarP(&configs.ResourceGroup, "resource-group", "r", "", "Azure resource group name (required)")
+	pushAcrCmd.Flags().StringVarP(&configs.RegistryName, "registry-name", "g", "", "Azure Container Registry name (required)")
+	pushAcrCmd.Flags().BoolVarP(&configs.DeleteAfterPush, "delete", "d", false, "Delete the local image after pushing")
 
 	pushCmd.AddCommand(pushAcrCmd)
 }

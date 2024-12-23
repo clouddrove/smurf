@@ -1,9 +1,13 @@
 package docker
 
 import (
+	"bufio"
+	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
-	"sync"
+	"time"
 
 	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/docker"
@@ -11,138 +15,130 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	provisionAcrSubscriptionID  string
-	provisionAcrResourceGroup   string
-	provisionAcrRegistryName    string
-	provisionAcrImageName       string
-	provisionAcrImageTag        string
-	provisionAcrDockerfilePath  string
-	provisionAcrNoCache         bool
-	provisionAcrBuildArgs       []string
-	provisionAcrTarget          string
-	provisionAcrSarifFile       string
-	provisionAcrTargetTag       string
-	provisionAcrConfirmPush     bool
-	provisionAcrDeleteAfterPush bool
-	provisionAcrPlatform        string
-	provisionAcrAuto            bool
-)
 
 var provisionAcrCmd = &cobra.Command{
-	Use:   "provision-acr",
-	Short: "Build, scan, tag, and push a Docker image to Azure Container Registry.",
+	Use:   "provision-acr [IMAGE_NAME[:TAG]]",
+	Short: "Build, scan and push a Docker image to Azure Container Registry.",
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-
-		if provisionAcrAuto {
+		var imageRef string
+		if len(args) == 1 {
+			imageRef = args[0]
+		} else {
 			data, err := configs.LoadConfig(configs.FileName)
 			if err != nil {
 				return err
 			}
-
-			sampleImageNameForAcr := "my-image"
-
-			if provisionAcrSubscriptionID == "" {
-				provisionAcrSubscriptionID = data.Sdkr.ProvisionAcrSubscriptionID
+			if data.Sdkr.ImageName == "" {
+				return errors.New("image name (with optional tag) must be provided either as an argument or in the config")
 			}
+			imageRef = data.Sdkr.ImageName
 
-			if provisionAcrResourceGroup == "" {
-				provisionAcrResourceGroup = data.Sdkr.ProvisionAcrResourceGroup
+			if configs.SubscriptionID == "" {
+				configs.SubscriptionID = data.Sdkr.ProvisionAcrSubscriptionID
 			}
-
-			if provisionAcrRegistryName == "" {
-				provisionAcrRegistryName = data.Sdkr.ProvisionAcrRegistryName
+			if configs.ResourceGroup == "" {
+				configs.ResourceGroup = data.Sdkr.ProvisionAcrResourceGroup
 			}
-
-			if provisionAcrImageName == "" {
-				provisionAcrImageName = sampleImageNameForAcr
+			if configs.RegistryName == "" {
+				configs.RegistryName = data.Sdkr.ProvisionAcrRegistryName
 			}
-
 		}
 
-		if provisionAcrSubscriptionID == "" || provisionAcrResourceGroup == "" || provisionAcrRegistryName == "" || provisionAcrImageName == "" {
-			pterm.Error.Println("Azure subscription ID, resource group name, registry name, and image name are required")
+		if configs.SubscriptionID == "" || configs.ResourceGroup == "" || configs.RegistryName == "" {
+			pterm.Error.Println("Azure subscription ID, resource group name, and registry name are required")
+			return errors.New("missing required Azure ACR parameters")
 		}
 
-		fullAcrImage := fmt.Sprintf("%s.azurecr.io/%s:%s", provisionAcrRegistryName, provisionAcrImageName, provisionAcrImageTag)
+		fullAcrImage := fmt.Sprintf("%s.azurecr.io/%s", configs.RegistryName, imageRef)
 
 		buildArgsMap := make(map[string]string)
-		for _, arg := range provisionAcrBuildArgs {
+		for _, arg := range configs.BuildArgs {
 			parts := strings.SplitN(arg, "=", 2)
 			if len(parts) == 2 {
 				buildArgsMap[parts[0]] = parts[1]
 			}
 		}
 
+		if configs.ContextDir == "" {
+			wd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("failed to get current working directory: %w", err)
+			}
+			configs.ContextDir = wd
+		}
+
+		if configs.DockerfilePath == "" {
+			configs.DockerfilePath = filepath.Join(configs.ContextDir, "Dockerfile")
+		} else {
+			configs.DockerfilePath = filepath.Join(configs.ContextDir, configs.DockerfilePath)
+		}
+
 		buildOpts := docker.BuildOptions{
-			DockerfilePath: provisionAcrDockerfilePath,
-			NoCache:        provisionAcrNoCache,
+			ContextDir:     configs.ContextDir,
+			DockerfilePath: configs.DockerfilePath,
+			NoCache:        configs.NoCache,
 			BuildArgs:      buildArgsMap,
-			Target:         provisionAcrTarget,
-			Platform:       provisionAcrPlatform,
+			Target:         configs.Target,
+			Platform:       configs.Platform,
+			Timeout:        configs.BuildTimeout,
 		}
 
 		pterm.Info.Println("Starting ACR build...")
-		if err := docker.Build(provisionAcrImageName, provisionAcrImageTag, buildOpts); err != nil {
+		localImageName, localTag, parseErr := parseImage(imageRef)
+		if parseErr != nil {
+			pterm.Error.Println("Image Parse Err:", parseErr)
+			return parseErr
+		}
+
+		if localTag == "" {
+			localTag = "latest"
+		}
+
+		if err := docker.Build(localImageName, localTag, buildOpts); err != nil {
 			pterm.Error.Println("Build failed:", err)
 			return err
 		}
 		pterm.Success.Println("Build completed successfully.")
 
-		var wg sync.WaitGroup
-		var scanErr, tagErr error
+		pterm.Info.Println("Starting scan...")
+		scanErr := docker.Scout(fullAcrImage, configs.SarifFile)
+		if scanErr != nil {
+			pterm.Error.Println("Scan failed:", scanErr)
+		} else {
+			pterm.Success.Println("Scan completed successfully.")
+		}
 
-		wg.Add(2)
-
-		go func() {
-			defer wg.Done()
-			pterm.Info.Println("Starting scan...")
-			scanErr = docker.Scout(fullAcrImage, provisionAcrSarifFile)
-			if scanErr != nil {
-				pterm.Error.Println("Scan failed:", scanErr)
-			} else {
-				pterm.Success.Println("Scan completed successfully.")
-			}
-		}()
-
-		go func() {
-			defer wg.Done()
-			if provisionAcrTargetTag != "" {
-				pterm.Info.Printf("Tagging image as %s...\n", provisionAcrTargetTag)
-				tagOpts := docker.TagOptions{
-					Source: fullAcrImage,
-					Target: provisionAcrTargetTag,
-				}
-				tagErr = docker.TagImage(tagOpts)
-				if tagErr != nil {
-					pterm.Error.Println("Tagging failed:", tagErr)
-				} else {
-					pterm.Success.Println("Tagging completed successfully.")
-				}
-			}
-		}()
-
-		wg.Wait()
-
-		if scanErr != nil || tagErr != nil {
+		if scanErr != nil {
 			return fmt.Errorf("ACR provisioning failed due to previous errors")
 		}
 
-		pushImage := provisionAcrTargetTag
+		pushImage := imageRef
 		if pushImage == "" {
 			pushImage = fullAcrImage
 		}
 
-		if provisionAcrConfirmPush {
+		if !configs.ConfirmAfterPush {
+			pterm.Info.Println("Press Enter to continue...")
+			buf := bufio.NewReader(os.Stdin)
+			_, _ = buf.ReadBytes('\n')
+		}
+
+		if configs.ConfirmAfterPush {
 			pterm.Info.Printf("Pushing image %s to ACR...\n", pushImage)
-			if err := docker.PushImageToACR(provisionAcrSubscriptionID, provisionAcrResourceGroup, provisionAcrRegistryName, provisionAcrImageName); err != nil {
+			if err := docker.PushImageToACR(
+				configs.SubscriptionID,
+				configs.ResourceGroup,
+				configs.RegistryName,
+				localImageName,
+			); err != nil {
 				pterm.Error.Println("Push to ACR failed:", err)
 				return err
 			}
 			pterm.Success.Println("Push to ACR completed successfully.")
 		}
 
-		if provisionAcrDeleteAfterPush {
+		if configs.DeleteAfterPush {
 			pterm.Info.Printf("Deleting local image %s...\n", fullAcrImage)
 			if err := docker.RemoveImage(fullAcrImage); err != nil {
 				pterm.Error.Println("Failed to delete local image:", err)
@@ -155,27 +151,28 @@ var provisionAcrCmd = &cobra.Command{
 		return nil
 	},
 	Example: `
-	smurf sdkr provision-acr --subscription-id <SUBSCRIPTION_ID> --resource-group <RESOURCE_GROUP> --registry-name <REGISTRY_NAME> --image-name <IMAGE_NAME> --tag <TAG>
-	smurf sdkr provision-acr --subscription-id <SUBSCRIPTION_ID> --resource-group <RESOURCE_GROUP> --registry-name <REGISTRY_NAME> --image-name <IMAGE_NAME> --tag <TAG> --file Dockerfile --no-cache --build-arg key1=value1 --build-arg key2=value2 --target my-target --platform linux/amd64 --output report.sarif --target-tag my-tag --yes --delete
-	`,
+  smurf sdkr provision-acr myimage:v1 -s <SUBSCRIPTION_ID> -r <RESOURCE_GROUP> -g <REGISTRY_NAME>
+  smurf sdkr provision-acr -f Dockerfile -c -a key1=value1 -a key2=value2 -t my-target -p linux/amd64 -o report.sarif  -y -d
+`,
 }
 
 func init() {
-	provisionAcrCmd.Flags().StringVarP(&provisionAcrImageName, "image-name", "i", "", "Name of the image to build")
-	provisionAcrCmd.Flags().StringVarP(&provisionAcrImageTag, "tag", "t", "latest", "Tag for the image")
-	provisionAcrCmd.Flags().StringVarP(&provisionAcrDockerfilePath, "file", "f", "Dockerfile", "Name of the Dockerfile (default is 'Dockerfile')")
-	provisionAcrCmd.Flags().BoolVar(&provisionAcrNoCache, "no-cache", false, "Do not use cache when building the image")
-	provisionAcrCmd.Flags().StringArrayVar(&provisionAcrBuildArgs, "build-arg", []string{}, "Set build-time variables")
-	provisionAcrCmd.Flags().StringVar(&provisionAcrTarget, "target", "", "Set the target build stage to build")
-	provisionAcrCmd.Flags().StringVarP(&provisionAcrSarifFile, "output", "o", "", "Output file for SARIF report")
-	provisionAcrCmd.Flags().StringVar(&provisionAcrTargetTag, "target-tag", "", "Target tag for tagging the image")
-	provisionAcrCmd.Flags().BoolVarP(&provisionAcrConfirmPush, "yes", "y", false, "Push the image to ACR without confirmation")
-	provisionAcrCmd.Flags().BoolVarP(&provisionAcrDeleteAfterPush, "delete", "d", false, "Delete the local image after pushing")
-	provisionAcrCmd.Flags().StringVar(&provisionAcrSubscriptionID, "subscription-id", "", "Azure subscription ID (required)")
-	provisionAcrCmd.Flags().StringVar(&provisionAcrResourceGroup, "resource-group", "", "Azure resource group name (required)")
-	provisionAcrCmd.Flags().StringVar(&provisionAcrRegistryName, "registry-name", "", "Azure Container Registry name (required)")
-	provisionAcrCmd.Flags().StringVar(&provisionAcrPlatform, "platform", "", "Platform for the image")
-	provisionAcrCmd.Flags().BoolVar(&provisionAcrAuto, "auto", false, "Auto provision ACR")
+	provisionAcrCmd.Flags().StringVarP(&configs.SubscriptionID, "subscription-id", "s", "", "Azure subscription ID (required)")
+	provisionAcrCmd.Flags().StringVarP(&configs.ResourceGroup, "resource-group", "r", "", "Azure resource group name (required)")
+	provisionAcrCmd.Flags().StringVarP(&configs.RegistryName, "registry-name", "g", "", "Azure Container Registry name (required)")
+
+	provisionAcrCmd.Flags().StringVarP(&configs.DockerfilePath, "file", "f", "", "path to Dockerfile relative to context directory")
+	provisionAcrCmd.Flags().BoolVarP(&configs.NoCache, "no-cache", "c", false, "Do not use cache when building the image")
+	provisionAcrCmd.Flags().StringArrayVarP(&configs.BuildArgs, "build-arg", "a", []string{}, "Set build-time variables")
+	provisionAcrCmd.Flags().StringVarP(&configs.Target, "target", "t", "", "Set the target build stage to build")
+	provisionAcrCmd.Flags().StringVarP(&configs.Platform, "platform", "p", "", "Platform for the image")
+	provisionAcrCmd.Flags().StringVar(&configs.ContextDir, "context", "", "Build context directory (default: current directory)")
+	provisionAcrCmd.Flags().DurationVar(&configs.BuildTimeout, "timeout", 25*time.Minute, "Build timeout")
+
+	provisionAcrCmd.Flags().StringVarP(&configs.SarifFile, "output", "o", "", "Output file for SARIF report")
+
+	provisionAcrCmd.Flags().BoolVarP(&configs.ConfirmAfterPush, "yes", "y", false, "Push the image to ACR without confirmation")
+	provisionAcrCmd.Flags().BoolVarP(&configs.DeleteAfterPush, "delete", "d", false, "Delete the local image after pushing")
 
 	sdkrCmd.AddCommand(provisionAcrCmd)
 }
