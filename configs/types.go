@@ -1,11 +1,5 @@
 package configs
 
-import (
-	"bytes"
-	"io"
-	"time"
-)
-
 // types for SDKR
 var (
 	DockerfilePath   string
@@ -14,7 +8,7 @@ var (
 	Target           string
 	Platform         string
 	ContextDir       string
-	BuildTimeout     time.Duration
+	BuildTimeout     int
 	SubscriptionID   string
 	ResourceGroup    string
 	RegistryName     string
@@ -39,13 +33,18 @@ var (
 	Wait      bool
 )
 
+// Config struct to hold the configuration for the SDKR and SELM
 var FileName = "smurf.yaml"
 
+
+// Config struct to hold the configuration for the SDKR and SELM
 type Config struct {
 	Sdkr SdkrConfig `yaml:"sdkr"`
 	Selm SelmConfig `yaml:"selm"`
 }
 
+
+// types for SDKR in the config file
 type SdkrConfig struct {
 	DockerPassword               string `yaml:"docker_password"`
 	DockerUsername               string `yaml:"docker_username"`
@@ -60,14 +59,11 @@ type SdkrConfig struct {
 	TargetImageTag               string `yaml:"targetImageTag"`
 }
 
+
+// types for SELM in the config file
 type SelmConfig struct {
 	ReleaseName string `yaml:"releaseName"`
 	Namespace   string `yaml:"namespace"`
 	ChartName   string `yaml:"chartName"`
 	Revision    int    `yaml:"revision"`
-}
-
-type CustomColorWriter struct {
-	Buffer *bytes.Buffer
-	Writer io.Writer
 }
