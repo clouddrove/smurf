@@ -13,6 +13,16 @@ type BuildOptions struct {
 	Timeout        time.Duration
 }
 
+// ImageInfo struct to hold information about a Docker image
+type ImageInfo struct {
+	ID       string
+	Size     int64
+	Created  time.Time
+	Platform string
+	Layers   int
+	Tag      string
+}
+
 
 // TagOptions struct to hold options for tagging a Docker image
 type TagOptions struct {

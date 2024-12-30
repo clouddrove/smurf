@@ -10,6 +10,10 @@ import (
 	"helm.sh/helm/v3/pkg/strvals"
 )
 
+// HelmLint runs Helm's built-in linting on a specified chart directory or tarball,
+// optionally merging values from given YAML files and parsing additional values
+// passed through the --set mechanism. Upon completion, it displays any detected
+// linting messages, listing severity and location, or indicates if no issues were found
 func HelmLint(chartPath string, fileValues []string) error {
 	spinner, _ := pterm.DefaultSpinner.Start("Linting chart")
 	defer spinner.Stop()

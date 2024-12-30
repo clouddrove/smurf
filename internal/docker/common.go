@@ -6,15 +6,15 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"runtime"
 	"sync"
 
 	"github.com/docker/docker/api/types/registry"
-	"github.com/docker/docker/pkg/archive"
 	"github.com/docker/docker/pkg/jsonmessage"
 	"github.com/pterm/pterm"
 )
 
+// encodeAuthToBase64 encodes the given registry.AuthConfig as a base64-encoded string.
+// used in the push function to authenticate with the Docker registry.
 func encodeAuthToBase64(authConfig registry.AuthConfig) (string, error) {
 	authJSON, err := json.Marshal(authConfig)
 	if err != nil {
@@ -23,6 +23,9 @@ func encodeAuthToBase64(authConfig registry.AuthConfig) (string, error) {
 	return base64.URLEncoding.EncodeToString(authJSON), nil
 }
 
+
+// handleDockerResponse reads the response from the Docker API and updates the spinner with the progress.
+// It also prints the response messages and returns an error if the response contains an error.
 func handleDockerResponse(responseBody io.ReadCloser, spinner *pterm.SpinnerPrinter, opts PushOptions) error {
 	decoder := json.NewDecoder(responseBody)
 	var lastProgress int
@@ -62,25 +65,8 @@ func handleDockerResponse(responseBody io.ReadCloser, spinner *pterm.SpinnerPrin
 	return nil
 }
 
-func isM1Mac() bool {
-	return runtime.GOOS == "darwin" && runtime.GOARCH == "arm64"
-}
-
-func createOptimizedTarArchive(contextDir string) (io.Reader, error) {
-	excludePatterns := []string{
-		".git",
-		"node_modules",
-		".DS_Store",
-		".idea",
-	}
-
-	tarOpts := &archive.TarOptions{
-		ExcludePatterns: excludePatterns,
-	}
-
-	return archive.TarWithOptions(contextDir, tarOpts)
-}
-
+// validateBuildContext checks if the given context directory is valid.
+// It returns an error if the directory does not exist or is not a directory.
 func validateBuildContext(contextDir string) error {
 	info, err := os.Stat(contextDir)
 	if err != nil {
@@ -92,6 +78,8 @@ func validateBuildContext(contextDir string) error {
 	return nil
 }
 
+// convertToInterfaceMap converts a map of strings to a map of pointers to strings.
+// It is used to convert a map of string arguments to a map of pointers to string arguments.
 func convertToInterfaceMap(args map[string]string) map[string]*string {
 	result := make(map[string]*string, len(args))
 	var mu sync.Mutex

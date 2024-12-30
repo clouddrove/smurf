@@ -16,6 +16,11 @@ import (
 	"golang.org/x/oauth2/google"
 )
 
+// PushImageToGCR pushes the specified Docker image to the specified Google Container Registry.
+// It authenticates with Google Cloud, retrieves the registry details and credentials, tags the image,
+// and pushes it to the registry. It displays a spinner with progress updates and prints the
+// push response messages. Upon successful completion, it prints a success message with a link
+// to the pushed image in the GCR.
 func PushImageToGCR(projectID, imageName string) error {
 	ctx := context.Background()
 

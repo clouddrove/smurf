@@ -9,6 +9,10 @@ import (
 	"helm.sh/helm/v3/pkg/action"
 )
 
+// HelmProvision orchestrates a "provisioning" workflow that checks whether a specified Helm release 
+// already exists in the cluster and chooses either to install or upgrade. In parallel, it also runs 
+// linting and template rendering for the chart. If any step fails, a consolidated error is returned.
+// Otherwise, a success message is printed.
 func HelmProvision(releaseName, chartPath, namespace string) error {
 	actionConfig := new(action.Configuration)
 	if err := actionConfig.Init(settings.RESTClientGetter(), namespace, os.Getenv("HELM_DRIVER"), nil); err != nil {

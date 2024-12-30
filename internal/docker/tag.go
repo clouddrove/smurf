@@ -9,7 +9,8 @@ import (
 	"github.com/pterm/pterm"
 )
 
-// TagImage tags a local Docker image for use in a remote repository.
+// TagImage tags a Docker image with the specified source and target tags.
+// It displays a spinner with progress updates and prints a success message upon completion.
 func TagImage(opts TagOptions) error {
 	ctx := context.Background()
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())

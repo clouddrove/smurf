@@ -13,7 +13,9 @@ import (
 	"github.com/pterm/pterm"
 )
 
-// PushImage pushes a Docker image to a Docker registry.
+// PushImage pushes the specified Docker image to the Docker Hub.
+// It authenticates with Docker Hub, tags the image, and pushes it to the registry.
+// It displays a spinner with progress updates and prints the push response messages.
 func PushImage(opts PushOptions) error {
 	ctx := context.Background()
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())

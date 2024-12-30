@@ -10,6 +10,9 @@ import (
 	"helm.sh/helm/v3/pkg/chartutil"
 )
 
+// CreateChart generates a new Helm chart in the specified directory using Helm's chartutil package.
+// It ensures that the target directory exists before creating the chart scaffolding.
+// If successful, a success message is logged with the chart's location.
 func CreateChart(chartName, saveDir string) error {
 	spinner, _ := pterm.DefaultSpinner.Start(fmt.Sprintf("Creating Helm chart '%s' in directory '%s'...", chartName, saveDir))
 	defer spinner.Stop()

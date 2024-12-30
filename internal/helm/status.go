@@ -8,6 +8,9 @@ import (
 	"helm.sh/helm/v3/pkg/action"
 )
 
+// HelmStatus retrieves and displays the status of a specified Helm release within a given namespace.
+// It initializes the Helm action configuration, fetches the release status, and presents it in a formatted table.
+// Additionally, it checks the readiness of the associated Kubernetes resources and provides detailed feedback.
 func HelmStatus(releaseName, namespace string) error {
 	spinner, _ := pterm.DefaultSpinner.Start(fmt.Sprintf("Retrieving status for release: %s", releaseName))
 	defer spinner.Stop()

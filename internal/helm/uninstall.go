@@ -9,6 +9,10 @@ import (
 	"helm.sh/helm/v3/pkg/action"
 )
 
+// HelmUninstall performs a Helm uninstall operation for a specified release.
+// It initializes the Helm action configuration, runs the uninstall operation,
+// and prints the status of the release post-uninstall. If any step fails, detailed
+// error logging is performed.
 func HelmUninstall(releaseName, namespace string) error {
 	spinner, _ := pterm.DefaultSpinner.Start(fmt.Sprintf("Starting Helm Uninstall for release: %s", releaseName))
 	defer spinner.Stop()

@@ -9,7 +9,10 @@ import (
 	"github.com/pterm/pterm"
 )
 
-// DetectDrift checks for drift between the Terraform state and the actual infrastructure
+// DetectDrift checks for drift between the Terraform state and the actual infrastructure.
+// It performs a `plan` with refresh enabled to detect any changes that differ
+// from the current state. If drift is detected, it lists the affected resources.
+// Provides user feedback through spinners and colored messages for better UX.
 func DetectDrift() error {
 	tf, err := getTerraform()
 	if err != nil {

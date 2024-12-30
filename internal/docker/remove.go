@@ -9,7 +9,9 @@ import (
 	"github.com/pterm/pterm"
 )
 
-// RemoveImage removes a Docker image based on the provided flags.
+// RemoveImage removes the specified Docker image from the local Docker daemon.
+// It displays a spinner with progress updates and prints the removal response messages.
+// Upon successful completion, it prints a success message with the removed image tag.
 func RemoveImage(imageTag string) error {
 	ctx := context.Background()
 	cli, err := client.NewClientWithOpts(client.WithAPIVersionNegotiation())

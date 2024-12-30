@@ -13,6 +13,11 @@ import (
 	"helm.sh/helm/v3/pkg/strvals"
 )
 
+// HelmTemplate renders the Helm templates for a given chart and values files.
+// It initializes the Helm action configuration, loads the chart from the provided path,
+// merges the provided values (including --set overrides), and renders the templates.
+// Upon completion, it prints the rendered templates to the console.
+// If any step fails, it logs detailed information about the failure.
 func HelmTemplate(releaseName, chartPath, namespace string, valuesFiles []string) error {
 	settings := cli.New()
 	actionConfig := new(action.Configuration)

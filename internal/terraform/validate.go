@@ -4,11 +4,12 @@ import (
 	"context"
 	"os"
 
-	"github.com/clouddrove/smurf/configs"
 	"github.com/pterm/pterm"
 )
 
-// Validate checks the validity of the Terraform configuration
+// Validate checks the validity of the Terraform configuration by running 'validate'.
+// It provides user feedback through spinners and colored messages, and handles any errors
+// that occur during the validation process.
 func Validate() error {
 	tf, err := getTerraform()
 	if err != nil {
@@ -25,7 +26,7 @@ func Validate() error {
 		return err
 	}
 
-	customWriter := &configs.CustomColorWriter{Writer: os.Stdout}
+	customWriter := &CustomColorWriter{Writer: os.Stdout}
 
 	tf.SetStdout(customWriter)
 	tf.SetStderr(os.Stderr)

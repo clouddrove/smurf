@@ -4,12 +4,14 @@ import (
 	"context"
 	"os"
 
-	"github.com/clouddrove/smurf/configs"
 	"github.com/hashicorp/terraform-exec/tfexec"
 	"github.com/pterm/pterm"
 )
 
-// Init initializes Terraform
+// Init initializes the Terraform working directory by running 'init'.
+// It sets up the Terraform client, executes the initialization with upgrade options,
+// and provides user feedback through spinners and colored messages.
+// Upon successful initialization, it configures custom writers for enhanced output.
 func Init() error {
 	tf, err := getTerraform()
 	if err != nil {
@@ -25,7 +27,7 @@ func Init() error {
 		return err
 	}
 
-	customWriter := &configs.CustomColorWriter{Writer: os.Stdout}
+	customWriter := &CustomColorWriter{Writer: os.Stdout}
 
 	tf.SetStdout(customWriter)
 	tf.SetStderr(os.Stderr)

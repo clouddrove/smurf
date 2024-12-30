@@ -10,6 +10,10 @@ import (
 	"helm.sh/helm/v3/pkg/chart/loader"
 )
 
+// HelmUpgrade performs a Helm upgrade operation for a specified release.
+// It initializes the Helm action configuration, sets up the upgrade parameters,
+// executes the upgrade, and then retrieves the status of the release post-upgrade.
+// Detailed error logging is performed if any step fails.
 func HelmUpgrade(releaseName, chartPath, namespace string, setValues []string, valuesFiles []string, createNamespace, atomic bool, timeout time.Duration, debug bool) error {
 	color.Green("Starting Helm Upgrade for release: %s \n", releaseName)
 

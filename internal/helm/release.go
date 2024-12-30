@@ -2,6 +2,9 @@ package helm
 
 import "helm.sh/helm/v3/pkg/action"
 
+// HelmReleaseExists checks if a Helm release with the given name exists in the specified namespace.
+// It initializes Helm's action configuration, runs the Helm list command, and returns true if a release
+// with the given name is found in the specified namespace.
 func HelmReleaseExists(releaseName, namespace string) (bool, error) {
 	actionConfig := new(action.Configuration)
 	if err := actionConfig.Init(settings.RESTClientGetter(), namespace, "secrets", nil); err != nil {

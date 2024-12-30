@@ -11,7 +11,9 @@ import (
 	"github.com/pterm/pterm"
 )
 
-// Scout scans a Docker image for known vulnerabilities using 'docker scout cves'.
+// Scout runs 'docker scout cves' to scan a Docker image for vulnerabilities
+// and optionally saves the results to a SARIF file.
+// It displays the output of the scan and prints a success message upon completion.
 func Scout(dockerTag, sarifFile string) error {
 	ctx := context.Background()
 

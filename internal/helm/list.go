@@ -9,6 +9,9 @@ import (
 	"helm.sh/helm/v3/pkg/release"
 )
 
+// HelmList retrieves and displays all Helm releases in the specified namespace (with AllNamespaces = true).
+// It initializes Helm's action configuration, runs the Helm list command, and prints release details in a
+// formatted table. If an error occurs, it logs the failure; otherwise, it returns the list of releases.
 func HelmList(namespace string) ([]*release.Release, error) {
 	spinner, _ := pterm.DefaultSpinner.Start(fmt.Sprintf("Listing releases in namespace: %s", namespace))
 	defer spinner.Stop()

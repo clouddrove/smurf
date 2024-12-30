@@ -18,6 +18,11 @@ import (
 	"github.com/pterm/pterm"
 )
 
+// PushImageToECR pushes the specified Docker image to the specified AWS Elastic Container Registry.
+// It authenticates with AWS, retrieves the registry details and credentials, tags the image,
+// and pushes it to the registry. It displays a spinner with progress updates and prints the
+// push response messages. Upon successful completion, it prints a success message with a link
+// to the pushed image in the ECR.
 func PushImageToECR(imageName, region, repositoryName string) error {
 	sess, err := session.NewSession(&aws.Config{
 		Region: aws.String(region),

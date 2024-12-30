@@ -10,6 +10,10 @@ import (
 	"helm.sh/helm/v3/pkg/cli"
 )
 
+// HelmRollback performs a rollback of a specified Helm release to a given revision.
+// It initializes the Helm action configuration, sets up the rollback parameters,
+// executes the rollback, and then retrieves the status of the release post-rollback.
+// Detailed error logging is performed if any step fails.
 func HelmRollback(releaseName string, revision int, opts RollbackOptions) error {
 	if releaseName == "" {
 		return fmt.Errorf("release name cannot be empty \n")

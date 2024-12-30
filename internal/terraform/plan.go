@@ -5,12 +5,14 @@ import (
 	"context"
 	"os"
 
-	"github.com/clouddrove/smurf/configs"
 	"github.com/hashicorp/terraform-exec/tfexec"
 	"github.com/pterm/pterm"
 )
 
-// Plan runs 'terraform plan' and outputs the plan to the console
+// Plan runs 'terraform plan' and outputs the plan to the console.
+// It allows setting variables either via command-line arguments or variable files.
+// The function provides user feedback through spinners and colored messages,
+// and handles any errors that occur during the planning process.
 func Plan(varNameValue string, varFile string) error {
 	tf, err := getTerraform()
 	if err != nil {
@@ -19,7 +21,7 @@ func Plan(varNameValue string, varFile string) error {
 
 	var outputBuffer bytes.Buffer
 
-	customWriter := &configs.CustomColorWriter{
+	customWriter := &CustomColorWriter{
 		Buffer: &outputBuffer,
 		Writer: os.Stdout,
 	}

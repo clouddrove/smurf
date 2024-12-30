@@ -4,11 +4,13 @@ import (
 	"context"
 	"os"
 
-	"github.com/clouddrove/smurf/configs"
 	"github.com/pterm/pterm"
 )
 
-// Apply executes 'terraform apply' to apply the planned changes
+// Apply executes 'apply' to apply the planned changes.
+// It initializes the Terraform client, runs the apply operation with a spinner for user feedback,
+// and handles any errors that occur during the process. Upon successful completion,
+// it sets custom writers for stdout and stderr to handle colored output.
 func Apply() error {
 	tf, err := getTerraform()
 	if err != nil {
@@ -24,7 +26,7 @@ func Apply() error {
 		return err
 	}
 
-	customWriter := &configs.CustomColorWriter{Writer: os.Stdout}
+	customWriter := &CustomColorWriter{Writer: os.Stdout}
 
 	tf.SetStdout(customWriter)
 	tf.SetStderr(os.Stderr)

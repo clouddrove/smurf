@@ -11,6 +11,23 @@ import (
 	"helm.sh/helm/v3/pkg/chart/loader"
 )
 
+// HelmInstall executes a full Helm install operation for the given release in the specified namespace.
+// It creates the namespace (if required and permissioned), loads the chart from the provided path,
+// merges the provided values (including --set overrides), and applies them in an atomic Helm install.
+// If any step fails, it logs detailed information about the failure, including debug logs if enabled.
+//
+// Parameters:
+//   - releaseName: The name for this particular Helm release.
+//   - chartPath: Path to the Helm chart directory or packaged chart file.
+//   - namespace: Kubernetes namespace in which to install the release.
+//   - valuesFiles: A slice of file paths pointing to values.yaml files to merge.
+//   - duration: Timeout duration for the install operation.
+//   - Atomic: If true, the install will automatically roll back on failure.
+//   - debug: Enables detailed debug output if true.
+//   - setValues: Key-value pairs for setting or overriding chart values.
+//
+// On success, the function logs a success message and prints release resources.
+// On failure, it logs contextual error details and returns the encountered error.
 func HelmInstall(releaseName, chartPath, namespace string, valuesFiles []string, duration time.Duration, Atomic bool, debug bool, setValues []string) error {
 	spinner, _ := pterm.DefaultSpinner.Start(fmt.Sprintf("Starting Helm Install for release: %s", releaseName))
 	defer spinner.Stop()

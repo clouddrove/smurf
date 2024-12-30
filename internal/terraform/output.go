@@ -9,7 +9,10 @@ import (
 	"github.com/pterm/pterm"
 )
 
-// Output displays the outputs defined in the Terraform configuration
+// Output displays the outputs defined in the Terraform configuration.
+// It refreshes the Terraform state to ensure it reflects the current infrastructure,
+// then retrieves and displays the outputs. Sensitive outputs are hidden for security.
+// Provides user feedback through spinners and colored messages for enhanced UX.
 func Output() error {
 	tf, err := getTerraform()
 	if err != nil {

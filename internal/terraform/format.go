@@ -6,7 +6,9 @@ import (
 	"github.com/pterm/pterm"
 )
 
-// Format applies a canonical format to Terraform configuration files
+// Format applies a canonical format to Terraform configuration files.
+// It runs `terraform fmt` in the current directory to ensure that all
+// Terraform files adhere to the standard formatting conventions.
 func Format() error {
 	tf, err := getTerraform()
 	if err != nil {

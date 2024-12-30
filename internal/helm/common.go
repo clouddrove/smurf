@@ -19,7 +19,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-
+// getKubeClient returns a Kubernetes clientset using the kubeconfig file specified in the settings.
 func getKubeClient() (*kubernetes.Clientset, error) {
 	if kubeClientset != nil {
 		return kubeClientset, nil
@@ -38,8 +38,10 @@ func getKubeClient() (*kubernetes.Clientset, error) {
 	return kubeClientset, nil
 }
 
-
-
+// logDetailedError prints a detailed error message based on the error type and provides suggestions for troubleshooting.
+// It also prints the resources that failed to be created or updated.
+// This function is used to provide more context to the user when an operation fails.
+// It prints the error message in red and provides suggestions based on the error type.
 func logDetailedError(operation string, err error, namespace, releaseName string) {
 	color.Red("%s FAILED: %v \n", strings.ToUpper(operation), err)
 
@@ -66,13 +68,15 @@ func logDetailedError(operation string, err error, namespace, releaseName string
 	describeFailedResources(namespace, releaseName)
 }
 
+// debugLog prints a debug log message to the console.
+// This function is used for debugging purposes to print additional information during execution
 func debugLog(format string, v ...interface{}) {
 	fmt.Printf(format, v...)
 	fmt.Println()
 }
 
-
-
+// ensureNamespace checks if the specified namespace exists and creates it if it does not.
+// If the 'create' flag is set to false, it returns an error if the namespace does not exist.
 func ensureNamespace(namespace string, create bool) error {
 	clientset, err := getKubeClient()
 	if err != nil {
@@ -102,8 +106,8 @@ func ensureNamespace(namespace string, create bool) error {
 	return nil
 }
 
-
-
+// loadAndMergeValues loads values from the specified files and merges them into a single map.
+// It returns the merged values map or an error if the values cannot be loaded.
 func loadAndMergeValues(valuesFiles []string) (map[string]interface{}, error) {
 	vals := make(map[string]interface{})
 	for _, f := range valuesFiles {
@@ -120,6 +124,9 @@ func loadAndMergeValues(valuesFiles []string) (map[string]interface{}, error) {
 	return vals, nil
 }
 
+// loadAndMergeValuesWithSets loads values from the specified files and merges them with the set values.
+// It returns the merged values map or an error if the values cannot be loaded or parsed.
+// The set values are applied after loading the values from the files.
 func loadAndMergeValuesWithSets(valuesFiles, setValues []string) (map[string]interface{}, error) {
 	vals, err := loadAndMergeValues(valuesFiles)
 	if err != nil {
@@ -136,6 +143,7 @@ func loadAndMergeValuesWithSets(valuesFiles, setValues []string) (map[string]int
 	return vals, nil
 }
 
+// printReleaseInfo prints detailed information about the specified Helm release.
 func printReleaseInfo(rel *release.Release) {
 	color.Cyan("----- RELEASE INFO ----- \n")
 	color.Green("NAME: %s \n", rel.Name)
@@ -151,7 +159,9 @@ func printReleaseInfo(rel *release.Release) {
 }
 
 
-
+// convertToMapStringInterface converts an interface{} to a map[string]interface{} recursively.
+// This function is used to convert the raw YAML object to a map for easier parsing.
+// It handles nested maps and arrays by recursively converting the elements.
 func convertToMapStringInterface(i interface{}) interface{} {
 	switch x := i.(type) {
 	case map[interface{}]interface{}:
@@ -168,6 +178,9 @@ func convertToMapStringInterface(i interface{}) interface{} {
 	return i
 }
 
+// parseResourcesFromManifest parses the Kubernetes resources from the manifest string.
+// It returns a slice of Resource objects containing the kind and name of each resource.
+// This function is used to extract the resources created by a Helm release for monitoring.
 func parseResourcesFromManifest(manifest string) ([]Resource, error) {
 	var resources []Resource
 	docs := strings.Split(manifest, "---")
@@ -198,6 +211,8 @@ func parseResourcesFromManifest(manifest string) ([]Resource, error) {
 	return resources, nil
 }
 
+// printResourcesFromRelease prints detailed information about the Kubernetes resources created by the Helm release.
+// It fetches detailed information about the resources from the Kubernetes API and prints it to the console.
 func printResourcesFromRelease(rel *release.Release) {
 	resources, err := parseResourcesFromManifest(rel.Manifest)
 	if err != nil {
@@ -428,6 +443,9 @@ func printResourcesFromRelease(rel *release.Release) {
 	color.Cyan("----------------------------------------------- \n")
 }
 
+// monitorResources monitors the resources created by the Helm release until they are all ready.
+// It checks the status of the resources in the Kubernetes API and waits until they are all ready.
+// The function returns an error if the resources are not ready within the specified timeout.
 func monitorResources(rel *release.Release, namespace string, timeout time.Duration) error {
 	resources, err := parseResourcesFromManifest(rel.Manifest)
 	if err != nil {
@@ -464,6 +482,9 @@ func monitorResources(rel *release.Release, namespace string, timeout time.Durat
 	}
 }
 
+// resourcesReady checks if the specified resources are ready in the Kubernetes API.	
+// It returns a boolean indicating if all resources are ready, a slice of not ready resources, and an error if any.
+// The function checks the status of Deployments and Pods to determine if they are ready.
 func resourcesReady(clientset *kubernetes.Clientset, namespace string, resources []Resource) (bool, []string, error) {
 	var notReadyResources []string
 
@@ -505,6 +526,9 @@ func resourcesReady(clientset *kubernetes.Clientset, namespace string, resources
 	return false, notReadyResources, nil
 }
 
+// describeFailedResources fetches detailed information about the failed resources in the Helm release.
+// It retrieves the pods associated with the release and prints their status and events for troubleshooting.
+// This function is used to provide additional context to the user when resources fail to be created or updated.
 func describeFailedResources(namespace, releaseName string) {
 	color.Cyan("----- TROUBLESHOOTING FAILED RESOURCES ----- \n")
 	clientset, err := getKubeClient()
@@ -559,7 +583,9 @@ func describeFailedResources(namespace, releaseName string) {
 }
 
 
-
+// resourceRemoved checks if the specified resource has been removed from the Kubernetes API.
+// It returns true if the resource is not found, indicating that it has been removed.
+// This function is used to determine if a resource has been successfully deleted.
 func resourceRemoved(clientset *kubernetes.Clientset, namespace string, r Resource) bool {
 	switch r.Kind {
 	case "Deployment":
@@ -597,6 +623,7 @@ func resourceRemoved(clientset *kubernetes.Clientset, namespace string, r Resour
 	}
 }
 
+// isNotFound checks if the error is a "not found" error.
 func isNotFound(err error) bool {
 	return err != nil && strings.Contains(strings.ToLower(err.Error()), "not found")
 }
