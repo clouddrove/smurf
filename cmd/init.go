@@ -7,6 +7,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/clouddrove/smurf/configs"
 )
+
+// generateConfigCmd represents the init command to generate a smurf.yaml configuration file with empty values
 var generateConfig = &cobra.Command{
 	Use:   "init",
 	Short: "Generate a smurf.yaml configuration file with empty values",
