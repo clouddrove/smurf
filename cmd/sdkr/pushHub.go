@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/docker"
@@ -78,6 +79,7 @@ Export DOCKER_USERNAME and DOCKER_PASSWORD as environment variables for Docker H
 
 		opts := docker.PushOptions{
 			ImageName: fullImageName,
+			Timeout:   time.Duration(configs.BuildTimeout) * time.Second,
 		}
 		if err := docker.PushImage(opts); err != nil {
 			pterm.Error.Println("Failed to push image to Docker Hub:", err)
@@ -104,5 +106,6 @@ Export DOCKER_USERNAME and DOCKER_PASSWORD as environment variables for Docker H
 
 func init() {
 	pushHubCmd.Flags().BoolVarP(&configs.DeleteAfterPush, "delete", "d", false, "Delete the local image after pushing")
+	pushHubCmd.Flags().IntVar(&configs.BuildTimeout, "timeout", 1500, "Timeout for the push operation in minutes")
 	pushCmd.AddCommand(pushHubCmd)
 }

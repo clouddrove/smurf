@@ -33,4 +33,13 @@ type TagOptions struct {
 // PushOptions struct to hold options for pushing a Docker image
 type PushOptions struct {
 	ImageName string
+	Timeout   time.Duration
 }
+
+// PushProgress struct to hold progress information for pushing a Docker image
+type jsonMessage struct {
+	Status   string `json:"status"`
+	Error    string `json:"error"`
+	Progress string `json:"progress"`
+}
+

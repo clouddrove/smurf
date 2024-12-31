@@ -24,8 +24,8 @@ var generateConfig = &cobra.Command{
 				"provisionEcrRepository":     "",
 				"provisionGcrProjectID":      "",
 				"google_application_credentials": "",
-				"sourceTag":                  "",
-				"targetTag":                  "",
+				"imageName":                  "",
+				"targetImageTag":                  "",
 			},
 			"selm": map[string]interface{}{
 				"releaseName":                "",
