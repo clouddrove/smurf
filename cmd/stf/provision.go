@@ -1,8 +1,7 @@
 package stf
 
 import (
-	"sync"
-
+	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/terraform"
 	"github.com/spf13/cobra"
 )
@@ -15,37 +14,21 @@ var provisionCmd = &cobra.Command{
 	Use:   "provision",
 	Short: "Its the combination of init, plan, apply, output for Terraform",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		var wg sync.WaitGroup
-		errChan := make(chan error, 5) 
-
+		approve := configs.CanApply
 		if err := terraform.Init(); err != nil {
 			return err
 		}
 
-		if err := terraform.Plan("", ""); err != nil {
+		if err := terraform.Plan(varNameValue, varFile); err != nil {
 			return err
 		}
 
-		if err := terraform.Apply(); err != nil {
+		if err := terraform.Apply(approve); err != nil {
 			return err
 		}
 
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			if err := terraform.Output(); err != nil {
-				errChan <- err
-			}
-		}()
-
-		wg.Wait()
-
-		close(errChan)
-
-		for err := range errChan {
-			if err != nil {
-				return err
-			}
+		if err := terraform.Output(); err != nil {
+			return err
 		}
 
 		return nil
@@ -56,5 +39,8 @@ var provisionCmd = &cobra.Command{
 }
 
 func init() {
+	provisionCmd.Flags().StringVar(&varNameValue, "var", "", "Specify a variable in 'NAME=VALUE' format")
+	provisionCmd.Flags().StringVar(&varFile, "var-file", "", "Specify a file containing variables")
+	provisionCmd.Flags().BoolVar(&configs.CanApply, "approve", true, "Skip interactive approval of plan before applying")
 	stfCmd.AddCommand(provisionCmd)
 }
