@@ -26,7 +26,7 @@ func getTerraform() (*tfexec.Terraform, error) {
 		return nil, err
 	}
 
-	pterm.Success.Printf("Using Terraform binary at: %s\n", terraformBinary)
+	pterm.Success.Printf("Configurations starting...\n")
 	return tf, nil
 }
 
@@ -41,16 +41,13 @@ func (w *CustomColorWriter) Write(p []byte) (n int, err error) {
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		// Skip empty lines
 		if len(strings.TrimSpace(line)) == 0 {
 			fmt.Fprintln(w.Writer)
 			continue
 		}
 
-		// Color the line based on its prefix
 		var coloredLine string
 
-		// Trim any leading whitespace to check the first actual character
 		trimmedLine := strings.TrimLeft(line, " ")
 		if len(trimmedLine) > 0 {
 			switch trimmedLine[0] {
