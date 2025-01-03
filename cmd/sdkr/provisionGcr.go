@@ -23,8 +23,8 @@ import (
 // and conditional deletion of local images post-push.
 var provisionGcrCmd = &cobra.Command{
 	Use:   "provision-gcr [IMAGE_NAME[:TAG]]",
-	Short: "Build, scan, tag, and push a Docker image to Google Container Registry.",
-	Long: `Build, scan, tag, and push a Docker image to Google Container Registry.
+	Short: "Build, scan, and push a Docker image to Google Container Registry.",
+	Long: `Build, scan, and push a Docker image to Google Container Registry.
 Set the GOOGLE_APPLICATION_CREDENTIALS environment variable to the path of your service account JSON key file, for example:
   export GOOGLE_APPLICATION_CREDENTIALS="/path/to/your/service-account-key.json"
 `,

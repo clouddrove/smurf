@@ -1,11 +1,11 @@
 package sdkr
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/docker"
+	"github.com/fatih/color"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 )
@@ -42,7 +42,7 @@ var tagCmd = &cobra.Command{
 			}
 
 			if source == "" || target == "" {
-				return errors.New("both SOURCE and TARGET must be provided either as arguments or in the config")
+				return fmt.Errorf(color.RedString("both SOURCE and TARGET must be provided either as arguments or in the config"))
 			}
 		}
 
@@ -52,7 +52,7 @@ var tagCmd = &cobra.Command{
 			Target: target,
 		}
 		if err := docker.TagImage(opts); err != nil {
-			return fmt.Errorf("failed to tag image: %w", err)
+			return fmt.Errorf(color.RedString("failed to tag image: %v", err))
 		}
 		pterm.Success.Printf("Successfully tagged image from %q to %q.\n", source, target)
 		return nil
