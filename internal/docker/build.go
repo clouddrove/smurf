@@ -26,7 +26,10 @@ func Build(imageName, tag string, opts BuildOptions) error {
 	ctx, cancel := context.WithTimeout(context.Background(), opts.Timeout)
 	defer cancel()
 
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	cli, err := client.NewClientWithOpts(
+		client.FromEnv,
+		client.WithAPIVersionNegotiation(),
+	)
 	if err != nil {
 		spinner.Fail()
 		return fmt.Errorf(color.RedString("docker client init failed: %v", err))
@@ -53,6 +56,14 @@ func Build(imageName, tag string, opts BuildOptions) error {
 		buildArgsPtr[k] = &value
 	}
 
+	platform := opts.Platform
+	if platform != "" {
+		parts := strings.Split(platform, "/")
+		if len(parts) != 2 {
+			return fmt.Errorf(color.RedString("invalid platform format. Expected os/arch, got: %s", platform))
+		}
+	}
+
 	fullImageName := fmt.Sprintf("%s:%s", imageName, tag)
 	buildOptions := types.ImageBuildOptions{
 		Tags:        []string{fullImageName},
@@ -61,14 +72,17 @@ func Build(imageName, tag string, opts BuildOptions) error {
 		Remove:      true,
 		BuildArgs:   buildArgsPtr,
 		Target:      opts.Target,
-		Platform:    opts.Platform,
-		PullParent:  false,
-		NetworkMode: "default",
+		Platform:    platform,
+		Version:     types.BuilderV1,
 		BuildID:     fmt.Sprintf("build-%d", time.Now().Unix()),
+		PullParent:  true,
+		NetworkMode: "default",
 	}
+
 
 	resp, err := cli.ImageBuild(ctx, buildCtx, buildOptions)
 	if err != nil {
+		spinner.Fail()
 		return fmt.Errorf(color.RedString("build failed: %v", err))
 	}
 	defer resp.Body.Close()
@@ -76,7 +90,7 @@ func Build(imageName, tag string, opts BuildOptions) error {
 	spinner.Success()
 	progressBar, _ := pterm.DefaultProgressbar.WithTotal(100).WithTitle("Building").Start()
 
-	var imageID string
+	var lastError error
 	decoder := json.NewDecoder(resp.Body)
 	for {
 		var msg jsonmessage.JSONMessage
@@ -84,46 +98,51 @@ func Build(imageName, tag string, opts BuildOptions) error {
 			if err == io.EOF {
 				break
 			}
-			return err
+			lastError = err
+			break
 		}
 
 		if msg.Error != nil {
 			progressBar.Stop()
-			return msg.Error
+			return fmt.Errorf(color.RedString("build error: %v", msg.Error))
 		}
 
-		if msg.Stream != "" && strings.HasPrefix(msg.Stream, "Step ") {
-			pterm.Info.Println(color.CyanString(msg.Stream))
-			progressBar.Add(5)
-		}
-
-		if msg.Aux != nil {
-			var result struct{ ID string }
-			if err := json.Unmarshal(*msg.Aux, &result); err == nil {
-				imageID = result.ID
+		if msg.Stream != "" {
+			if strings.HasPrefix(msg.Stream, "Step ") {
+				pterm.Info.Println(color.CyanString(msg.Stream))
+				progressBar.Add(5)
+			} else {
+				trimmed := strings.TrimSpace(msg.Stream)
+				if trimmed != "" {
+					pterm.Debug.Println(trimmed)
+				}
 			}
+		}
+
+		if msg.Status != "" {
+			pterm.Debug.Println(color.YellowString(msg.Status))
+			progressBar.Add(1)
 		}
 	}
 
+	if lastError != nil {
+		progressBar.Stop()
+		return fmt.Errorf(color.RedString("build process error: %v", lastError))
+	}
+
 	progressBar.Add(100 - progressBar.Current)
+
+	time.Sleep(2 * time.Second)
 
 	inspect, _, err := cli.ImageInspectWithRaw(ctx, fullImageName)
 	if err != nil {
 		return fmt.Errorf(color.RedString("failed to get image info: %v", err))
 	}
 
-	panel := pterm.DefaultBox.WithTitle("Build Complete").Sprintf(`
-%s
-%s
-%s
-%s
-%s
-%s
-%s
-`,
+	panel := pterm.DefaultBox.WithTitle("Build Complete").Sprintf(` %s %s %s %s %s %s %s `,
 		color.GreenString("✓ Image Built Successfully"),
 		color.CyanString("Image: %s", fullImageName),
-		color.CyanString("ID: %s", imageID[:12]),
+		color.CyanString("ID: %s", inspect.ID[:12]),
 		color.CyanString("Size: %.2f MB", float64(inspect.Size)/1024/1024),
 		color.CyanString("Platform: %s/%s", inspect.Os, inspect.Architecture),
 		color.CyanString("Created: %s", inspect.Created[:19]),
