@@ -33,6 +33,11 @@ var (
 	Wait      bool
 )
 
+// types for stf
+var (
+	CanApply bool
+)
+
 // Config struct to hold the configuration for the SDKR and SELM
 var FileName = "smurf.yaml"
 
