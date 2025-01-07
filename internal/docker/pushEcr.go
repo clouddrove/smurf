@@ -10,11 +10,11 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ecr"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/registry"
 	"github.com/docker/docker/client"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/pterm/pterm"
 )
 
@@ -105,48 +105,57 @@ func PushImageToECR(imageName, region, repositoryName string) error {
 	}
 	authStr := base64.URLEncoding.EncodeToString(encodedJSON)
 
-	ecrImage := fmt.Sprintf("%s/%s", ecrURL, repositoryName)
+	_, tag := parseImageNameAndTag(imageName)
+	ecrImage := fmt.Sprintf("%s/%s:%s", ecrURL, repositoryName, tag)
 	pterm.Info.Println("Tagging image for ECR...")
 	if err := cli.ImageTag(context.Background(), imageName, ecrImage); err != nil {
 		pterm.Error.Println(fmt.Errorf("failed to tag image: %w", err))
 		return err
 	}
-
 	pterm.Info.Println("Pushing image to ECR...")
+	spinner, _ := pterm.DefaultSpinner.Start("Pushing image to ECR...")
+
 	pushResponse, err := cli.ImagePush(context.Background(), ecrImage, image.PushOptions{
 		RegistryAuth: authStr,
 	})
 	if err != nil {
-		pterm.Error.Println(fmt.Errorf("failed to push image to ECR: %w", err))
+		spinner.Fail("Failed to push image to ECR: " + err.Error())
 		return err
 	}
 	defer pushResponse.Close()
 
 	decoder := json.NewDecoder(pushResponse)
+	var lastError error
 	for {
 		var message map[string]interface{}
 		if err := decoder.Decode(&message); err != nil {
 			if err == io.EOF {
 				break
 			}
-			pterm.Error.Println(fmt.Errorf("error decoding JSON message from push: %w", err))
+			spinner.Fail("Error decoding JSON message from push: " + err.Error())
 			return err
 		}
 
-		if status, ok := message["status"].(string); ok {
-			if status != "Waiting" {
-				pterm.Info.Println(status)
-			}
-		}
 		if errorDetail, ok := message["errorDetail"].(map[string]interface{}); ok {
-			pterm.Error.Println(fmt.Errorf("error pushing image: %v", errorDetail["message"]))
-			return fmt.Errorf("error pushing image: %v", errorDetail["message"])
+			lastError = fmt.Errorf("error pushing image: %v", errorDetail["message"])
+			spinner.Fail(lastError.Error())
+			return lastError
 		}
+	}
+
+	if lastError == nil {
+		spinner.Success("Image successfully pushed to ECR: " + ecrImage)
 	}
 
 	link := fmt.Sprintf("https://%s.console.aws.amazon.com/ecr/repositories/%s", region, repositoryName)
 	pterm.Info.Println("Image pushed to ECR:", link)
-	fmt.Println()
-	pterm.Success.Println("Image successfully pushed to ECR:", ecrImage)
 	return nil
+}
+
+func parseImageNameAndTag(imageName string) (string, string) {
+	parts := strings.Split(imageName, ":")
+	if len(parts) == 2 {
+		return parts[0], parts[1]
+	}
+	return imageName, "latest" // default to "latest" if no tag specified
 }
