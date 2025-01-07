@@ -20,6 +20,6 @@ var applyCmd = &cobra.Command{
 }
 
 func init() {
-	stfCmd.Flags().BoolVar(&configs.CanApply, "approve", true, "Skip interactive approval of plan before applying")
+	applyCmd.Flags().BoolVar(&configs.CanApply, "approve", false, "Skip interactive approval of plan before applying")
 	stfCmd.AddCommand(applyCmd)
 }

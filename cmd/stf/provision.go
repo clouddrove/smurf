@@ -41,6 +41,6 @@ var provisionCmd = &cobra.Command{
 func init() {
 	provisionCmd.Flags().StringVar(&varNameValue, "var", "", "Specify a variable in 'NAME=VALUE' format")
 	provisionCmd.Flags().StringVar(&varFile, "var-file", "", "Specify a file containing variables")
-	provisionCmd.Flags().BoolVar(&configs.CanApply, "approve", true, "Skip interactive approval of plan before applying")
+	provisionCmd.Flags().BoolVar(&configs.CanApply, "approve", false, "Skip interactive approval of plan before applying")
 	stfCmd.AddCommand(provisionCmd)
 }
