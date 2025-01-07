@@ -56,8 +56,6 @@ type SdkrConfig struct {
 	ProvisionAcrRegistryName     string `yaml:"provisionAcrRegistryName"`
 	ProvisionAcrResourceGroup    string `yaml:"provisionAcrResourceGroup"`
 	ProvisionAcrSubscriptionID   string `yaml:"provisionAcrSubscriptionID"`
-	ProvisionEcrRegion           string `yaml:"provisionEcrRegion"`
-	ProvisionEcrRepository       string `yaml:"provisionEcrRepository"`
 	ProvisionGcrProjectID        string `yaml:"provisionGcrProjectID"`
 	GoogleApplicationCredentials string `yaml:"google_application_credentials"`
 	ImageName                    string `yaml:"imageName"`
