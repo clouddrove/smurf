@@ -56,11 +56,11 @@ func Apply(approve bool) error {
 		pterm.Info.Println("No changes to apply.")
 		return nil
 	}
-
 	if !approve {
 		var confirmation string
 		fmt.Print("\nDo you want to perform these actions? Only 'yes' will be accepted to approve.\nEnter a value: ")
 		fmt.Scanln(&confirmation)
+		fmt.Println()
 
 		if confirmation != "yes" {
 			return nil

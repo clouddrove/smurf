@@ -98,7 +98,7 @@ func Init() error {
 
 	spinner := pterm.DefaultSpinner.
 		WithRemoveWhenDone(true).
-		WithText("Infrastructure creating...")
+		WithText("Infrastructure Initialization...")
 	spinner.Start()
 
 	err = tf.Init(context.Background(), tfexec.Upgrade(true))

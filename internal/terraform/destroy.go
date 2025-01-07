@@ -62,11 +62,11 @@ func Destroy(approve bool) error {
 		Writer: os.Stdout,
 	}
 	customWriter.Write([]byte(planDetail))
-
 	if !approve {
 		var confirmation string
 		fmt.Print("\nDo you want to destroy these resources? Only 'yes' will be accepted to approve.\nEnter a value: ")
 		fmt.Scanln(&confirmation)
+		fmt.Println()
 
 		if confirmation != "yes" {
 			return nil
