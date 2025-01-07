@@ -37,18 +37,18 @@ var provisionEcrCmd = &cobra.Command{
 			}
 			imageRef = data.Sdkr.ImageName
 
-			if configs.Region == "" {
-				configs.Region = data.Sdkr.ProvisionEcrRegion
-			}
-			if configs.Repository == "" {
-				configs.Repository = data.Sdkr.ProvisionEcrRepository
-			}
+			// if configs.Region == "" {
+			// 	configs.Region = data.Sdkr.ProvisionEcrRegion
+			// }
+			// if configs.Repository == "" {
+			// 	configs.Repository = data.Sdkr.ProvisionEcrRepository
+			// }
 		}
 
-		if configs.Region == "" || configs.RegistryName == "" {
-			pterm.Error.Println("AWS region and ECR repository name are required")
-			return errors.New("missing required AWS ECR parameters")
-		}
+		// if configs.Region == "" || configs.RegistryName == "" {
+		// 	pterm.Error.Println("AWS region and ECR repository name are required")
+		// 	return errors.New("missing required AWS ECR parameters")
+		// }
 
 		localImageName, localTag, parseErr := configs.ParseImage(imageRef)
 		if parseErr != nil {
@@ -61,7 +61,7 @@ var provisionEcrCmd = &cobra.Command{
 
 		fullEcrImage := fmt.Sprintf(
 			"%s.dkr.ecr.%s.amazonaws.com/%s:%s",
-			localImageName, 
+			localImageName,
 			configs.Region,
 			configs.Repository,
 			localTag,
@@ -129,15 +129,21 @@ var provisionEcrCmd = &cobra.Command{
 		}
 
 		if configs.ConfirmAfterPush {
+			accountID, ecrRegionName, ecrRepositoryName, ecrImageTag, parseErr := configs.ParseEcrImageRef(localImageName)
+			if parseErr != nil {
+				return fmt.Errorf("invalid image format: %w", parseErr)
+			}
+
+			if accountID == "" || ecrRegionName == "" || ecrRepositoryName == "" || ecrImageTag == "" {
+				return errors.New("invalid image reference: missing account ID, region, or repository name")
+			}
 			pterm.Info.Printf("Pushing image %s to ECR...\n", pushImage)
-			if err := docker.PushImageToECR(localImageName, configs.Region, configs.Repository); err != nil {
+			if err := docker.PushImageToECR(localImageName, ecrRegionName, ecrRepositoryName); err != nil {
 				pterm.Error.Println("Push to ECR failed:", err)
 				return err
 			}
 			pterm.Success.Println("Push to ECR completed successfully.")
 		}
-
-		
 
 		if configs.DeleteAfterPush {
 			pterm.Info.Printf("Deleting local image %s...\n", fullEcrImage)
@@ -152,10 +158,9 @@ var provisionEcrCmd = &cobra.Command{
 		return nil
 	},
 	Example: `
-  # Example: Provide "accountID/myimage:tag" as an argument, region & repository as flags
-  smurf sdkr provision-ecr my-image:v1 \
-      -r us-east-1 \
-      -R my-ecr-repository \
+  # IMAGE_NAME can be in the form:
+  #   123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo:python
+  smurf sdkr provision-ecr 123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo:python \
       --no-cache \
       --build-arg key1=value1 \
       --build-arg key2=value2 \
@@ -181,9 +186,6 @@ func init() {
 
 	provisionEcrCmd.Flags().BoolVarP(&configs.ConfirmAfterPush, "yes", "y", false, "Push the image to ECR without confirmation")
 	provisionEcrCmd.Flags().BoolVarP(&configs.DeleteAfterPush, "delete", "d", false, "Delete the local image after pushing")
-
-	provisionEcrCmd.Flags().StringVarP(&configs.Region, "region", "r", "", "AWS region (required)")
-	provisionEcrCmd.Flags().StringVarP(&configs.Repository, "repository", "R", "", "AWS ECR repository name (required)")
 
 	sdkrCmd.AddCommand(provisionEcrCmd)
 }
