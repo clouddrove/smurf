@@ -1,7 +1,6 @@
 package stf
 
 import (
-	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/terraform"
 	"github.com/spf13/cobra"
 )
@@ -11,7 +10,6 @@ var destroyCmd = &cobra.Command{
 	Use:   "destroy",
 	Short: "Destroy the Terraform Infrastructure",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		approve := configs.CanApply
 		return terraform.Destroy(approve)
 	},
 	Example: `
@@ -20,6 +18,6 @@ var destroyCmd = &cobra.Command{
 }
 
 func init() {
-	destroyCmd.Flags().BoolVar(&configs.CanApply, "approve", false, "Skip interactive approval of plan before applying")
+	destroyCmd.Flags().BoolVar(&approve, "approve", false, "Skip interactive approval of plan before applying")
 	stfCmd.AddCommand(destroyCmd)
 }
