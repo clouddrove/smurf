@@ -33,9 +33,6 @@ var scanCmd = &cobra.Command{
 			imageRef = data.Sdkr.ImageName
 		}
 
-		if configs.SarifFile == "" {
-			configs.SarifFile = "scan.json"
-		}
 
 		pterm.Info.Printf("Scanning Docker image %q...\n", imageRef)
 		err := docker.Scout(imageRef, configs.SarifFile)
@@ -51,8 +48,8 @@ var scanCmd = &cobra.Command{
   smurf sdkr scan
   # In the second example, it will read IMAGE_NAME from the config file
 
-  smurf sdkr scan my-image:latest --output scan.sarif
-  # Saves the scan report to 'scan.sarif'
+  smurf sdkr scan my-image:latest --output scan.json
+  # Saves the scan report to 'scan.json' in SARIF format
 `,
 }
 
