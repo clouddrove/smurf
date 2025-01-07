@@ -26,7 +26,6 @@ func getTerraform() (*tfexec.Terraform, error) {
 		return nil, err
 	}
 
-	pterm.Success.Printf("Configurations starting...\n")
 	return tf, nil
 }
 
@@ -69,3 +68,5 @@ func (w *CustomColorWriter) Write(p []byte) (n int, err error) {
 
 	return len(p), scanner.Err()
 }
+
+

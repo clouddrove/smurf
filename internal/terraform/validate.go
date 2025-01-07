@@ -16,13 +16,13 @@ func Validate() error {
 		return err
 	}
 
-	pterm.Info.Println("Validating Terraform configuration...")
-	spinner, _ := pterm.DefaultSpinner.Start("Running terraform validate")
+	pterm.Info.Println("Validating Infrastructure configuration...")
+	spinner, _ := pterm.DefaultSpinner.Start("Running validation")
 
 	valid, err := tf.Validate(context.Background())
 	if err != nil {
-		spinner.Fail("Terraform validation failed")
-		pterm.Error.Printf("Terraform validation failed: %v\n", err)
+		spinner.Fail("Infrastructure validation failed")
+		pterm.Error.Printf("Infrastructure validation failed: %v\n", err)
 		return err
 	}
 
@@ -32,9 +32,9 @@ func Validate() error {
 	tf.SetStderr(os.Stderr)
 
 	if valid.Valid {
-		spinner.Success("Terraform configuration is valid.")
+		spinner.Success("Infrastructure configuration is valid.")
 	} else {
-		spinner.Fail("Terraform configuration is invalid.")
+		spinner.Fail("Infrastructure configuration is invalid.")
 	}
 
 	return nil

@@ -27,48 +27,44 @@ func Apply(approve bool) error {
 		Printf("Terraform Apply")
 	fmt.Println()
 
-	planOutput, err := tf.Plan(context.Background())
-	if err != nil {
-		pterm.Error.Printf("Failed to generate plan: %v\n", err)
-		return err
-	}
-
-	if !planOutput {
-		pterm.Info.Println("No changes to apply.")
-		return nil
-	}
-
 	_, err = tf.Plan(context.Background(), tfexec.Out("plan.out"))
 	if err != nil {
 		pterm.Error.Printf("Failed to generate plan: %v\n", err)
 		return err
 	}
 
-	show, err := tf.ShowPlanFile(context.Background(), "plan.out")
+	planDetail, err := tf.ShowPlanFileRaw(context.Background(), "plan.out")
 	if err != nil {
 		pterm.Error.Printf("Failed to show plan: %v\n", err)
 		return err
 	}
 
-	if len(show.ResourceChanges) > 0 {
-		pterm.Info.Println("\nPlanned Changes:")
-		for _, resource := range show.ResourceChanges {
-			action := strings.ToUpper(string(resource.Change.Actions[0]))
-			switch action {
-			case "CREATE":
-				color.Green("  + %s\n", resource.Address)
-			case "UPDATE":
-				color.Yellow("  ~ %s\n", resource.Address)
-			case "DELETE":
-				color.Red("  - %s\n", resource.Address)
-			}
-		}
-		fmt.Println()
+	var outputBuffer bytes.Buffer
+	customWriter := &CustomColorWriter{
+		Buffer: &outputBuffer,
+		Writer: os.Stdout,
+	}
+	customWriter.Write([]byte(planDetail))
+
+	show, err := tf.ShowPlanFile(context.Background(), "plan.out")
+	if err != nil {
+		pterm.Error.Printf("Failed to parse plan: %v\n", err)
+		return err
+	}
+
+	if len(show.ResourceChanges) == 0 {
+		pterm.Info.Println("No changes to apply.")
+		return nil
 	}
 
 	if !approve {
-		pterm.Warning.Println("Apply cancelled. Use --approve to approve changes.")
-		return nil
+		var confirmation string
+		fmt.Print("\nDo you want to perform these actions? Only 'yes' will be accepted to approve.\nEnter a value: ")
+		fmt.Scanln(&confirmation)
+
+		if confirmation != "yes" {
+			return nil
+		}
 	}
 
 	spinner := pterm.DefaultSpinner.
@@ -76,16 +72,11 @@ func Apply(approve bool) error {
 		WithText("Applying changes...")
 	spinner.Start()
 
-	var outputBuffer bytes.Buffer
-	customWriter := &CustomColorWriter{
-		Buffer: &outputBuffer,
-		Writer: os.Stdout,
-	}
-
-	tf.SetStdout(customWriter)
+	
+	tf.SetStdout(os.Stdout)
 	tf.SetStderr(os.Stderr)
 
-	err = tf.Apply(context.Background())
+	err = tf.Apply(context.Background(), tfexec.DirOrPlan("plan.out"))
 	if err != nil {
 		spinner.Fail("Apply failed")
 		pterm.Error.Printf("Error: %v\n", err)

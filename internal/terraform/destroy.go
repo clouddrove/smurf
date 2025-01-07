@@ -17,43 +17,61 @@ import (
 // runs the destroy operation with a spinner for user feedback, and handles any
 // errors that occur during the process. Upon successful completion, it stops
 // the spinner with a success message.
-func Destroy() error {
+func Destroy(approve bool) error {
 	tf, err := getTerraform()
 	if err != nil {
 		return err
 	}
 
-	pterm.DefaultHeader.WithBackgroundStyle(pterm.NewStyle(pterm.BgRed)).
+	pterm.DefaultHeader.
+		WithBackgroundStyle(pterm.NewStyle(pterm.BgRed)).
 		WithTextStyle(pterm.NewStyle(pterm.FgLightWhite)).
 		Printf("Terraform Destroy")
 	fmt.Println()
 
-	planOutput, err := tf.Plan(context.Background(), tfexec.Destroy(true))
+	_, err = tf.Plan(
+		context.Background(),
+		tfexec.Destroy(true),
+		tfexec.Out("plan.out"),
+	)
 	if err != nil {
 		pterm.Error.Printf("Failed to generate destroy plan: %v\n", err)
 		return err
 	}
 
-	if !planOutput {
+	show, err := tf.ShowPlanFile(context.Background(), "plan.out")
+	if err != nil {
+		pterm.Error.Printf("Failed to parse plan: %v\n", err)
+		return err
+	}
+
+	if len(show.ResourceChanges) == 0 {
 		pterm.Info.Println("No resources to destroy.")
 		return nil
 	}
 
-	show, err := tf.ShowPlanFile(context.Background(), "plan.out")
+	planDetail, err := tf.ShowPlanFileRaw(context.Background(), "plan.out")
 	if err != nil {
 		pterm.Error.Printf("Failed to show plan: %v\n", err)
 		return err
 	}
 
-	
 	var outputBuffer bytes.Buffer
 	customWriter := &CustomColorWriter{
 		Buffer: &outputBuffer,
 		Writer: os.Stdout,
 	}
+	customWriter.Write([]byte(planDetail))
 
-	tf.SetStdout(customWriter)
-	tf.SetStderr(os.Stderr)
+	if !approve {
+		var confirmation string
+		fmt.Print("\nDo you want to destroy these resources? Only 'yes' will be accepted to approve.\nEnter a value: ")
+		fmt.Scanln(&confirmation)
+
+		if confirmation != "yes" {
+			return nil
+		}
+	}
 
 	spinner := pterm.DefaultSpinner.
 		WithRemoveWhenDone(true).
@@ -61,7 +79,14 @@ func Destroy() error {
 		WithText("Destroying resources...")
 	spinner.Start()
 
-	err = tf.Destroy(context.Background())
+	tf.SetStdout(os.Stdout)
+	tf.SetStderr(os.Stderr)
+
+	err = tf.Apply(
+		context.Background(),
+		tfexec.Destroy(true),
+		tfexec.DirOrPlan("plan.out"),
+	)
 	if err != nil {
 		spinner.Fail("Destroy failed")
 		pterm.Error.Printf("Error: %v\n", err)
@@ -70,8 +95,19 @@ func Destroy() error {
 
 	spinner.Success("Destroyed successfully")
 
-	pterm.Success.Println("\nDestroy complete! Resources: " +
-		color.RedString("%d destroyed", len(show.ResourceChanges)))
+	destroyed := 0
+	for _, rc := range show.ResourceChanges {
+		for _, action := range rc.Change.Actions {
+			if strings.ToUpper(string(action)) == "DELETE" {
+				destroyed++
+			}
+		}
+	}
+
+	pterm.Success.Println(
+		"\nDestroy complete! Resources: " +
+			color.RedString("%d destroyed", destroyed),
+	)
 
 	return nil
 }

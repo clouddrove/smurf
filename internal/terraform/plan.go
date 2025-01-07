@@ -29,8 +29,8 @@ func Plan(varNameValue string, varFile string) error {
 	tf.SetStdout(customWriter)
 	tf.SetStderr(os.Stderr)
 
-	pterm.Info.Println("Running Terraform plan...")
-	spinner, _ := pterm.DefaultSpinner.Start("Running terraform plan")
+	pterm.Info.Println("Infrastucture planing...")
+	spinner, _ := pterm.DefaultSpinner.Start("Infrastructure planing...")
 
 	if varNameValue != "" {
 		pterm.Info.Printf("Setting variable: %s\n", varNameValue)
@@ -41,19 +41,19 @@ func Plan(varNameValue string, varFile string) error {
 		pterm.Info.Printf("Setting variable file: %s\n", varFile)
 		_, err = tf.Plan(context.Background(), tfexec.VarFile(varFile))
 		if err != nil {
-			spinner.Fail("Terraform plan failed")
-			pterm.Error.Printf("Terraform plan failed: %v\n", err)
+			spinner.Fail("Plan failed")
+			pterm.Error.Printf("Plan failed: %v\n", err)
 			return err
 		}
 	}
 
 	_, err = tf.Plan(context.Background())
 	if err != nil {
-		spinner.Fail("Terraform plan failed")
-		pterm.Error.Printf("Terraform plan failed: %v\n", err)
+		spinner.Fail("Plan failed")
+		pterm.Error.Printf("Plan failed: %v\n", err)
 		return err
 	}
-	spinner.Success("Terraform plan completed successfully")
+	spinner.Success("Infrastructure planing completed successfully")
 
 	return nil
 }

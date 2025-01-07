@@ -64,11 +64,11 @@ func (l *CustomLogger) Write(p []byte) (n int, err error) {
 	}
 
 	if strings.Contains(msg, "successfully initialized") {
-		pterm.Success.Println("\nTerraform has been successfully initialized!")
-		pterm.Info.Println("\nYou may now begin working with Terraform. Try running \"smurf stf plan\" to see")
-		pterm.Info.Println("any changes that are required for your infrastructure. All Terraform commands")
+		pterm.Success.Println("\nInfrastructure has been successfully initialized!")
+		pterm.Info.Println("\nYou may now begin working with Smurf. Try running \"smurf stf plan\" to see")
+		pterm.Info.Println("any changes that are required for your infrastructure. All Stf commands")
 		pterm.Info.Println("should now work.")
-		pterm.Info.Println("\nIf you ever set or change modules or backend configuration for Terraform,")
+		pterm.Info.Println("\nIf you ever set or change modules or backend configuration for Stf,")
 		pterm.Info.Println("rerun this command to reinitialize your working directory. If you forget, other")
 		pterm.Info.Println("commands will detect it and remind you to do so if necessary.")
 		return len(p), nil
@@ -93,22 +93,22 @@ func Init() error {
 
 	pterm.DefaultHeader.WithBackgroundStyle(pterm.NewStyle(pterm.BgBlue)).
 		WithTextStyle(pterm.NewStyle(pterm.FgLightWhite)).
-		Printf("Terraform Initialization")
+		Println("Infrastructure Initialization")
 	fmt.Println()
 
 	spinner := pterm.DefaultSpinner.
 		WithRemoveWhenDone(true).
-		WithText("Running terraform init...")
+		WithText("Infrastructure creating...")
 	spinner.Start()
 
 	err = tf.Init(context.Background(), tfexec.Upgrade(true))
 	if err != nil {
-		spinner.Fail("Terraform initialization failed")
+		spinner.Fail("Infrastructure initialization failed")
 		pterm.Error.Printf("Error: %v\n", err)
 		return err
 	}
 
 	spinner.Success("Initialization complete")
-	spinner.Stop()
+
 	return nil
 }
