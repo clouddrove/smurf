@@ -3,32 +3,34 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"gopkg.in/yaml.v2"
-	"github.com/spf13/cobra"
+
 	"github.com/clouddrove/smurf/configs"
+	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v2"
 )
+
+// generateConfigCmd represents the init command to generate a smurf.yaml configuration file with empty values
 var generateConfig = &cobra.Command{
 	Use:   "init",
 	Short: "Generate a smurf.yaml configuration file with empty values",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		config := map[string]interface{}{
 			"sdkr": map[string]interface{}{
-				"docker_password":            "",
-				"docker_username":            "",
-				"provisionAcrRegistryName":   "",
-				"provisionAcrResourceGroup":  "",
-				"provisionAcrSubscriptionID": "",
-				"provisionEcrRegion":         "",
-				"provisionEcrRepository":     "",
-				"provisionGcrProjectID":      "",
+				"docker_password":                "",
+				"docker_username":                "",
+				"provisionAcrRegistryName":       "",
+				"provisionAcrResourceGroup":      "",
+				"provisionAcrSubscriptionID":     "",
+				"provisionGcrProjectID":          "",
 				"google_application_credentials": "",
-				"sourceTag":                  "",
-				"targetTag":                  "",
+				"imageName":                      "",
+				"targetImageTag":                 "",
 			},
 			"selm": map[string]interface{}{
-				"releaseName":                "",
-				"namespace":                  "",
-				"chartName":                  "",
+				"releaseName": "",
+				"namespace":   "",
+				"chartName":   "",
+				"revision":    0,
 			},
 		}
 
