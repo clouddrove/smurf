@@ -14,7 +14,7 @@ import (
 // The function provides user feedback through spinners and colored messages,
 // and handles any errors that occur during the planning process.
 func Plan(varNameValue string, varFile string) error {
-	tf, err := getTerraform()
+	tf, err := GetTerraform()
 	if err != nil {
 		return err
 	}

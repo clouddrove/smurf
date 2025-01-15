@@ -11,7 +11,7 @@ import (
 // It provides user feedback through spinners and colored messages, and handles any errors
 // that occur during the validation process.
 func Validate() error {
-	tf, err := getTerraform()
+	tf, err := GetTerraform()
 	if err != nil {
 		return err
 	}

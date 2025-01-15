@@ -11,7 +11,7 @@ import (
 // It runs `terraform fmt` in the current directory to ensure that all
 // Terraform files adhere to the standard formatting conventions.
 func Format() error {
-	tf, err := getTerraform()
+	tf, err := GetTerraform()
 	if err != nil {
 		return err
 	}

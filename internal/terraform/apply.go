@@ -17,7 +17,7 @@ import (
 // and handles any errors that occur during the process. Upon successful completion,
 // it sets custom writers for stdout and stderr to handle colored output.
 func Apply(approve bool) error {
-	tf, err := getTerraform()
+	tf, err := GetTerraform()
 	if err != nil {
 		return err
 	}

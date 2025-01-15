@@ -82,7 +82,7 @@ func (l *CustomLogger) Write(p []byte) (n int, err error) {
 // and provides user feedback through spinners and colored messages.
 // Upon successful initialization, it configures custom writers for enhanced output.
 func Init() error {
-	tf, err := getTerraform()
+	tf, err := GetTerraform()
 	if err != nil {
 		return err
 	}

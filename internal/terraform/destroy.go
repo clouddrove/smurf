@@ -18,7 +18,7 @@ import (
 // errors that occur during the process. Upon successful completion, it stops
 // the spinner with a success message.
 func Destroy(approve bool) error {
-	tf, err := getTerraform()
+	tf, err := GetTerraform()
 	if err != nil {
 		return err
 	}
