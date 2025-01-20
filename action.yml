@@ -1,0 +1,37 @@
+name: Smurf Action
+description: A custom GitHub Action that runs the Smurf CLI tool with Docker.
+
+inputs:
+  path:
+    description: Path to the Terraform configuration
+    required: false
+    default: .
+  tool:
+    description: 'Tool to use'
+    required: true
+  command:
+    description: "Command to run (e.g., ./smurf stf init)"
+    required: true
+  docker_username:
+    description: "Docker Hub username"
+    required: false
+  docker_password:
+    description: "Docker Hub password"
+    required: false
+    secret: true
+  AWS_REGION:
+    description: "AWS Region"
+    required: false
+  AWS_ACCOUNT_ID:
+    description: "AWS Account ID"
+    required: false
+
+runs:
+  using: "docker"
+  image: "Dockerfile"
+  env:
+    AWS_ACCOUNT_ID: ${{ inputs.AWS_ACCOUNT_ID }}
+    AWS_REGION: ${{ inputs.AWS_REGION }}
+  args:
+    - ${{ inputs.tool }}
+    - ${{ inputs.command }}

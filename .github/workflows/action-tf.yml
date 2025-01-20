@@ -1,0 +1,40 @@
+name: Smurf AWS Authentication and terraform custom action
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+jobs:
+  docker-build-publish:
+    runs-on: ubuntu-latest
+    permissions: write-all
+
+    env:
+      DOCKER_IMAGE: testing
+      DOCKER_TAG: 'manjeet/smurf:v1'
+      AWS_REGION: us-east-1
+      AWS_ACCOUNT_ID: '924144197303'
+
+    steps:
+      # Step 1: Checkout Code
+      - name: Checkout code
+        uses: actions/checkout@v4.1.7
+
+      # Step 2: Configure AWS Credentials
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_OIDC_ROLE }}
+          role-session-name: aws-auth
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Step 3: Run Smurf CLI Action
+
+      - name: Run Terraform Init
+        uses: clouddrove/smurf@master
+        with:
+          path:
+          tool: stf
+          command: init
