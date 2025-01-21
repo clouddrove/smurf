@@ -41,7 +41,7 @@ resource "null_resource" "example" {}
 	err = os.Chdir(tempDir)
 	require.NoError(t, err, "failed to chdir to tempDir")
 
-	err = mytf.Init()
+	err = mytf.Init(true)
 	require.NoError(t, err, "expected Init to succeed with mock config")
 
 	terraformDir := filepath.Join(tempDir, ".terraform")

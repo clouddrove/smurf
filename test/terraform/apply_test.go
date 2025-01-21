@@ -44,11 +44,11 @@ resource "null_resource" "example" {
 	err = os.WriteFile(filepath.Join(tmpDir, "main.tf"), []byte(tfConfig), 0644)
 	require.NoError(t, err)
 
-	err = mytf.Init()
+	err = mytf.Init(true)
 	require.NoError(t, err)
 
 	t.Run("apply with auto-approve", func(t *testing.T) {
-		err := mytf.Apply(true)
+		err := mytf.Apply(true, nil, nil, false)
 		assert.NoError(t, err)
 	})
 
@@ -63,7 +63,7 @@ resource "null_resource" "example" {
 			w.Close()
 		}()
 
-		err := mytf.Apply(false) 
+		err := mytf.Apply(true, nil, nil, false)
 		assert.NoError(t, err)
 	})
 }
