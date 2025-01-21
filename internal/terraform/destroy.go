@@ -17,7 +17,7 @@ import (
 // runs the destroy operation with a spinner for user feedback, and handles any
 // errors that occur during the process. Upon successful completion, it stops
 // the spinner with a success message.
-func Destroy(approve bool) error {
+func Destroy(approve bool, lock bool) error {
 	tf, err := GetTerraform()
 	if err != nil {
 		return err
@@ -86,6 +86,7 @@ func Destroy(approve bool) error {
 		context.Background(),
 		tfexec.Destroy(true),
 		tfexec.DirOrPlan("plan.out"),
+		tfexec.Lock(lock),
 	)
 	if err != nil {
 		spinner.Fail("Destroy failed")
