@@ -13,7 +13,7 @@ import (
 // It allows setting variables either via command-line arguments or variable files.
 // The function provides user feedback through spinners and colored messages,
 // and handles any errors that occur during the planning process.
-func Plan(varNameValue string, varFile string) error {
+func Plan(vars []string, varFiles []string) error {
 	tf, err := GetTerraform()
 	if err != nil {
 		return err
@@ -32,22 +32,25 @@ func Plan(varNameValue string, varFile string) error {
 	pterm.Info.Println("Infrastucture planing...")
 	spinner, _ := pterm.DefaultSpinner.Start("Infrastructure planing...")
 
-	if varNameValue != "" {
-		pterm.Info.Printf("Setting variable: %s\n", varNameValue)
-		tf.Plan(context.Background(), tfexec.Var(varNameValue))
-	}
+	planOptions := []tfexec.PlanOption{}
 
-	if varFile != "" {
-		pterm.Info.Printf("Setting variable file: %s\n", varFile)
-		_, err = tf.Plan(context.Background(), tfexec.VarFile(varFile))
-		if err != nil {
-			spinner.Fail("Plan failed")
-			pterm.Error.Printf("Plan failed: %v\n", err)
-			return err
+	if vars != nil {
+		pterm.Info.Printf("Setting variable: %s\n", vars)
+		for _, v := range vars {
+			pterm.Info.Printf("Setting variable: %s\n", v)
+			planOptions = append(planOptions, tfexec.Var(v))
 		}
 	}
 
-	_, err = tf.Plan(context.Background())
+	if varFiles != nil {
+		pterm.Info.Printf("Setting variable file: %s\n", varFiles)
+		for _, vf := range varFiles {
+			pterm.Info.Printf("Loading variable file: %s\n", vf)
+			planOptions = append(planOptions, tfexec.VarFile(vf))
+		}
+	}
+
+	_, err = tf.Plan(context.Background(), planOptions...)
 	if err != nil {
 		spinner.Fail("Plan failed")
 		pterm.Error.Printf("Plan failed: %v\n", err)
