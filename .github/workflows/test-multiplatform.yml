@@ -5,7 +5,7 @@ on:
   pull_request:
   # this will allow the tests to be run on demand
   workflow_dispatch:
-  
+
 env:
   GO_VERSION: 1.23
 
@@ -27,23 +27,13 @@ jobs:
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ inputs.terraform_version }}
+          
+      - name: Setup Docker on macOS
+        uses: douglascamata/setup-docker-macos-action@v1-alpha    
 
-      - name: Install dependencies (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          brew install lima qemu
-
-      - name: Start Lima VM (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          limactl start
-          limactl shell
-
-      - name: Set up Docker
-        uses: docker/setup-docker-action@v4
-        with:
-          version: 'latest'
-
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3      
+       
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
