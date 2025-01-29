@@ -1,8 +1,9 @@
+
 name: Test on all platforms
 on:
   # This is configured to run on pull requests. If desired you can change it to run on all pushes.
   # be aware that windows and MacOS takes can take a while for setup and both of them incur extra expense for Actions.
-  pull_request:
+  push:
   # this will allow the tests to be run on demand
   workflow_dispatch:
 
@@ -32,7 +33,8 @@ jobs:
         if: matrix.os == 'macos-13'  
         uses: douglascamata/setup-docker-macos-action@v1-alpha    
 
-      - name: Set up QEMU
+      - name: Set up QEMU on Linux/macOS
+        if: matrix.os != 'windows-latest'
         uses: docker/setup-qemu-action@v3      
        
       - name: Set up Go
