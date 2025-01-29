@@ -3,7 +3,7 @@ name: Test on all platforms
 on:
   # This is configured to run on pull requests. If desired you can change it to run on all pushes.
   # be aware that windows and MacOS takes can take a while for setup and both of them incur extra expense for Actions.
-  pull_request:
+  push:
   # this will allow the tests to be run on demand
   workflow_dispatch:
 
@@ -17,9 +17,9 @@ jobs:
     strategy:
       matrix:
         os:
-         # - ubuntu-latest
+          - ubuntu-latest
           - macos-13
-         # - windows-latest
+          - windows-latest
 
     steps:
       - uses: actions/checkout@v4
