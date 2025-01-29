@@ -1,14 +1,12 @@
 name: Test on all platforms
 on:
-  # This is configured to run on pull requests. If desired you can change it to run on all pushes.
-  # be aware that windows and MacOS takes can take a while for setup and both of them incur extra expense for Actions.
   pull_request:
-  # this will allow the tests to be run on demand
   workflow_dispatch:
 
 env:
   GO_VERSION: 1.23
-  terraform_version: 1.10.5
+  TERRAFORM_VERSION: 1.1.7
+
 jobs:
   test:
     name: Test on all platforms
@@ -23,16 +21,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Terraform
+      - name: Set up Terraform on Windows
+        if: matrix.os == 'windows-latest'
+        run: |
+          choco install terraform --version=${{ env.TERRAFORM_VERSION }} -y
+          echo "C:\Program Files\Terraform" >> $env:GITHUB_PATH
+          terraform -version
+
+      - name: Set up Terraform on Linux/macOS
+        if: matrix.os != 'windows-latest'
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: ${{ inputs.terraform_version }}
-          
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
       - name: Setup Docker on macOS
         if: matrix.os == 'macos-13'  
         uses: douglascamata/setup-docker-macos-action@v1-alpha    
 
-      - name: Set up QEMU
+      - name: Set up QEMU on Linux/macOS
+        if: matrix.os != 'windows-latest'
         uses: docker/setup-qemu-action@v3      
        
       - name: Set up Go
@@ -40,5 +47,9 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
-      - name: Test
+      - name: Print PATH for Debugging
+        run: echo $env:PATH  # Check if Terraform is in PATH
+
+      - name: Run Tests
         run: go test ./...
+#
