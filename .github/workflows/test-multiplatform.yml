@@ -1,3 +1,4 @@
+name: Test on all platforms
 on:
   # This is configured to run on pull requests. If desired you can change it to run on all pushes.
   # be aware that windows and MacOS takes can take a while for setup and both of them incur extra expense for Actions.
@@ -5,30 +6,39 @@ on:
   # this will allow the tests to be run on demand
   workflow_dispatch:
 
-
-name: Test on all platforms
-
 env:
   GO_VERSION: 1.23
-
+  terraform_version: 1.10.5
 jobs:
   test:
-    if: ${{ true }}
     name: Test on all platforms
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os:
           - ubuntu-latest
-          - macos-latest
+          - macos-13
           - windows-latest
+
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ inputs.terraform_version }}
+          
+      - name: Setup Docker on macOS
+        if: matrix.os == 'macos-13'  
+        uses: douglascamata/setup-docker-macos-action@v1-alpha    
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3      
+       
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: ${{env.GO_VERSION}}
+          go-version: ${{ env.GO_VERSION }}
 
       - name: Test
         run: go test ./...
