@@ -59,7 +59,7 @@ func HelmInstall(releaseName, chartRef, namespace string, valuesFiles []string, 
 	var chartObj *chart.Chart
 	var err error
 
-	chartObj, err = loadChart(chartRef, repoURL, version, settings)
+	chartObj, err = LoadChart(chartRef, repoURL, version, settings)
 	if err != nil {
 		logDetailedError("chart loading", err, namespace, releaseName)
 		return err
@@ -92,20 +92,20 @@ func HelmInstall(releaseName, chartRef, namespace string, valuesFiles []string, 
 }
 
 // loadChart determines the chart source and loads it appropriately
-func loadChart(chartRef, repoURL, version string, settings *cli.EnvSettings) (*chart.Chart, error) {
+func LoadChart(chartRef, repoURL, version string, settings *cli.EnvSettings) (*chart.Chart, error) {
 	if repoURL != "" {
-		return loadRemoteChart(chartRef, repoURL, version, settings)
+		return LoadRemoteChart(chartRef, repoURL, version, settings)
 	}
 
 	if strings.Contains(chartRef, "/") && !strings.HasPrefix(chartRef, ".") && !filepath.IsAbs(chartRef) {
-		return loadFromLocalRepo(chartRef, version, settings)
+		return LoadFromLocalRepo(chartRef, version, settings)
 	}
 
 	return loader.Load(chartRef)
 }
 
 // loadFromLocalRepo loads a chart from a local repository
-func loadFromLocalRepo(chartRef, version string, settings *cli.EnvSettings) (*chart.Chart, error) {
+func LoadFromLocalRepo(chartRef, version string, settings *cli.EnvSettings) (*chart.Chart, error) {
 	repoName := strings.Split(chartRef, "/")[0]
 	chartName := strings.Split(chartRef, "/")[1]
 
@@ -126,11 +126,11 @@ func loadFromLocalRepo(chartRef, version string, settings *cli.EnvSettings) (*ch
 		return nil, fmt.Errorf("repository %s not found in local repositories", repoName)
 	}
 
-	return loadRemoteChart(chartName, repoURL, version, settings)
+	return LoadRemoteChart(chartName, repoURL, version, settings)
 }
 
 // loadRemoteChart downloads and loads a chart from a remote repository
-func loadRemoteChart(chartName, repoURL string, version string, settings *cli.EnvSettings) (*chart.Chart, error) {
+func LoadRemoteChart(chartName, repoURL string, version string, settings *cli.EnvSettings) (*chart.Chart, error) {
 	repoEntry := &repo.Entry{
 		Name: "temp-repo",
 		URL:  repoURL,
