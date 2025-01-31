@@ -3,6 +3,8 @@ package terraform
 import (
 	"context"
 	"fmt"
+	"os"
+	"os/exec"
 	"strings"
 
 	"github.com/fatih/color"
@@ -59,6 +61,9 @@ func (cv *CustomValidator) formatValidationError(err ValidationError) string {
 
 // ValidateWithDetails performs validation and returns detailed error output
 func (cv *CustomValidator) ValidateWithDetails(ctx context.Context) error {
+	if cv.tf == nil {
+		return fmt.Errorf("Terraform instance is nil")
+	}
 	spinner, _ := pterm.DefaultSpinner.Start("Validating Terraform configuration...")
 
 	valid, err := cv.tf.Validate(ctx)
@@ -97,10 +102,34 @@ func getLineContent(filename string, lineNum int) (string, error) {
 	return "", nil
 }
 
+// GetTerraform initializes and returns a Terraform instance
+func GetValidateTerraform() (*tfexec.Terraform, error) {
+	workDir, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get working directory: %w", err)
+	}
+
+	terraformPath, err := exec.LookPath("terraform")
+	if err != nil {
+		return nil, fmt.Errorf("terraform executable not found: %w", err)
+	}
+
+	tf, err := tfexec.NewTerraform(workDir, terraformPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Terraform executor: %w", err)
+	}
+
+	return tf, nil
+}
+
 func Validate() error {
-	tf, err := GetTerraform()
+	tf, err := GetValidateTerraform()
 	if err != nil {
 		return err
+	}
+
+	if tf == nil {
+		return fmt.Errorf("Terraform instance is nil")
 	}
 
 	validator := NewCustomValidator(tf)
