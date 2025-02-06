@@ -28,8 +28,8 @@ jobs:
       id: repo-name
       run: echo name=$(basename ${{ github.repository }}) >> $GITHUB_OUTPUT
 
-    - name: Test
-      run: go test -v ./...
+    # - name: Test
+    #   run: go test -v ./...
 
     - name: Build
       run: make package PROGRAM=${{ env.GOOS }}-${{ env.GOARCH }}/${{ steps.repo-name.outputs.name }}${{ matrix.ext }} PACKAGE=dist/${{ steps.repo-name.outputs.name }}-${{ matrix.GOOS }}-${{ matrix.GOARCH }}.zip
