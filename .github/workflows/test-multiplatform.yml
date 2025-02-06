@@ -1,6 +1,6 @@
 name: Test on all platforms
 on:
-  pull_request:
+  # pull_request:
   workflow_dispatch:
 
 env:
