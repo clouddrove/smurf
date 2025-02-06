@@ -26,3 +26,4 @@ type RollbackOptions struct {
 	Timeout   int
 	Wait      bool
 }
+

@@ -13,7 +13,7 @@ import (
 )
 
 // getTerraform locates the Terraform binary and initializes a Terraform instance
-func getTerraform() (*tfexec.Terraform, error) {
+func GetTerraform() (*tfexec.Terraform, error) {
 	terraformBinary, err := exec.LookPath("terraform")
 	if err != nil {
 		pterm.Error.Println("Terraform binary not found in PATH. Please install Terraform.")

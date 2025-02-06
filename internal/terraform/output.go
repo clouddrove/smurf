@@ -14,7 +14,7 @@ import (
 // then retrieves and displays the outputs. Sensitive outputs are hidden for security.
 // Provides user feedback through spinners and colored messages for enhanced UX.
 func Output() error {
-	tf, err := getTerraform()
+	tf, err := GetTerraform()
 	if err != nil {
 		return err
 	}

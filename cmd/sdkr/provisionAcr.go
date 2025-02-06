@@ -15,15 +15,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
-
 // provisionAcrCmd sets up the "provision-acr" command, enabling the build,
-// vulnerability scan, and optional push of a Docker image to Azure Container Registry.
-// It supports default values from the config file if no arguments are provided, 
-// as well as advanced features like specifying build args, timeouts, and 
+// and optional push of a Docker image to Azure Container Registry.
+// It supports default values from the config file if no arguments are provided,
+// as well as advanced features like specifying build args, timeouts, and
 // removing the local image once it's successfully pushed.
 var provisionAcrCmd = &cobra.Command{
 	Use:   "provision-acr [IMAGE_NAME[:TAG]]",
-	Short: "Build, scan and push a Docker image to Azure Container Registry.",
+	Short: "Build and push a Docker image to Azure Container Registry.",
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var imageRef string
@@ -106,18 +105,6 @@ var provisionAcrCmd = &cobra.Command{
 		}
 		pterm.Success.Println("Build completed successfully.")
 
-		pterm.Info.Println("Starting scan...")
-		scanErr := docker.Scout(fullAcrImage, configs.SarifFile)
-		if scanErr != nil {
-			pterm.Error.Println("Scan failed:", scanErr)
-		} else {
-			pterm.Success.Println("Scan completed successfully.")
-		}
-
-		if scanErr != nil {
-			return fmt.Errorf("ACR provisioning failed due to previous errors")
-		}
-
 		pushImage := imageRef
 		if pushImage == "" {
 			pushImage = fullAcrImage
@@ -129,19 +116,17 @@ var provisionAcrCmd = &cobra.Command{
 			_, _ = buf.ReadBytes('\n')
 		}
 
-		if configs.ConfirmAfterPush {
-			pterm.Info.Printf("Pushing image %s to ACR...\n", pushImage)
-			if err := docker.PushImageToACR(
-				configs.SubscriptionID,
-				configs.ResourceGroup,
-				configs.RegistryName,
-				localImageName,
-			); err != nil {
-				pterm.Error.Println("Push to ACR failed:", err)
-				return err
-			}
-			pterm.Success.Println("Push to ACR completed successfully.")
+		pterm.Info.Printf("Pushing image %s to ACR...\n", pushImage)
+		if err := docker.PushImageToACR(
+			configs.SubscriptionID,
+			configs.ResourceGroup,
+			configs.RegistryName,
+			localImageName,
+		); err != nil {
+			pterm.Error.Println("Push to ACR failed:", err)
+			return err
 		}
+		pterm.Success.Println("Push to ACR completed successfully.")
 
 		if configs.DeleteAfterPush {
 			pterm.Info.Printf("Deleting local image %s...\n", fullAcrImage)
