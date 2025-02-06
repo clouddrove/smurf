@@ -1,18 +1,18 @@
 package sdkr
 
 import (
-    "bufio"
-    "errors"
-    "fmt"
-    "os"
-    "path/filepath"
-    "strings"
-    "time"
+	"bufio"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
 
-    "github.com/clouddrove/smurf/configs"
-    "github.com/clouddrove/smurf/internal/docker"
-    "github.com/pterm/pterm"
-    "github.com/spf13/cobra"
+	"github.com/clouddrove/smurf/configs"
+	"github.com/clouddrove/smurf/internal/docker"
+	"github.com/pterm/pterm"
+	"github.com/spf13/cobra"
 )
 
 // provisionHubCmd sets up the "provision-hub" command to build, scan, and optionally push
@@ -20,143 +20,141 @@ import (
 // variables or config, uses build arguments, and allows automated cleanup of local images
 // after a successful push.
 var provisionHubCmd = &cobra.Command{
-    Use:   "provision-hub [IMAGE_NAME[:TAG]]",
-    Short: "Build, scan, and push a Docker image to Docker Hub.",
-    Long: `Build, scan, and push a Docker image to Docker Hub.
+	Use:   "provision-hub [IMAGE_NAME[:TAG]]",
+	Short: "Build, scan, and push a Docker image to Docker Hub.",
+	Long: `Build, scan, and push a Docker image to Docker Hub.
 Set DOCKER_USERNAME and DOCKER_PASSWORD environment variables for Docker Hub authentication, for example:
   export DOCKER_USERNAME="your-username"
   export DOCKER_PASSWORD="your-password"`,
-    Args: cobra.MaximumNArgs(1),
-    RunE: func(cmd *cobra.Command, args []string) error {
-        var imageRef string
-        if len(args) == 1 {
-            imageRef = args[0]
-        } else {
-            data, err := configs.LoadConfig(configs.FileName)
-            if err != nil {
-                return fmt.Errorf("failed to load config: %w", err)
-            }
-            if data.Sdkr.ImageName == "" {
-                return errors.New("image name (with optional tag) must be provided either as an argument or in the config")
-            }
-            imageRef = data.Sdkr.ImageName
-        }
+	Args: cobra.MaximumNArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		var imageRef string
+		if len(args) == 1 {
+			imageRef = args[0]
+		} else {
+			data, err := configs.LoadConfig(configs.FileName)
+			if err != nil {
+				return fmt.Errorf("failed to load config: %w", err)
+			}
+			if data.Sdkr.ImageName == "" {
+				return errors.New("image name (with optional tag) must be provided either as an argument or in the config")
+			}
+			imageRef = data.Sdkr.ImageName
+		}
 
-        if os.Getenv("DOCKER_USERNAME") == "" && os.Getenv("DOCKER_PASSWORD") == "" {
-            data, err := configs.LoadConfig(configs.FileName)
-            if err != nil {
-                return fmt.Errorf("failed to load config: %w", err)
-            }
+		if os.Getenv("DOCKER_USERNAME") == "" && os.Getenv("DOCKER_PASSWORD") == "" {
+			data, err := configs.LoadConfig(configs.FileName)
+			if err != nil {
+				return fmt.Errorf("failed to load config: %w", err)
+			}
 
-            envVars := map[string]string{
-                "DOCKER_USERNAME": data.Sdkr.DockerUsername,
-                "DOCKER_PASSWORD": data.Sdkr.DockerPassword,
-            }
-            if err := configs.ExportEnvironmentVariables(envVars); err != nil {
-                pterm.Error.Println("Error exporting Docker Hub credentials:", err)
-                return err
-            }
-        }
+			envVars := map[string]string{
+				"DOCKER_USERNAME": data.Sdkr.DockerUsername,
+				"DOCKER_PASSWORD": data.Sdkr.DockerPassword,
+			}
+			if err := configs.ExportEnvironmentVariables(envVars); err != nil {
+				pterm.Error.Println("Error exporting Docker Hub credentials:", err)
+				return err
+			}
+		}
 
-        if os.Getenv("DOCKER_USERNAME") == "" || os.Getenv("DOCKER_PASSWORD") == "" {
-            pterm.Error.Println("Docker Hub credentials are required")
-            return errors.New("missing required Docker Hub credentials")
-        }
+		if os.Getenv("DOCKER_USERNAME") == "" || os.Getenv("DOCKER_PASSWORD") == "" {
+			pterm.Error.Println("Docker Hub credentials are required")
+			return errors.New("missing required Docker Hub credentials")
+		}
 
-        localImageName, localTag, parseErr := configs.ParseImage(imageRef)
-        if parseErr != nil {
-            return fmt.Errorf("invalid image format: %w", parseErr)
-        }
-        if localImageName == "" {
-            return errors.New("invalid image reference")
-        }
-        if localTag == "" {
-            localTag = "latest"
-        }
+		localImageName, localTag, parseErr := configs.ParseImage(imageRef)
+		if parseErr != nil {
+			return fmt.Errorf("invalid image format: %w", parseErr)
+		}
+		if localImageName == "" {
+			return errors.New("invalid image reference")
+		}
+		if localTag == "" {
+			localTag = "latest"
+		}
 
-        fullImageName := fmt.Sprintf("%s:%s", localImageName, localTag)
+		fullImageName := fmt.Sprintf("%s:%s", localImageName, localTag)
 
-        buildArgsMap := make(map[string]string)
-        for _, arg := range configs.BuildArgs {
-            parts := strings.SplitN(arg, "=", 2)
-            if len(parts) == 2 {
-                buildArgsMap[parts[0]] = parts[1]
-            }
-        }
+		buildArgsMap := make(map[string]string)
+		for _, arg := range configs.BuildArgs {
+			parts := strings.SplitN(arg, "=", 2)
+			if len(parts) == 2 {
+				buildArgsMap[parts[0]] = parts[1]
+			}
+		}
 
-        if configs.ContextDir == "" {
-            wd, err := os.Getwd()
-            if err != nil {
-                return fmt.Errorf("failed to get current working directory: %w", err)
-            }
-            configs.ContextDir = wd
-        }
+		if configs.ContextDir == "" {
+			wd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("failed to get current working directory: %w", err)
+			}
+			configs.ContextDir = wd
+		}
 
-        if configs.DockerfilePath == "" {
-            configs.DockerfilePath = filepath.Join(configs.ContextDir, "Dockerfile")
-        } else {
+		if configs.DockerfilePath == "" {
+			configs.DockerfilePath = filepath.Join(configs.ContextDir, "Dockerfile")
+		} else {
 			configs.DockerfilePath = filepath.Join(configs.ContextDir, configs.DockerfilePath)
-        }
+		}
 
-        buildOpts := docker.BuildOptions{
-            DockerfilePath: configs.DockerfilePath,
-            NoCache:        configs.NoCache,
-            BuildArgs:      buildArgsMap,
-            Target:         configs.Target,
-            Platform:       configs.Platform,
-            Timeout:        time.Duration(configs.BuildTimeout) * time.Second,
-            ContextDir:     configs.ContextDir,
-        }
+		buildOpts := docker.BuildOptions{
+			DockerfilePath: configs.DockerfilePath,
+			NoCache:        configs.NoCache,
+			BuildArgs:      buildArgsMap,
+			Target:         configs.Target,
+			Platform:       configs.Platform,
+			Timeout:        time.Duration(configs.BuildTimeout) * time.Second,
+			ContextDir:     configs.ContextDir,
+		}
 
-        pterm.Info.Println("Starting build...")
-        if err := docker.Build(localImageName, localTag, buildOpts); err != nil {
-            pterm.Error.Println("Build failed:", err)
-            return err
-        }
-        pterm.Success.Println("Build completed successfully.")
+		pterm.Info.Println("Starting build...")
+		if err := docker.Build(localImageName, localTag, buildOpts); err != nil {
+			pterm.Error.Println("Build failed:", err)
+			return err
+		}
+		pterm.Success.Println("Build completed successfully.")
 
-        pterm.Info.Println("Starting scan...")
-        scanErr := docker.Scout(fullImageName, configs.SarifFile)
-        if scanErr != nil {
-            pterm.Error.Println("Scan failed:", scanErr)
-        } else {
-            pterm.Success.Println("Scan completed successfully.")
-        }
+		pterm.Info.Println("Starting scan...")
+		scanErr := docker.Scout(fullImageName, configs.SarifFile)
+		if scanErr != nil {
+			pterm.Error.Println("Scan failed:", scanErr)
+		} else {
+			pterm.Success.Println("Scan completed successfully.")
+		}
 
-        if scanErr != nil {
-            return fmt.Errorf("Docker Hub provisioning failed due to previous errors")
-        }
+		if scanErr != nil {
+			return fmt.Errorf("Docker Hub provisioning failed due to previous errors")
+		}
 
-        if !configs.ConfirmAfterPush {
-            pterm.Info.Println("Press Enter to continue...")
-            _, _ = bufio.NewReader(os.Stdin).ReadBytes('\n')
-        }
+		if !configs.ConfirmAfterPush {
+			pterm.Info.Println("Press Enter to continue...")
+			_, _ = bufio.NewReader(os.Stdin).ReadBytes('\n')
+		}
 
-        if configs.ConfirmAfterPush {
-            pterm.Info.Printf("Pushing image %s...\n", fullImageName)
-            pushOpts := docker.PushOptions{
-                ImageName: fullImageName,
-            }
-            if err := docker.PushImage(pushOpts); err != nil {
-                pterm.Error.Println("Push failed:", err)
-                return err
-            }
-            pterm.Success.Println("Push completed successfully.")
-        }
+		pterm.Info.Printf("Pushing image %s...\n", fullImageName)
+		pushOpts := docker.PushOptions{
+			ImageName: fullImageName,
+		}
+		if err := docker.PushImage(pushOpts); err != nil {
+			pterm.Error.Println("Push failed:", err)
+			return err
+		}
+		pterm.Success.Println("Push completed successfully.")
 
-        if configs.DeleteAfterPush {
-            pterm.Info.Printf("Deleting local image %s...\n", fullImageName)
-            if err := docker.RemoveImage(fullImageName); err != nil {
-                pterm.Error.Println("Failed to delete local image:", err)
-                return err
-            }
-            pterm.Success.Println("Successfully deleted local image:", fullImageName)
-        }
+		if configs.DeleteAfterPush {
+			pterm.Info.Printf("Deleting local image %s...\n", fullImageName)
+			if err := docker.RemoveImage(fullImageName); err != nil {
+				pterm.Error.Println("Failed to delete local image:", err)
+				return err
+			}
+			pterm.Success.Println("Successfully deleted local image:", fullImageName)
+		}
 
-        pterm.Success.Println("Provisioning completed successfully.")
-        return nil
-    },
-    Example: `
+		pterm.Success.Println("Provisioning completed successfully.")
+		return nil
+	},
+	Example: `
   # Provide "myuser/myimage:latest" as an argument
   smurf sdkr provision-hub myuser/myimage:latest --context . --file Dockerfile --no-cache \
     --build-arg key1=value1 --build-arg key2=value2 --target my-target --platform linux/amd64 \
@@ -168,70 +166,68 @@ Set DOCKER_USERNAME and DOCKER_PASSWORD environment variables for Docker Hub aut
 }
 
 func init() {
-    provisionHubCmd.Flags().StringVarP(
-        &configs.DockerfilePath,
-        "file", "f",
-        "",
-        "Dockerfile path relative to the context directory (default: 'Dockerfile')",
-    )
-    provisionHubCmd.Flags().BoolVar(
-        &configs.NoCache,
-        "no-cache",
-        false,
-        "Do not use cache when building the image",
-    )
-    provisionHubCmd.Flags().StringArrayVar(
-        &configs.BuildArgs,
-        "build-arg",
-        []string{},
-        "Set build-time variables (e.g. --build-arg key=value)",
-    )
-    provisionHubCmd.Flags().StringVar(
-        &configs.Target,
-        "target",
-        "",
-        "Set the target build stage to build",
-    )
-    provisionHubCmd.Flags().StringVar(
-        &configs.Platform,
-        "platform",
-        "",
-        "Set the platform for the image (e.g., linux/amd64)",
-    )
-    provisionHubCmd.Flags().IntVar(
-        &configs.BuildTimeout,
-        "timeout",
-        1500,
-        "Build timeout",
-    )
-    provisionHubCmd.Flags().StringVar(
-        &configs.ContextDir,
-        "context",
-        "",
-        "Build context directory (default: current directory)",
-    )
+	provisionHubCmd.Flags().StringVarP(
+		&configs.DockerfilePath,
+		"file", "f",
+		"",
+		"Dockerfile path relative to the context directory (default: 'Dockerfile')",
+	)
+	provisionHubCmd.Flags().BoolVar(
+		&configs.NoCache,
+		"no-cache",
+		false,
+		"Do not use cache when building the image",
+	)
+	provisionHubCmd.Flags().StringArrayVar(
+		&configs.BuildArgs,
+		"build-arg",
+		[]string{},
+		"Set build-time variables (e.g. --build-arg key=value)",
+	)
+	provisionHubCmd.Flags().StringVar(
+		&configs.Target,
+		"target",
+		"",
+		"Set the target build stage to build",
+	)
+	provisionHubCmd.Flags().StringVar(
+		&configs.Platform,
+		"platform",
+		"",
+		"Set the platform for the image (e.g., linux/amd64)",
+	)
+	provisionHubCmd.Flags().IntVar(
+		&configs.BuildTimeout,
+		"timeout",
+		1500,
+		"Build timeout",
+	)
+	provisionHubCmd.Flags().StringVar(
+		&configs.ContextDir,
+		"context",
+		"",
+		"Build context directory (default: current directory)",
+	)
 
-    provisionHubCmd.Flags().StringVarP(
-        &configs.SarifFile,
-        "output", "o",
-        "",
-        "Output file for SARIF report",
-    )
+	provisionHubCmd.Flags().StringVarP(
+		&configs.SarifFile,
+		"output", "o",
+		"",
+		"Output file for SARIF report",
+	)
 
-    provisionHubCmd.Flags().BoolVarP(
-        &configs.ConfirmAfterPush,
-        "yes", "y",
-        false,
-        "Push the image without confirmation",
-    )
-    provisionHubCmd.Flags().BoolVarP(
-        &configs.DeleteAfterPush,
-        "delete", "d",
-        false,
-        "Delete the local image after pushing",
-    )
+	provisionHubCmd.Flags().BoolVarP(
+		&configs.ConfirmAfterPush,
+		"yes", "y",
+		false,
+		"Push the image without confirmation",
+	)
+	provisionHubCmd.Flags().BoolVarP(
+		&configs.DeleteAfterPush,
+		"delete", "d",
+		false,
+		"Delete the local image after pushing",
+	)
 
-    sdkrCmd.AddCommand(provisionHubCmd)
+	sdkrCmd.AddCommand(provisionHubCmd)
 }
-
-

@@ -15,16 +15,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
-
-// provisionGcrCmd encapsulates the logic to build a Docker image, run a security scan, 
-// and optionally push that image to Google Container Registry. It also leverages 
-// environment variables or config file values for project credentials and other 
-// parameters. The command supports features like custom build args, timeouts, 
+// provisionGcrCmd encapsulates the logic to build a Docker image, run a security scan,
+// and optionally push that image to Google Container Registry. It also leverages
+// environment variables or config file values for project credentials and other
+// parameters. The command supports features like custom build args, timeouts,
 // and conditional deletion of local images post-push.
 var provisionGcrCmd = &cobra.Command{
 	Use:   "provision-gcr [IMAGE_NAME[:TAG]]",
-	Short: "Build, scan, and push a Docker image to Google Container Registry.",
-	Long: `Build, scan, and push a Docker image to Google Container Registry.
+	Short: "Build and push a Docker image to Google Container Registry.",
+	Long: `Build and push a Docker image to Google Container Registry.
 Set the GOOGLE_APPLICATION_CREDENTIALS environment variable to the path of your service account JSON key file, for example:
   export GOOGLE_APPLICATION_CREDENTIALS="/path/to/your/service-account-key.json"
 `,
@@ -34,7 +33,7 @@ Set the GOOGLE_APPLICATION_CREDENTIALS environment variable to the path of your 
 		var envVars map[string]string
 
 		if len(args) == 1 {
-			imageRef = args[0] 
+			imageRef = args[0]
 		} else {
 			data, err := configs.LoadConfig(configs.FileName)
 			if err != nil {
@@ -126,17 +125,6 @@ Set the GOOGLE_APPLICATION_CREDENTIALS environment variable to the path of your 
 		}
 		pterm.Success.Println("Build completed successfully.")
 
-		pterm.Info.Println("Starting scan...")
-		scanErr := docker.Scout(fullGcrImage, configs.SarifFile)
-		if scanErr != nil {
-			pterm.Error.Println("Scan failed:", scanErr)
-		} else {
-			pterm.Success.Println("Scan completed successfully.")
-		}
-		if scanErr != nil {
-			return fmt.Errorf("GCR provisioning failed due to previous errors")
-		}
-
 		pushImage := fullGcrImage
 
 		if !configs.ConfirmAfterPush {
@@ -144,16 +132,12 @@ Set the GOOGLE_APPLICATION_CREDENTIALS environment variable to the path of your 
 			_, _ = bufio.NewReader(os.Stdin).ReadBytes('\n')
 		}
 
-		if configs.ConfirmAfterPush {
-			pterm.Info.Printf("Pushing image %s to GCR...\n", pushImage)
-			if err := docker.PushImageToGCR(configs.ProjectID, localImageName+":"+localTag); err != nil {
-				pterm.Error.Println("Push to GCR failed:", err)
-				return err
-			}
-			pterm.Success.Println("Push to GCR completed successfully.")
+		pterm.Info.Printf("Pushing image %s to GCR...\n", pushImage)
+		if err := docker.PushImageToGCR(configs.ProjectID, localImageName+":"+localTag); err != nil {
+			pterm.Error.Println("Push to GCR failed:", err)
+			return err
 		}
-
-		
+		pterm.Success.Println("Push to GCR completed successfully.")
 
 		if configs.DeleteAfterPush {
 			pterm.Info.Printf("Deleting local image %s...\n", fullGcrImage)

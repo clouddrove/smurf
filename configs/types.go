@@ -22,27 +22,33 @@ var (
 
 // types for SELM
 var (
-	Directory string
-	File      []string
-	Namespace string
-	Timeout   int
-	Atomic    bool
-	Debug     bool
-	Set       []string
-	Force     bool
-	Wait      bool
+	Directory             string
+	File                  []string
+	Namespace             string
+	Timeout               int
+	Atomic                bool
+	Debug                 bool
+	Set                   []string
+	Force                 bool
+	Wait                  bool
+	CaFile                string // --ca-file
+	CertFile              string // --cert-file
+	KeyFile               string // --key-file
+	Password              string // --password
+	RepoURL               string // --repo
+	Username              string // --username
+	Verify                bool   // --verify
+	Version               string // --version
 )
 
 // Config struct to hold the configuration for the SDKR and SELM
 var FileName = "smurf.yaml"
-
 
 // Config struct to hold the configuration for the SDKR and SELM
 type Config struct {
 	Sdkr SdkrConfig `yaml:"sdkr"`
 	Selm SelmConfig `yaml:"selm"`
 }
-
 
 // types for SDKR in the config file
 type SdkrConfig struct {
@@ -56,7 +62,6 @@ type SdkrConfig struct {
 	ImageName                    string `yaml:"imageName"`
 	TargetImageTag               string `yaml:"targetImageTag"`
 }
-
 
 // types for SELM in the config file
 type SelmConfig struct {

@@ -12,6 +12,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var RepoURL string
+var Version string
+
 // installCmd is a subcommand that installs a Helm chart into a Kubernetes cluster,
 // allowing customization through flags or config-file-based defaults. If the
 // required arguments (release name and chart path) are omitted, they can be
@@ -75,7 +78,7 @@ var installCmd = &cobra.Command{
 		}
 
 		pterm.Info.Println("Starting Helm install...")
-		err := helm.HelmInstall(releaseName, chartPath, configs.Namespace, configs.File, timeoutDuration, configs.Atomic, configs.Debug, configs.Set)
+		err := helm.HelmInstall(releaseName, chartPath, configs.Namespace, configs.File, timeoutDuration, configs.Atomic, configs.Debug, configs.Set, RepoURL, Version)
 		if err != nil {
 			return errors.New(color.RedString("Helm install failed: %v", err))
 		}
@@ -87,19 +90,21 @@ var installCmd = &cobra.Command{
   smurf selm install my-release ./mychart -n my-namespace
   smurf selm install my-release ./mychart -f values.yaml
   smurf selm install my-release ./mychart --timeout=600
+  smurf selm install prometheus-11 prometheus --repo https://prometheus-community.github.io/helm-charts --version 13.0.0
+  smurf selm install prometheus prometheus-community/prometheus
   smurf selm install
   # In the last example, it will read RELEASE and CHART from the config file
   `,
 }
 
-
-
 func init() {
 	installCmd.Flags().StringVarP(&configs.Namespace, "namespace", "n", "", "Specify the namespace to install the Helm chart")
-	installCmd.Flags().IntVar(&configs.Timeout, "timeout", 150, "Specify the timeout in seconds to wait for any individual Kubernetes operation")
+	installCmd.Flags().IntVar(&configs.Timeout, "timeout", 600, "Specify the timeout in seconds to wait for any individual Kubernetes operation")
 	installCmd.Flags().StringArrayVarP(&configs.File, "values", "f", []string{}, "Specify values in a YAML file")
 	installCmd.Flags().BoolVar(&configs.Atomic, "atomic", false, "If set, installation process purges chart on fail")
 	installCmd.Flags().BoolVar(&configs.Debug, "debug", false, "Enable verbose output")
 	installCmd.Flags().StringSliceVar(&configs.Set, "set", []string{}, "Set values on the command line (can specify multiple or separate values with commas: key1=val1,key2=val2)")
+	installCmd.Flags().StringVar(&RepoURL, "repo", "", "Specify the chart repository URL for remote charts")
+	installCmd.Flags().StringVar(&Version, "version", "", "Specify the chart version to install")
 	selmCmd.AddCommand(installCmd)
 }

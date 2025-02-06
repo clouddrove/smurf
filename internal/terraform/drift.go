@@ -14,7 +14,7 @@ import (
 // from the current state. If drift is detected, it lists the affected resources.
 // Provides user feedback through spinners and colored messages for better UX.
 func DetectDrift() error {
-	tf, err := getTerraform()
+	tf, err := GetTerraform()
 	if err != nil {
 		return err
 	}
