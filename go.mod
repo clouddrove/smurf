@@ -13,7 +13,7 @@ require (
 	github.com/pterm/pterm v0.12.80
 	github.com/spf13/cobra v1.8.1
 	github.com/stretchr/testify v1.10.0
-	golang.org/x/oauth2 v0.25.0
+	golang.org/x/oauth2 v0.26.0
 	gopkg.in/yaml.v2 v2.4.0
 	helm.sh/helm/v3 v3.16.4
 	k8s.io/api v0.31.4
