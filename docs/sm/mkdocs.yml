@@ -54,8 +54,7 @@ markdown_extensions:
 
 extra:
   social:
-    - icon: simple/linkedin
-      link: https://cpco.io/linkedin
+    - icon: fontawesome/brands/mastodon 
+      link: https://fosstodon.org/@squidfunk
 
-
-copyright: Copyright &copy; 2024 Clouddrove
+copyright: Copyright &copy; 2025 CloudDrove
