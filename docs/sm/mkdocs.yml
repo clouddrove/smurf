@@ -57,5 +57,7 @@ extra:
     - icon: simple/linkedin
       link: https://cpco.io/linkedin
 
-
+extra_css:
+  - css/custom.css
+  
 copyright: Copyright &copy; 2024 Clouddrove
