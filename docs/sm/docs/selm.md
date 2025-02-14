@@ -1,4 +1,4 @@
-# Helm Workflow
+# Helm User Guide
 
 ### Using Smurf SELM on local
 

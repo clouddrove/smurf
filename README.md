@@ -43,43 +43,16 @@ Smurf is a command-line interface (CLI) application built using Golang leveragin
 - **Unified CLI Interface:** Manage multi-tool operations from one interface, reducing the need for multiple command sets.
 
 ## Installation
-
-### Prerequisites
-
-- Go 1.20 or higher
-- Git
-- Terraform, Helm, and Docker Daemon installed and accessible via your PATH
-
-### Installation Steps
-
-1. **Clone the repository:**
-
-   ```bash
-   git clone https://github.com/clouddrove/smurf.git
-   ```
-
-2. **Change to the project directory:**
-
-   ```bash
-   cd smurf
-   ```
-
-3. **Build the tool:**
-
-   ```bash
-   go build -o smurf .
-   ```
-
-   This will build `smurf` in your project directory.
+[Smurf tool Installation Guide](installation.md)
 
 ## Usage
 
 ### Smurf SELM
-[Usage Guide](docs/selm/README.md)
+[Usage Guide for using helm commands via smurf tool](selm.md)
 ### Smurf SDKR
-[Usage Guide](docs/sdkr/README.md)
+[Usage Guide for using docker commands via smurf tool](sdkr.md)
 ### Smurf STF
-[Usage Guide](docs/stf/README.md)
+[Usage Guide for using terraform commands via smurf tool](stf.md)
 
 ## Contributors ✨ 
 
@@ -136,7 +109,7 @@ At [CloudDrove][website], has extensive experience in designing, building & migr
 [blog]: https://blog.clouddrove.com
 [slack]: https://www.launchpass.com/devops-talks
 [github]: https://github.com/clouddrove
-[linkedin]: https://cpco.io/linkedin
+[linkedin]: https://linkedin.com/company/clouddrove
 [twitter]: https://twitter.com/clouddrove/
 [email]: https://clouddrove.com/contact-us.html
 [terraform_modules]: https://github.com/clouddrove?utf8=%E2%9C%93&q=terraform-&type=&language=

@@ -1,4 +1,4 @@
-# Terraform Workflow
+# Terraform User Guide
 
 
 ### Using Smurf STF on local

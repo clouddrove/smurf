@@ -1,4 +1,4 @@
-# Docker Workflow
+# Docker User Guide
 
 ### Using Smurf SDKR on local
 
@@ -54,20 +54,18 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_GITHUB_OIDC_ROLE }}
           role-session-name: aws-auth
-          aws-region: us-west-2
+          aws-region: #AWS_REGION
 
 
       - name: Smurf sdkr build
         uses: clouddrove-sandbox/smurf-custon-github-action-test@master
         with:
-          path: 
           tool: sdkr
           command: build image_name:tag
 
       - name: Smurf sdkr push image
         uses: clouddrove-sandbox/smurf-custon-github-action-test@master
-        with:
-          path: 
+        with: 
           tool: sdkr
           command: push hub USERNAME/image_name:tag
 ```
@@ -110,7 +108,6 @@ jobs:
       - name: Run Provision-ecr (Build,Scan and Push)
         uses: clouddrove-sandbox/smurf-custon-github-action-test@master
         with:
-          path: 
           tool: sdkr
           command: provision-ecr repo:image_name -f Dockerfile --yes
 ```
