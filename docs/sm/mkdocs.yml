@@ -69,7 +69,7 @@ extra:
     - icon: fontawesome/brands/twitter
       link: https://twitter.com/clouddrove/
 
-    
+  generator: false 
 
 extra_css:
   - css/custom.css
