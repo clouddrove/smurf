@@ -16,12 +16,12 @@ import (
 )
 
 // provisionEcrCmd orchestrates the steps to build a Docker image locally,
-// optionally scan it for vulnerabilities, and then push it to AWS ECR.
+// and then push it to AWS ECR.
 // It relies on config defaults or command-line flags for region, repository,
 // and other Docker build settings.
 var provisionEcrCmd = &cobra.Command{
 	Use:   "provision-ecr [IMAGE_NAME[:TAG]]",
-	Short: "Build, scan, and push a Docker image to AWS ECR.",
+	Short: "Buildand push a Docker image to AWS ECR.",
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var imageRef string
@@ -36,19 +36,7 @@ var provisionEcrCmd = &cobra.Command{
 				return errors.New("image name (with optional tag) must be provided either as an argument or in the config")
 			}
 			imageRef = data.Sdkr.ImageName
-
-			// if configs.Region == "" {
-			// 	configs.Region = data.Sdkr.ProvisionEcrRegion
-			// }
-			// if configs.Repository == "" {
-			// 	configs.Repository = data.Sdkr.ProvisionEcrRepository
-			// }
 		}
-
-		// if configs.Region == "" || configs.RegistryName == "" {
-		// 	pterm.Error.Println("AWS region and ECR repository name are required")
-		// 	return errors.New("missing required AWS ECR parameters")
-		// }
 
 		localImageName, localTag, parseErr := configs.ParseImage(imageRef)
 		if parseErr != nil {
@@ -106,17 +94,6 @@ var provisionEcrCmd = &cobra.Command{
 		}
 		pterm.Success.Println("Build completed successfully.")
 
-		scanErr := docker.Scout(fullEcrImage, configs.SarifFile)
-		if scanErr != nil {
-			pterm.Error.Println("Scan failed:", scanErr)
-		} else {
-			pterm.Success.Println("Scan completed successfully.")
-		}
-
-		if scanErr != nil {
-			return fmt.Errorf("ECR provisioning failed due to previous errors")
-		}
-
 		pushImage := imageRef
 		if pushImage == "" {
 			pushImage = fullEcrImage
@@ -128,22 +105,23 @@ var provisionEcrCmd = &cobra.Command{
 			_, _ = buf.ReadBytes('\n')
 		}
 
-		if configs.ConfirmAfterPush {
-			accountID, ecrRegionName, ecrRepositoryName, ecrImageTag, parseErr := configs.ParseEcrImageRef(localImageName)
-			if parseErr != nil {
-				return fmt.Errorf("invalid image format: %w", parseErr)
-			}
-
-			if accountID == "" || ecrRegionName == "" || ecrRepositoryName == "" || ecrImageTag == "" {
-				return errors.New("invalid image reference: missing account ID, region, or repository name")
-			}
-			pterm.Info.Printf("Pushing image %s to ECR...\n", pushImage)
-			if err := docker.PushImageToECR(localImageName, ecrRegionName, ecrRepositoryName); err != nil {
-				pterm.Error.Println("Push to ECR failed:", err)
-				return err
-			}
-			pterm.Success.Println("Push to ECR completed successfully.")
+		accountID, ecrRegionName, ecrRepositoryName, ecrImageTag, parseErr := configs.ParseEcrImageRef(imageRef)
+		if parseErr != nil {
+			return fmt.Errorf("invalid image format: %w", parseErr)
 		}
+
+		if accountID == "" || ecrRegionName == "" || ecrRepositoryName == "" || ecrImageTag == "" {
+			return errors.New("invalid image reference: missing account ID, region, or repository name")
+		}
+		ecrImage := fmt.Sprintf("%s.dkr.ecr.%s.amazonaws.com/%s:%s",
+			accountID, ecrRegionName, ecrRepositoryName, ecrImageTag,
+		)
+		pterm.Info.Printf("Pushing image %s to ECR...\n", pushImage)
+		if err := docker.PushImageToECR(ecrImage, ecrRegionName, ecrRepositoryName); err != nil {
+			pterm.Error.Println("Push to ECR failed:", err)
+			return err
+		}
+		pterm.Success.Println("Push to ECR completed successfully.")
 
 		if configs.DeleteAfterPush {
 			pterm.Info.Printf("Deleting local image %s...\n", fullEcrImage)

@@ -1,34 +1,29 @@
+
 package helm
 
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/fatih/color"
 	"github.com/pterm/pterm"
 	"helm.sh/helm/v3/pkg/action"
+	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
+	"helm.sh/helm/v3/pkg/cli"
+	"helm.sh/helm/v3/pkg/downloader"
+	"helm.sh/helm/v3/pkg/getter"
+	"helm.sh/helm/v3/pkg/repo"
 )
 
-// HelmInstall executes a full Helm install operation for the given release in the specified namespace.
-// It creates the namespace (if required and permissioned), loads the chart from the provided path,
-// merges the provided values (including --set overrides), and applies them in an atomic Helm install.
-// If any step fails, it logs detailed information about the failure, including debug logs if enabled.
-//
-// Parameters:
-//   - releaseName: The name for this particular Helm release.
-//   - chartPath: Path to the Helm chart directory or packaged chart file.
-//   - namespace: Kubernetes namespace in which to install the release.
-//   - valuesFiles: A slice of file paths pointing to values.yaml files to merge.
-//   - duration: Timeout duration for the install operation.
-//   - Atomic: If true, the install will automatically roll back on failure.
-//   - debug: Enables detailed debug output if true.
-//   - setValues: Key-value pairs for setting or overriding chart values.
-//
-// On success, the function logs a success message and prints release resources.
-// On failure, it logs contextual error details and returns the encountered error.
-func HelmInstall(releaseName, chartPath, namespace string, valuesFiles []string, duration time.Duration, Atomic bool, debug bool, setValues []string) error {
+// HelmInstall handles chart installation with three possible sources:
+// 1. Remote repository URL (e.g., "https://prometheus-community.github.io/helm-charts")
+// 2. Local repository reference (e.g., "prometheus-community/prometheus")
+// 3. Local chart path (e.g., "./mychart")
+func HelmInstall(releaseName, chartRef, namespace string, valuesFiles []string, duration time.Duration, atomic bool, debug bool, setValues []string, repoURL string, version string) error {
 	spinner, _ := pterm.DefaultSpinner.Start(fmt.Sprintf("Starting Helm Install for release: %s", releaseName))
 	defer spinner.Stop()
 
@@ -37,6 +32,7 @@ func HelmInstall(releaseName, chartPath, namespace string, valuesFiles []string,
 		return err
 	}
 
+	settings := cli.New()
 	settings.SetNamespace(namespace)
 	actionConfig := new(action.Configuration)
 
@@ -52,25 +48,20 @@ func HelmInstall(releaseName, chartPath, namespace string, valuesFiles []string,
 		return err
 	}
 
-	if actionConfig.KubeClient == nil {
-		err := fmt.Errorf("KubeClient initialization failed")
-		logDetailedError("kubeclient initialization", err, namespace, releaseName)
-		return err
-	}
-
 	client := action.NewInstall(actionConfig)
 	client.ReleaseName = releaseName
 	client.Namespace = namespace
-	client.Atomic = Atomic
+	client.Atomic = atomic
 	client.Wait = true
 	client.Timeout = duration
 	client.CreateNamespace = true
 
-	chartObj, err := loader.Load(chartPath)
+	var chartObj *chart.Chart
+	var err error
+
+	chartObj, err = LoadChart(chartRef, repoURL, version, settings)
 	if err != nil {
-		color.Red("Chart Loading Failed: %s \n", chartPath)
-		color.Red("Error: %v \n", err)
-		color.Yellow("Try 'helm lint %s' to identify chart issues. \n", chartPath)
+		logDetailedError("chart loading", err, namespace, releaseName)
 		return err
 	}
 
@@ -86,15 +77,8 @@ func HelmInstall(releaseName, chartPath, namespace string, valuesFiles []string,
 		return err
 	}
 
-	if rel == nil {
-		err := fmt.Errorf("no release object returned by Helm")
-		logDetailedError("release object", err, namespace, releaseName)
-		return err
-	}
-
-	spinner.Success(fmt.Sprintf("Installation Completed Successfully for release: %s \n", releaseName))
+	spinner.Success(fmt.Sprintf("Installation Completed Successfully for release: %s", releaseName))
 	printReleaseInfo(rel)
-
 	printResourcesFromRelease(rel)
 
 	err = monitorResources(rel, namespace, client.Timeout)
@@ -105,4 +89,77 @@ func HelmInstall(releaseName, chartPath, namespace string, valuesFiles []string,
 
 	color.Green("All resources for release '%s' are ready and running.\n", releaseName)
 	return nil
+}
+
+// loadChart determines the chart source and loads it appropriately
+func LoadChart(chartRef, repoURL, version string, settings *cli.EnvSettings) (*chart.Chart, error) {
+	if repoURL != "" {
+		return LoadRemoteChart(chartRef, repoURL, version, settings)
+	}
+
+	if strings.Contains(chartRef, "/") && !strings.HasPrefix(chartRef, ".") && !filepath.IsAbs(chartRef) {
+		return LoadFromLocalRepo(chartRef, version, settings)
+	}
+
+	return loader.Load(chartRef)
+}
+
+// loadFromLocalRepo loads a chart from a local repository
+func LoadFromLocalRepo(chartRef, version string, settings *cli.EnvSettings) (*chart.Chart, error) {
+	repoName := strings.Split(chartRef, "/")[0]
+	chartName := strings.Split(chartRef, "/")[1]
+
+	repoFile, err := repo.LoadFile(settings.RepositoryConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load repository file: %v", err)
+	}
+
+	repoURL := ""
+	for _, r := range repoFile.Repositories {
+		if r.Name == repoName {
+			repoURL = r.URL
+			break
+		}
+	}
+
+	if repoURL == "" {
+		return nil, fmt.Errorf("repository %s not found in local repositories", repoName)
+	}
+
+	return LoadRemoteChart(chartName, repoURL, version, settings)
+}
+
+// loadRemoteChart downloads and loads a chart from a remote repository
+func LoadRemoteChart(chartName, repoURL string, version string, settings *cli.EnvSettings) (*chart.Chart, error) {
+	repoEntry := &repo.Entry{
+		Name: "temp-repo",
+		URL:  repoURL,
+	}
+
+	chartRepo, err := repo.NewChartRepository(repoEntry, getter.All(settings))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create chart repository: %v", err)
+	}
+
+	if _, err := chartRepo.DownloadIndexFile(); err != nil {
+		return nil, fmt.Errorf("failed to download index file: %v", err)
+	}
+
+	chartURL, err := repo.FindChartInRepoURL(repoURL, chartName, version, "", "", "", getter.All(settings))
+	if err != nil {
+		return nil, fmt.Errorf("failed to find chart in repository: %v", err)
+	}
+
+	chartDownloader := downloader.ChartDownloader{
+		Out:     os.Stdout,
+		Getters: getter.All(settings),
+		Options: []getter.Option{},
+	}
+
+	chartPath, _, err := chartDownloader.DownloadTo(chartURL, version, settings.RepositoryCache)
+	if err != nil {
+		return nil, fmt.Errorf("failed to download chart: %v", err)
+	}
+
+	return loader.Load(chartPath)
 }

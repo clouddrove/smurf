@@ -20,8 +20,8 @@ var (
 
 // upgradeCmd facilitates upgrading an existing Helm release or installing it if it's not present
 // (depending on the `--install` flag). It supports specifying a custom namespace, waiting for
-// resources to become ready (`--atomic`), setting arbitrary values (`--set` and `--values`), 
-// and other typical Helm upgrade options. If no arguments are provided, it attempts to read 
+// resources to become ready (`--atomic`), setting arbitrary values (`--set` and `--values`),
+// and other typical Helm upgrade options. If no arguments are provided, it attempts to read
 // settings from the config file.
 var upgradeCmd = &cobra.Command{
 	Use:   "upgrade [NAME] [CHART]",
@@ -68,13 +68,24 @@ var upgradeCmd = &cobra.Command{
 
 		timeoutDuration := time.Duration(configs.Timeout) * time.Second
 
+		// options := helm.PathOptions{
+		// 	CaFile:   configs.CaFile,
+		// 	CertFile: configs.CertFile,
+		// 	KeyFile:  configs.KeyFile,
+		// 	RepoURL:  configs.RepoURL,
+		// 	Username: configs.Username,
+		// 	Password: configs.Password,
+		// 	Verify:   configs.Verify,
+		// 	Version:  configs.Version,
+		// }
+
 		if installIfNotPresent {
 			exists, err := helm.HelmReleaseExists(releaseName, configs.Namespace)
 			if err != nil {
 				return fmt.Errorf("failed to check if Helm release exists: %w", err)
 			}
 			if !exists {
-				if err := helm.HelmInstall(releaseName, chartPath, configs.Namespace, configs.File, timeoutDuration, configs.Atomic, configs.Debug, configs.Set); err != nil {
+				if err := helm.HelmInstall(releaseName, chartPath, configs.Namespace, configs.File, timeoutDuration, configs.Atomic, configs.Debug, configs.Set , RepoURL, Version); err != nil {
 					return fmt.Errorf(color.RedString("Helm install failed: %v", err))
 				}
 			}
@@ -120,5 +131,7 @@ func init() {
 	upgradeCmd.Flags().IntVar(&configs.Timeout, "timeout", 150, "Time to wait for any individual Kubernetes operation (like Jobs for hooks)")
 	upgradeCmd.Flags().BoolVar(&configs.Debug, "debug", false, "Enable verbose output")
 	upgradeCmd.Flags().BoolVar(&installIfNotPresent, "install", false, "Install the chart if it is not already installed")
+	upgradeCmd.Flags().StringVar(&RepoURL, "repo-url", "", "Helm repository URL")
+	upgradeCmd.Flags().StringVar(&Version, "version", "", "Helm chart version")
 	selmCmd.AddCommand(upgradeCmd)
 }

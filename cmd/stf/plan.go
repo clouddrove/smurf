@@ -5,25 +5,30 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var varNameValue string
-var varFile string
+var planVarNameValue []string
+var planVarFile []string
 
 // planCmd defines a subcommand that generates and shows an execution plan for Terraform
 var planCmd = &cobra.Command{
 	Use:   "plan",
 	Short: "Generate and show an execution plan for Terraform",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return terraform.Plan(varNameValue, varFile)
+		return terraform.Plan(planVarNameValue, planVarFile)
 	},
 	Example: `
 	smurf stf plan
+
+	# Specify variables
+	smurf stf plan -var="region=us-west-2"
+
+	# Specify multiple variables
+	smurf stf plan -var="region=us-west-2" -var="instance_type=t2.micro"
 	`,
 }
 
 func init() {
-	// Add flags for -var and -var-file
-	planCmd.Flags().StringVar(&varNameValue, "var", "", "Specify a variable in 'NAME=VALUE' format")
-	planCmd.Flags().StringVar(&varFile, "var-file", "", "Specify a file containing variables")
+	planCmd.Flags().StringArrayVar(&planVarNameValue, "var", []string{}, "Specify a variable in 'NAME=VALUE' format")
+	planCmd.Flags().StringArrayVar(&planVarFile, "var-file", []string{}, "Specify a file containing variables")
 
 	stfCmd.AddCommand(planCmd)
 }
