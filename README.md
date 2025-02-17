@@ -43,7 +43,7 @@ Smurf is a command-line interface (CLI) application built using Golang leveragin
 - **Unified CLI Interface:** Manage multi-tool operations from one interface, reducing the need for multiple command sets.
 
 ## Installation
-[Smurf tool Installation Guide](installation.md)
+[Smurf tool Installation Guide](docs/sm/docs/installation.md)
 
 ## Usage
 
