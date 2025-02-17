@@ -4,7 +4,7 @@ theme:
   font:
     text: Merriweather Sans
     code: Red Hat Mono
-  logo: https://clouddrove.com/assets/images/logo.png
+  logo: https://clouddrove.com/favicon.ico
   favicon: https://clouddrove.com/favicon.ico
   features:
     - navigation.footer
