@@ -10,7 +10,7 @@ Use `smurf selm <command>` to run Helm commands. Supported commands include:
 - **Upgrade a Release:** `smurf selm upgrade`
 - **Provision Helm Environment:** `smurf selm provision --help`
 
-- The `provision` command for Helm combines `install`, `upgrade`, `lint`, and `template`.
+The `provision` command for Helm combines `install`, `upgrade`, `lint`, and `template`.
 
 ### Context:
 This workflow is used to upgrade the Helm charts using GitHub Actions. It utilizes the workflows defined in `.github/workflows/selm.yml`

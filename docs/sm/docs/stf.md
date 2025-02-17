@@ -11,7 +11,7 @@ Use `smurf stf <command>` to run Terraform commands. Supported commands include:
 - **Detect Drift in Terraform State:** `smurf stf drift`
 - **Provision Terraform Environment:** `smurf stf provision`
 
-- The `provision` command for Terraform performs `init`, `validate`, and `apply`.
+The `provision` command for Terraform performs `init`, `validate`, and `apply`.
 
 ## Using Smurf STF in GitHub Action
  This GitHub Action Initialize Terraform and Validate Terraform changes.
