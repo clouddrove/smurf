@@ -14,13 +14,13 @@
    git clone https://github.com/clouddrove/smurf.git
    ```
 
-2. **Change to the project directory:**
+1. **Change to the project directory:**
 
    ```bash
    cd smurf
    ```
 
-3. **Build the tool:**
+1. **Build the tool:**
 
    ```bash
    go build -o smurf .
