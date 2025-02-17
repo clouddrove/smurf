@@ -7,12 +7,12 @@
 - Terraform, Helm, and Docker Daemon installed and accessible via your PATH
 
 ### Installation Steps
-
-   # Step 1: Clone the repository from GitHub
    
+   # Step 1: Clone the repository from GitHub
    ```bash
    git clone https://github.com/clouddrove/smurf.git
-```
+   ```
+
    # Step 2: Navigate into the cloned project directory
    ```bash
    cd smurf
@@ -22,4 +22,3 @@
    ```bash
    go build -o smurf .
    ```
-   
