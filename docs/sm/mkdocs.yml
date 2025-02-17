@@ -1,6 +1,6 @@
 site_name: Smurf
 theme:
-  name: lux
+  name: material
   font:
     text: Merriweather Sans
     code: Red Hat Mono
