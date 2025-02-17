@@ -1,6 +1,6 @@
 site_name: Smurf
 theme:
-  name: material
+  name: minty
   font:
     text: Merriweather Sans
     code: Red Hat Mono
