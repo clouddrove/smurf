@@ -43,79 +43,16 @@ Smurf is a command-line interface (CLI) application built using Golang leveragin
 - **Unified CLI Interface:** Manage multi-tool operations from one interface, reducing the need for multiple command sets.
 
 ## Installation
-
-### Prerequisites
-
-- Go 1.20 or higher
-- Git
-- Terraform, Helm, and Docker Daemon installed and accessible via your PATH
-
-### Installation Steps
-
-1. **Clone the repository:**
-
-   ```bash
-   git clone https://github.com/clouddrove/smurf.git
-   ```
-
-2. **Change to the project directory:**
-
-   ```bash
-   cd smurf
-   ```
-
-3. **Build the tool:**
-
-   ```bash
-   go build -o smurf .
-   ```
-
-   This will build `smurf` in your project directory.
+[Smurf tool Installation Guide](installation.md)
 
 ## Usage
 
-### Terraform Commands
-
-Use `smurf stf <command>` to run Terraform commands. Supported commands include:
-
-- **Help:** `smurf stf --help`
-- **Initialize Terraform:** `smurf stf init`
-- **Generate and Show Execution Plan:** `smurf stf plan`
-- **Apply Terraform Changes:** `smurf stf apply`
-- **Detect Drift in Terraform State:** `smurf stf drift`
-- **Provision Terraform Environment:** `smurf stf provision`
-
-The `provision` command for Terraform performs `init`, `validate`, and `apply`.
-
-### Helm Commands
-
-Use `smurf selm <command>` to run Helm commands. Supported commands include:
-
-- **Help:** `smurf selm --help`
-- **Create a Helm Chart:** `smurf selm create`
-- **Install a Chart:** `smurf selm install`
-- **Upgrade a Release:** `smurf selm upgrade`
-- **Provision Helm Environment:** `smurf selm provision --help`
-
-The `provision` command for Helm combines `install`, `upgrade`, `lint`, and `template`.
-
-### Docker Commands
-
-Use `smurf sdkr <command> <flags>` to run Docker commands. Supported commands include:
-
-- **Help:** `smurf sdkr --help`
-- **Build an Image:** `smurf sdkr build`
-- **Scan an Image:** `smurf sdkr scan`
-- **Push an Image:** `smurf sdkr push --help`
-- **Provision Registry Environment:** `smurf sdkr provision-hub [flags] `(for Docker Hub)
-
-The `provision-hub` command for Docker combines `build`, `scan`, and `publish`.
-The `provision-ecr` command for Docker combines `build`, `scan`, and `publish` for AWS ECR.
-THE `provision-gcr` command for Docker combines `build`, `scan`, and `publish` for GCP GCR.
-THE `provision-acr` command for Docker combines `build`, `scan`, and `publish` for Azure ACR.
-
-
-
+### Smurf SELM
+[Usage Guide for using helm commands via smurf tool](selm.md)
+### Smurf SDKR
+[Usage Guide for using docker commands via smurf tool](sdkr.md)
+### Smurf STF
+[Usage Guide for using terraform commands via smurf tool](stf.md)
 
 ## Contributors ✨ 
 
@@ -172,7 +109,7 @@ At [CloudDrove][website], has extensive experience in designing, building & migr
 [blog]: https://blog.clouddrove.com
 [slack]: https://www.launchpass.com/devops-talks
 [github]: https://github.com/clouddrove
-[linkedin]: https://cpco.io/linkedin
+[linkedin]: https://linkedin.com/company/clouddrove
 [twitter]: https://twitter.com/clouddrove/
 [email]: https://clouddrove.com/contact-us.html
 [terraform_modules]: https://github.com/clouddrove?utf8=%E2%9C%93&q=terraform-&type=&language=

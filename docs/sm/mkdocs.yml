@@ -31,6 +31,16 @@ theme:
       primary: blue
       accent: deep orange
 
+plugins:
+  - search
+  - git-revision-date-localized:
+      enable_creation_date: true
+
+edit_uri: "https://github.com/clouddrove/smurf/tree/master/docs"
+
+repo_url: https://github.com/clouddrove/smurf
+repo_name: Smurf
+
 markdown_extensions:
   - attr_list
   - pymdownx.emoji:
@@ -54,7 +64,17 @@ markdown_extensions:
 
 extra:
   social:
-    - icon: fontawesome/brands/mastodon 
-      link: https://fosstodon.org/@squidfunk
+    - icon: fontawesome/brands/github
+      link: https://github.com/clouddrove
+    - icon: fontawesome/brands/twitter
+      link: https://twitter.com/clouddrove/
+
+  generator: false 
+
+extra_css:
+  - css/custom.css
 
 copyright: Copyright &copy; 2025 CloudDrove
+
+
+
