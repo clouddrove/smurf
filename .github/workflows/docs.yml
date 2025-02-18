@@ -31,9 +31,9 @@ jobs:
           restore-keys: |
             mkdocs-material-
 
-      - run: pip install mkdocs-material
+      - run: pip install mkdocs-bootswatch
       - run: pip install mkdocs-material mkdocs-git-revision-date-localized-plugin
-      
+
       - name: Deploy Documentation
         working-directory: ./docs/sm  # Specify your documentation directory here
         run: mkdocs gh-deploy --force

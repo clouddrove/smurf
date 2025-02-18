@@ -43,16 +43,16 @@ Smurf is a command-line interface (CLI) application built using Golang leveragin
 - **Unified CLI Interface:** Manage multi-tool operations from one interface, reducing the need for multiple command sets.
 
 ## Installation
-[Smurf tool Installation Guide](installation.md)
+[Smurf tool Installation Guide](docs/sm/docs/installation.md)
 
 ## Usage
 
 ### Smurf SELM
-[Usage Guide for using helm commands via smurf tool](selm.md)
+[Usage Guide for using helm commands via smurf tool](docs/selm/README.md)
 ### Smurf SDKR
-[Usage Guide for using docker commands via smurf tool](sdkr.md)
+[Usage Guide for using docker commands via smurf tool](docs/sdkr/README.md)
 ### Smurf STF
-[Usage Guide for using terraform commands via smurf tool](stf.md)
+[Usage Guide for using terraform commands via smurf tool](docs/stf/README.md)
 
 ## Contributors ✨ 
 

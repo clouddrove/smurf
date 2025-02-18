@@ -12,13 +12,13 @@ Use `smurf sdkr <command> <flags>` to run smurf sdkr commands. Supported command
 
 ### Docker Provision Commands
 
-The `provision-ecr` command for Docker combines `build`, `scan`, and `publish` for AWS ECR.  
+- The `provision-ecr` command for Docker combines `build`, `scan`, and `publish` for AWS ECR.  
 
-The `provision-hub` command for Docker combines `build`, `scan`, and `publish`.  
+- The `provision-hub` command for Docker combines `build`, `scan`, and `publish`.  
 
-The `provision-gcr` command for Docker combines `build`, `scan`, and `publish` for GCP GCR.  
+- The `provision-gcr` command for Docker combines `build`, `scan`, and `publish` for GCP GCR.  
 
-The `provision-acr` command for Docker combines `build`, `scan`, and `publish` for Azure ACR.  
+- The `provision-acr` command for Docker combines `build`, `scan`, and `publish` for Azure ACR.  
 
 
 #### Usage
