@@ -85,7 +85,7 @@ var upgradeCmd = &cobra.Command{
 				return fmt.Errorf("failed to check if Helm release exists: %w", err)
 			}
 			if !exists {
-				if err := helm.HelmInstall(releaseName, chartPath, configs.Namespace, configs.File, timeoutDuration, configs.Atomic, configs.Debug, configs.Set , RepoURL, Version); err != nil {
+				if err := helm.HelmInstall(releaseName, chartPath, configs.Namespace, configs.File, timeoutDuration, configs.Atomic, configs.Debug, configs.Set, RepoURL, Version); err != nil {
 					return fmt.Errorf(color.RedString("Helm install failed: %v", err))
 				}
 			}

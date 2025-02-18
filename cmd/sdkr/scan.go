@@ -33,7 +33,6 @@ var scanCmd = &cobra.Command{
 			imageRef = data.Sdkr.ImageName
 		}
 
-
 		pterm.Info.Printf("Scanning Docker image %q...\n", imageRef)
 		err := docker.Scout(imageRef, configs.SarifFile)
 		if err != nil {
@@ -52,7 +51,6 @@ var scanCmd = &cobra.Command{
   # Saves the scan report to 'scan.json' in SARIF format
 `,
 }
-
 
 func init() {
 	scanCmd.Flags().StringVarP(&configs.SarifFile, "output", "o", "", "Output file for SARIF report")

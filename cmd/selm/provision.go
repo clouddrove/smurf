@@ -11,9 +11,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// provisionCmd is a subcommand that orchestrates a more comprehensive Helm workflow 
-// by combining multiple steps like install, upgrade, lint, and template generation. 
-// It supports configurable arguments or fallback to values specified in the config file, 
+// provisionCmd is a subcommand that orchestrates a more comprehensive Helm workflow
+// by combining multiple steps like install, upgrade, lint, and template generation.
+// It supports configurable arguments or fallback to values specified in the config file,
 // as well as an optional custom namespace.
 var provisionCmd = &cobra.Command{
 	Use:   "provision [RELEASE] [CHART]",

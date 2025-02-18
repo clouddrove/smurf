@@ -11,7 +11,7 @@
     <a href="https://github.com/clouddrove/smurf/">
         <img alt="Build Status" src="https://img.shields.io/badge/test-passing-green">
     </a>
-    <a href="https://join.slack.com/t/devops-talks/shared_invite/zt-2s2rnal1e-bRStDKSyRC~dpXA~PaJ7vQ">
+    <a href="https://www.launchpass.com/devops-talks">
         <img alt="Slack Chat" src="https://img.shields.io/badge/join%20slack-blue">
     </a>
   <a href="http://www.apache.org/licenses/LICENSE-2.0">

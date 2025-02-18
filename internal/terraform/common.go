@@ -68,5 +68,3 @@ func (w *CustomColorWriter) Write(p []byte) (n int, err error) {
 
 	return len(p), scanner.Err()
 }
-
-

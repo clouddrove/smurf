@@ -41,7 +41,6 @@ var pushEcrCmd = &cobra.Command{
 		if accountID == "" || ecrRegionName == "" || ecrRepositoryName == "" || ecrImageTag == "" {
 			return errors.New("invalid image reference: missing account ID, region, or repository name")
 		}
-		
 
 		ecrImage := fmt.Sprintf("%s.dkr.ecr.%s.amazonaws.com/%s:%s",
 			accountID, ecrRegionName, ecrRepositoryName, ecrImageTag,

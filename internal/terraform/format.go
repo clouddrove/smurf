@@ -71,7 +71,6 @@ func (cf *CustomFormatter) findTerraformFiles(root string, recursive bool) ([]st
 	return files, nil
 }
 
-
 // formatError formats a single formatting error in Terraform style
 func (cf *CustomFormatter) formatError(err FormatError) string {
 	var sb strings.Builder
@@ -191,7 +190,7 @@ func (cf *CustomFormatter) parseFormatError(err error, file string) FormatError 
 		Description: err.Error(),
 		Location:    file,
 		LineNumber:  1,
-		LineContent: "", 
+		LineContent: "",
 		HelpText:    "Please check the file syntax and try again",
 	}
 }

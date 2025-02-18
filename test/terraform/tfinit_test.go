@@ -37,7 +37,7 @@ resource "null_resource" "example" {}
 
 	originalWd, err := os.Getwd()
 	require.NoError(t, err)
-	defer os.Chdir(originalWd) 
+	defer os.Chdir(originalWd)
 	err = os.Chdir(tempDir)
 	require.NoError(t, err, "failed to chdir to tempDir")
 

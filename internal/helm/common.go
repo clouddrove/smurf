@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
-	
+
 	"github.com/fatih/color"
 	"github.com/pterm/pterm"
 	"gopkg.in/yaml.v2"
@@ -157,7 +157,6 @@ func printReleaseInfo(rel *release.Release) {
 	}
 	color.Cyan("------------------------ \n")
 }
-
 
 // convertToMapStringInterface converts an interface{} to a map[string]interface{} recursively.
 // This function is used to convert the raw YAML object to a map for easier parsing.
@@ -458,7 +457,7 @@ func monitorResources(rel *release.Release, namespace string, timeout time.Durat
 	}
 
 	spinner, _ := pterm.DefaultSpinner.Start("Checking resource readiness... \n")
-	defer spinner.Stop() 
+	defer spinner.Stop()
 
 	deadline := time.Now().Add(timeout)
 	for {
@@ -482,7 +481,7 @@ func monitorResources(rel *release.Release, namespace string, timeout time.Durat
 	}
 }
 
-// resourcesReady checks if the specified resources are ready in the Kubernetes API.	
+// resourcesReady checks if the specified resources are ready in the Kubernetes API.
 // It returns a boolean indicating if all resources are ready, a slice of not ready resources, and an error if any.
 // The function checks the status of Deployments and Pods to determine if they are ready.
 func resourcesReady(clientset *kubernetes.Clientset, namespace string, resources []Resource) (bool, []string, error) {
@@ -581,7 +580,6 @@ func describeFailedResources(namespace, releaseName string) {
 	}
 	color.Cyan("----------------------------------------------- \n")
 }
-
 
 // resourceRemoved checks if the specified resource has been removed from the Kubernetes API.
 // It returns true if the resource is not found, indicating that it has been removed.

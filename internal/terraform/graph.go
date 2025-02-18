@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/hashicorp/terraform-exec/tfexec"
-	"github.com/pterm/pterm"
 	tfjson "github.com/hashicorp/terraform-json"
+	"github.com/pterm/pterm"
 )
 
 // Graph generates a visual representation of Terraform resources

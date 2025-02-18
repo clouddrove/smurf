@@ -11,7 +11,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// lintCmd provides a subcommand to run a Helm lint check on a given chart. 
+// lintCmd provides a subcommand to run a Helm lint check on a given chart.
 // If no chart is specified on the command line, it attempts to read from the config file.
 // Additionally, you can pass multiple values files to further customize the lint process.
 var lintCmd = &cobra.Command{

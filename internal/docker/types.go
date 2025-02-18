@@ -23,7 +23,6 @@ type ImageInfo struct {
 	Tag      string
 }
 
-
 // TagOptions struct to hold options for tagging a Docker image
 type TagOptions struct {
 	Source string
@@ -42,4 +41,3 @@ type jsonMessage struct {
 	Error    string `json:"error"`
 	Progress string `json:"progress"`
 }
-
