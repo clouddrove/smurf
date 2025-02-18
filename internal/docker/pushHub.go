@@ -7,14 +7,13 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	
+
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/registry"
 	"github.com/docker/docker/client"
 	"github.com/fatih/color"
 	"github.com/pterm/pterm"
 )
-
 
 // PushImage pushes the specified Docker image to the Docker Hub.
 // It authenticates with Docker Hub, tags the image, and pushes it to the registry.
@@ -92,4 +91,3 @@ func PushImage(opts PushOptions) error {
 
 	return nil
 }
-

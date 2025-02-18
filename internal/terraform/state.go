@@ -6,9 +6,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/pterm/pterm"
 	"github.com/fatih/color"
 	tfjson "github.com/hashicorp/terraform-json"
+	"github.com/pterm/pterm"
 )
 
 // StateList displays all resources in the Terraform state

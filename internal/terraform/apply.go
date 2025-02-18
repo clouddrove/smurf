@@ -12,7 +12,6 @@ import (
 	"github.com/pterm/pterm"
 )
 
-
 // Apply executes 'apply' to apply the planned changes.
 // It initializes the Terraform client, runs the apply operation with a spinner for user feedback,
 // and handles any errors that occur during the process. Upon successful completion,
@@ -93,7 +92,6 @@ func Apply(approve bool, vars []string, varFiles []string, lock bool) error {
 		WithText("Applying changes...")
 	spinner.Start()
 
-	
 	tf.SetStdout(os.Stdout)
 	tf.SetStderr(os.Stderr)
 

@@ -117,7 +117,6 @@ func Repo_Update(args []string) error {
 
 }
 
-
 // Helper function to check if a repository name is in the list
 func containsRepo(repos []string, name string) bool {
 	for _, r := range repos {
@@ -127,7 +126,6 @@ func containsRepo(repos []string, name string) bool {
 	}
 	return false
 }
-
 
 // Helper function to handle pluralization
 func pluralize(count int, singular, plural string) string {

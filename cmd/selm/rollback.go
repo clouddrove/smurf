@@ -14,8 +14,8 @@ import (
 )
 
 // rollbackCmd facilitates rolling back a Helm release to a specified previous revision.
-// It either takes both RELEASE and REVISION as command-line arguments or reads them 
-// from a config file if none are provided. The user can also configure namespace, timeout, 
+// It either takes both RELEASE and REVISION as command-line arguments or reads them
+// from a config file if none are provided. The user can also configure namespace, timeout,
 // debug, and force options. If the release or revision is invalid, an error is returned.
 var rollbackCmd = &cobra.Command{
 	Use:   "rollback [RELEASE] [REVISION]",
