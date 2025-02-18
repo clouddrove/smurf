@@ -1,5 +1,5 @@
 name: Smurf
-description: Use Smurf tool with GitHub Actions to work with Docker, Terraform and Helm.
+description: Automate Docker, Terraform, and Helm with Smurf GitHub Actions
 branding:
   color: black
   icon: anchor
