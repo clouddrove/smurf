@@ -13,7 +13,7 @@ import (
 
 // statusCmd enables users to retrieve the status of a specified Helm release.
 // It accepts an optional release name as a command argument or falls back to
-// values in the config file. If neither is provided, it returns an error. 
+// values in the config file. If neither is provided, it returns an error.
 // Additionally, a custom namespace can be specified via a flag.
 var statusCmd = &cobra.Command{
 	Use:   "status [NAME]",

@@ -18,6 +18,6 @@ var pushCmd = &cobra.Command{
 }
 
 func init() {
-	
+
 	sdkrCmd.AddCommand(pushCmd)
 }

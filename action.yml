@@ -1,5 +1,8 @@
-name: Smurf Action
-description: A custom GitHub Action that runs the Smurf CLI tool with Docker.
+name: Smurf
+description: Automate Docker, Terraform, and Helm with Smurf GitHub Actions
+branding:
+  color: black
+  icon: anchor
 
 inputs:
   path:

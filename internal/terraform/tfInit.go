@@ -81,7 +81,7 @@ func (l *CustomLogger) Write(p []byte) (n int, err error) {
 // It sets up the Terraform client, executes the initialization with upgrade options,
 // and provides user feedback through spinners and colored messages.
 // Upon successful initialization, it configures custom writers for enhanced output.
-func Init(upgrade  bool) error {
+func Init(upgrade bool) error {
 	tf, err := GetTerraform()
 	if err != nil {
 		return err

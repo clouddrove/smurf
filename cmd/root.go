@@ -17,7 +17,7 @@ var originalHelpFunc func(*cobra.Command, []string)
 var RootCmd = &cobra.Command{
 	Use:   "smurf",
 	Short: "Smurf is a tool for automating common commands across Terraform, Docker, and more, streamlining DevOps workflows.",
-	Long:  `Smurf is a command-line interface built with Cobra, designed to simplify and automate commands for essential tools like Terraform and Docker. It provides intuitive, unified commands to execute Terraform plans, Docker container management, and other DevOps tasks seamlessly from one interface. Whether you need to spin up environments, manage containers, or apply infrastructure as code, this CLI streamlines multi-tool operations, boosting productivity and reducing context-switching.
+	Long: `Smurf is a command-line interface built with Cobra, designed to simplify and automate commands for essential tools like Terraform and Docker. It provides intuitive, unified commands to execute Terraform plans, Docker container management, and other DevOps tasks seamlessly from one interface. Whether you need to spin up environments, manage containers, or apply infrastructure as code, this CLI streamlines multi-tool operations, boosting productivity and reducing context-switching.
 	If you are facing issues, unable to find a command, or need help, please create an issue at: https://github.com/clouddrove/smurf/issues
 	`,
 	Run: func(cmd *cobra.Command, args []string) {

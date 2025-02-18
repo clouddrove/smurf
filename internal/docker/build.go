@@ -79,7 +79,6 @@ func Build(imageName, tag string, opts BuildOptions) error {
 		NetworkMode: "default",
 	}
 
-
 	resp, err := cli.ImageBuild(ctx, buildCtx, buildOptions)
 	if err != nil {
 		spinner.Fail()

@@ -23,7 +23,6 @@ func encodeAuthToBase64(authConfig registry.AuthConfig) (string, error) {
 	return base64.URLEncoding.EncodeToString(authJSON), nil
 }
 
-
 // handleDockerResponse reads the response from the Docker API and updates the spinner with the progress.
 // It also prints the response messages and returns an error if the response contains an error.
 func handleDockerResponse(responseBody io.ReadCloser, spinner *pterm.SpinnerPrinter, opts PushOptions) error {
