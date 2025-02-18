@@ -1,4 +1,4 @@
-name: Smurf
+name: Smurf Action
 description: Automate Docker, Terraform, and Helm with Smurf GitHub Actions
 branding:
   color: black
@@ -10,10 +10,10 @@ inputs:
     required: false
     default: .
   tool:
-    description: 'Tool to use'
+    description: 'Tool to use (e.g., stf)'
     required: true
   command:
-    description: "Command to run (e.g., ./smurf stf init)"
+    description: "Command to run (e.g., init)"
     required: true
 
 runs:
