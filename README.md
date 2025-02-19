@@ -37,6 +37,7 @@ Smurf is a command-line interface (CLI) application built using Golang leveragin
 
 **Terraform Command Wrapper (stf):** 
 - Execute Terraform commands like init, plan, apply, output, drift, validate, destroy, and format.
+
 - Use provision to perform init, validate, and apply in one step.
 
 **Helm Command Wrapper (selm):**
