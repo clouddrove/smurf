@@ -3,7 +3,7 @@ on:
   push:
     branches:
       - master
-      - feat/mk-docs
+      - feat/docs_improvement
   workflow_dispatch:
 permissions: write-all
 
