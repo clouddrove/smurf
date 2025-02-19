@@ -35,7 +35,7 @@ jobs:
       - run: pip install mkdocs-material mkdocs-git-revision-date-localized-plugin
 
       - name: Deploy Documentation
-        working-directory: ./docs # Specify your documentation directory here
+        working-directory: ./ # Specify your documentation directory here
         run: mkdocs gh-deploy --force
 
   deploy:
