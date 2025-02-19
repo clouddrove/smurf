@@ -36,21 +36,25 @@ Smurf is a command-line interface (CLI) application built using Golang leveragin
 ## Features
 
 **Terraform Command Wrapper (stf):** 
-Execute Terraform commands like init, plan, apply, output, drift, validate, destroy, and format. Use provision to perform init, validate, and apply in one step.
+- Execute Terraform commands like init, plan, apply, output, drift, validate, destroy, and format. 
+- Use provision to perform init, validate, and apply in one step.
 
 **Helm Command Wrapper (selm):**
-Run Helm commands such as create, install, lint, list, status, template, upgrade, and uninstall. Use provision to execute install, upgrade, lint, and template in a single workflow.
+- Run Helm commands such as create, install, lint, list, status, template, upgrade, and uninstall. 
+- Use provision to execute install, upgrade, lint, and template in a single workflow.
 
 **Docker Command Wrapper (sdkr):**
-Manage Docker workflows with build, scan, tag, publish, and push commands. Use provision to perform build, scan, and publish in one command.
+- Manage Docker workflows with build, scan, tag, publish, and push commands. 
+- Use provision to perform build, scan, and publish in one command.
 
 **Multicloud Container registry :**
-Push images to multiple cloud registries, including AWS ECR, GCP GCR, Azure ACR, and Docker Hub. Use smurf sdkr push --help to see options for pushing images from a specific registry.
+- Push images to multiple cloud registries, including AWS ECR, GCP GCR, Azure ACR, and Docker Hub. 
+- Use smurf sdkr push --help to see options for pushing images from a specific registry.
 
 **Git Integration:** *(Coming Soon)*
 
 **Unified CLI Interface:**
-Streamline multi-tool operations within a single interface, eliminating the need for multiple command sets.
+- Streamline multi-tool operations within a single interface, eliminating the need for multiple command sets.
 
 ## Installation and Documentation
 [Smurf tool Installation Guide](docs/installation.md)
