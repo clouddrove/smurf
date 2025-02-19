@@ -35,12 +35,26 @@
 Smurf is a command-line interface (CLI) application built using Golang leveraging technology specific SDKs, designed to simplify and automate commands for essential tools like Terraform and Docker. It provides intuitive, unified commands to execute Terraform plans, Docker container management, and other DevOps tasks seamlessly from one interface. Whether you need to spin up environments, manage containers, or apply infrastructure as code, this CLI streamlines multi-tool operations, boosting productivity and reducing context-switching.
 ## Features
 
-- **Terraform Command Wrapper (stf):** Run `init`, `plan`, `apply`, `output`, `drift`, `validate`, `destroy`, `format` commands, and `provision`, a combined operation of `init`, `validate`, and `apply`.
-- **Helm Command Wrapper (selm):** Run `create`, `install`, `lint`, `list`, `status`, `template`, `upgrade`, `uninstall` commands, and `provision`, a combination of `install`, `upgrade`, `lint`, and `template`.
-- **Docker Command Wrapper (sdkr):** Run `build`, `scan`, `tag`, `publish`, `push` commands, and `provision`, a combination of `build`, `scan`, and `publish`.
-- **Multicloud Container registry :** Push images from multiple cloud registries like AWS ECR, GCP GCR, Azure ACR, and Docker Hub.Run `smurf sdkr push --help` to push images from the specified registry.
-- **Git Integration:** *(Yet to come)*
-- **Unified CLI Interface:** Manage multi-tool operations from one interface, reducing the need for multiple command sets.
+**Terraform Command Wrapper (stf):** 
+- Execute Terraform commands like init, plan, apply, output, drift, validate, destroy, and format.
+- Use provision to perform init, validate, and apply in one step.
+
+**Helm Command Wrapper (selm):**
+- Run Helm commands such as create, install, lint, list, status, template, upgrade, and uninstall.
+- Use provision to execute install, upgrade, lint, and template in a single workflow.
+
+**Docker Command Wrapper (sdkr):**
+- Manage Docker workflows with build, scan, tag, publish, and push commands.
+- Use provision to perform build, scan, and publish in one command.
+
+**Multicloud Container registry :**
+- Push images to multiple cloud registries, including AWS ECR, GCP GCR, Azure ACR, and Docker Hub.
+- Use smurf sdkr push --help to see options for pushing images from a specific registry.
+
+**Git Integration:** *(Coming Soon)*
+
+**Unified CLI Interface:**
+- Streamline multi-tool operations within a single interface, eliminating the need for multiple command sets.
 
 ## Installation and Documentation
 [Smurf tool Installation Guide](docs/installation.md)
@@ -61,17 +75,26 @@ Big thanks to our contributors for elevating our project with their dedication a
 
 <a href="https://github.com/clouddrove/smurf/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=clouddrove/smurf" />
-</a>
+</a>  
 <br>
 <br> 
 
 If you're considering contributing to our project, here are a few quick guidelines that we have been following (Got a suggestion? We are all ears!):
 
-- **Fork the Repository:** Create a new branch for your feature or bug fix.
-- **Coding Standards:** You know the drill.
-- **Clear Commit Messages:** Write clear and concise commit messages to facilitate understanding.
-- **Thorough Testing:** Test your changes thoroughly before submitting a pull request.
-- **Documentation Updates:** Include relevant documentation updates if your changes impact it.
+**Fork the Repository:** 
+- Create a new branch for your feature or bug fix.
+
+**Coding Standards:** 
+- You know the drill.
+
+**Clear Commit Messages:** 
+- Write clear and concise commit messages to facilitate understanding.
+
+**Thorough Testing:** 
+- Test your changes thoroughly before submitting a pull request.
+
+**Documentation Updates:** 
+- Include relevant documentation updates if your changes impact it.
 
 ## License
 
