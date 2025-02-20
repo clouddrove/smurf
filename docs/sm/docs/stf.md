@@ -32,14 +32,14 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Smurf stf init
-        uses: clouddrove/smurf@master
+        uses: clouddrove/smurf@v1.0.0
         with:
           path:   # we can specify the path of folder where main.tf is located.
           tool: stf
           command: init
 
       - name: Smurf stf validate
-        uses: clouddrove/smurf@master
+        uses: clouddrove/smurf@v1.0.0
         with:
           path:   
           tool: stf

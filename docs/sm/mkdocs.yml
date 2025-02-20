@@ -36,32 +36,10 @@ theme:
 
 nav:
   - Home: index.md
-  - Installation Guide:
-      - Prerequisites: installation.md#prerequisites
-      - CLI Installation: installation.md#cli-installation
-      - GitHub Action Setup: installation.md#github-action-setup
-  - Getting Started:
-      - Running on Local CLI: getting-started.md#running-on-local-cli
-      - Using in GitHub Actions: getting-started.md#using-in-github-actions
-  - Usage:
-      - CLI Commands: usage/cli-commands.md
-      - GitHub Action: usage/github-action.md
-      - Examples: usage/examples.md
-  - Configuration:
-      - Environment Variables: configuration.md#environment-variables
-      - YAML/JSON Config Files: configuration.md#yamljson-config-files
-      - Secrets Management: configuration.md#secrets-management
-  - Integrations:
-      - Docker: integrations/docker.md
-      - Kubernetes: integrations/kubernetes.md
-      - Helm: integrations/helm.md
-      - Terraform: integrations/terraform.md
-  - Advanced:
-      - Troubleshooting: advanced/troubleshooting.md
-      - Best Practices: advanced/best-practices.md
-      - Contributing: advanced/contributing.md
-  - FAQ: faq.md
-  - Changelog: changelog.md
+  - Installation Guide: installation.md
+  - Usage: usage.md
+  - Integrations: integrations.md
+  - Advanced: advanced.md
 
 plugins:
   - search
