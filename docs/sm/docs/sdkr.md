@@ -58,13 +58,13 @@ jobs:
 
 
       - name: Smurf sdkr build
-        uses: clouddrove-sandbox/smurf-custon-github-action-test@master
+        uses: clouddrove/smurf@v1.0.0
         with:
           tool: sdkr
           command: build image_name:tag
 
       - name: Smurf sdkr push image
-        uses: clouddrove-sandbox/smurf-custon-github-action-test@master
+        uses: clouddrove/smurf@v1.0.0
         with: 
           tool: sdkr
           command: push hub USERNAME/image_name:tag
@@ -106,7 +106,7 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v1
  
       - name: Run Provision-ecr (Build,Scan and Push)
-        uses: clouddrove-sandbox/smurf-custon-github-action-test@master
+        uses: clouddrove/smurf@v1.0.0
         with:
           tool: sdkr
           command: provision-ecr repo:image_name -f Dockerfile --yes

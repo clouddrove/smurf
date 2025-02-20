@@ -52,13 +52,13 @@ jobs:
           echo "EKS_CLUSTER_NAME= " >> $GITHUB_ENV    #add the eks_cluster name
       
       - name: Smurf SDKR Provision (for image building and ecr push)
-        uses: clouddrove-sandbox/smurf-custon-github-action-test@master
+        uses: clouddrove/smurf@v1.0.0
         with:
           tool: sdkr
           command: provision-ecr repo:image_name
 
       - name: Smurf SELM Upgrade
-        uses: clouddrove-sandbox/smurf-custon-github-action-test@master
+        uses: clouddrove/smurf@v1.0.0
         with:
           tool: selm
           command: upgrade release_name --install --atomic --set image.tag=${{ env.tag }} -f values.yaml ./my_chart --namespace  --timeout int

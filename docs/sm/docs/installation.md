@@ -6,7 +6,7 @@
 - Git
 - Terraform, Helm, and Docker Daemon installed and accessible via your PATH
 
-## Installation Steps
+## CLI Installation
 
 ### 1. **Clone the repository:**
 
@@ -36,10 +36,33 @@ If the output shows `/usr/local/bin/smurf` and the help menu, the installation w
 
 ---
 
-## Troubleshooting
+## GitHub Action Setup
 
-- **"go: command not found"** → Ensure Go is installed and accessible via `PATH`.
-- **"permission denied"** → Run the installation script with `sudo bash install_smurf.sh`.
-- **"cannot move smurf: No such file or directory"** → Ensure `go build` is successful and the binary exists in the `build` directory.
+```yaml
+name: GitHub Action Setup
 
----
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+jobs:
+  docker-build-publish:
+    runs-on: ubuntu-latest
+    permissions: write-all
+    
+    env:
+      DOCKER_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKER_PASSWORD: ${{ secrets.DOCKERHUB_TOKEN }}
+     
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4.1.7
+ 
+      - name: Dummy Step
+        uses: clouddrove/smurf@v1.0.0
+        with:
+          tool: <tool name>
+          command: <command to run>
+```
