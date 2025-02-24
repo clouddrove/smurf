@@ -28,13 +28,13 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Smurf selm create
-        uses: clouddrove/smurf@master
+        uses: clouddrove/smurf@v1.0.0
         with:
           tool: selm
           command: create test-smurf
 
       - name: Smurf selm Template
-        uses: clouddrove/smurf@master
+        uses: clouddrove/smurf@v1.0.0
         with:
           tool: selm
           command: template my-release ./test-smurf
