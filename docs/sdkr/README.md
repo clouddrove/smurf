@@ -30,14 +30,14 @@ jobs:
        uses: actions/checkout@v3
       
       - name: Smurf sdkr build
-        uses: clouddrove/smurf@master
+        uses: clouddrove/smurf@v1.0.0
         with:
           path: 
           tool: sdkr
           command: build image_name:tag
 
       - name: Smurf sdkr push image
-        uses: clouddrove/smurf@master
+        uses: clouddrove/smurf@v1.0.0
         with:
             path: 
             tool: sdkr
