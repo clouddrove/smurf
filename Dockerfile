@@ -7,13 +7,17 @@ RUN apk add --no-cache \
     unzip \
     docker-cli \
     aws-cli \
-    bash
+    bash \
+    docker
 
 # Install Terraform
 RUN curl -fsSL https://releases.hashicorp.com/terraform/1.5.7/terraform_1.5.7_linux_amd64.zip -o terraform.zip && \
     unzip terraform.zip && \
     mv terraform /usr/local/bin/ && \
     rm terraform.zip
+
+# Install Trivy (Vulnerability Scanner)
+RUN curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
 
 # Set working directory
 WORKDIR /go/src/app

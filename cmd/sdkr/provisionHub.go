@@ -115,8 +115,8 @@ Set DOCKER_USERNAME and DOCKER_PASSWORD environment variables for Docker Hub aut
 		}
 		pterm.Success.Println("Build completed successfully.")
 
-		pterm.Info.Println("Starting scan...")
-		scanErr := docker.Scout(fullImageName, configs.SarifFile)
+		pterm.Info.Println("Starting scan with Trivy...")
+		scanErr := docker.Trivy(fullImageName)
 		if scanErr != nil {
 			pterm.Error.Println("Scan failed:", scanErr)
 		} else {
@@ -158,7 +158,7 @@ Set DOCKER_USERNAME and DOCKER_PASSWORD environment variables for Docker Hub aut
   # Provide "myuser/myimage:latest" as an argument
   smurf sdkr provision-hub myuser/myimage:latest --context . --file Dockerfile --no-cache \
     --build-arg key1=value1 --build-arg key2=value2 --target my-target --platform linux/amd64 \
-    --output myscan.sarif --yes --delete
+    --yes --delete
 
   # If you omit the argument, it will read from config and rely on "image_name" from there
   smurf sdkr provision-hub --yes --delete
@@ -208,14 +208,6 @@ func init() {
 		"",
 		"Build context directory (default: current directory)",
 	)
-
-	provisionHubCmd.Flags().StringVarP(
-		&configs.SarifFile,
-		"output", "o",
-		"",
-		"Output file for SARIF report",
-	)
-
 	provisionHubCmd.Flags().BoolVarP(
 		&configs.ConfirmAfterPush,
 		"yes", "y",
