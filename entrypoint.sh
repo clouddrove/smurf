@@ -50,8 +50,13 @@ if [[ -n "$DOCKER_USERNAME" && -n "$DOCKER_PASSWORD" ]]; then
     echo "✅ Successfully logged into Docker Hub."
 fi
 
-# Perform AWS and EKS login
-aws_eks_login
+# Perform AWS and EKS login only if AWS_AUTH=true
+if [[ "$AWS_AUTH" == "true" ]]; then
+    echo "🔹 AWS authentication is enabled. Performing AWS login..."
+    aws_eks_login
+else
+    echo "⚠️ AWS authentication is disabled. Skipping AWS login."
+fi
 
 # Initialize command with base command
 SMURF_CMD="/usr/local/bin/smurf"
