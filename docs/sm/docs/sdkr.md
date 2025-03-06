@@ -2,15 +2,17 @@
 
 Use `smurf sdkr <command>` to run smurf sdkr commands. Supported commands include:
 
-- **build:** Builds a Docker image with the specified name and tag.
-- **provision-acr:** Builds and pushes a Docker image to Azure Container Registry (ACR).
-- **provision-ec:** Builds and pushes a Docker image to AWS Elastic Container Registry (ECR).
-- **provision-gcr:** Builds and pushes a Docker image to Google Container Registry (GCR).
-- **provision-hub:** Builds, scans, and pushes a Docker image to Docker Hub for enhanced security.
-- **push:** Pushes Docker images to ACR, ECR, GCR, or Docker Hub in one simple command.
-- **remove:** Deletes a Docker image from your local system to free up space.
-- **scan:** Analyzes a Docker image for known security vulnerabilities before deployment.
-- **tag:** Tags a Docker image for easy identification and repository management.
+```bash
+build: Builds a Docker image with the specified name and tag.
+provision-acr: Builds and pushes a Docker image to Azure Container Registry (ACR).
+provision-ec: Builds and pushes a Docker image to AWS Elastic Container Registry (ECR).
+provision-gcr: Builds and pushes a Docker image to Google Container Registry (GCR).
+provision-hub: Builds, scans, and pushes a Docker image to Docker Hub for enhanced security.
+push: Pushes Docker images to ACR, ECR, GCR, or Docker Hub in one simple command.
+remove: Deletes a Docker image from your local system to free up space.
+scan: Analyzes a Docker image for known security vulnerabilities before deployment.
+tag: Tags a Docker image for easy identification and repository management.
+```
 
 ## Using Smurf Docker in local environment
 Suppose you want to build and push a docker image to AWS Elastic Container Registry (ECR).To do this run the command: 

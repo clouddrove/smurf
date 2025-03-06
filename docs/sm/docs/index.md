@@ -43,43 +43,49 @@ With Smurf, you can spin up environments, manage containers, and apply infrastru
 
 ### Docker Commands in Smurf 🐳
 #### The available commands for docker are-
-- **build:** Builds a Docker image with the specified name and tag.
-- **provision-acr:** Builds and pushes a Docker image to Azure Container Registry (ACR).
-- **provision-ec:** Builds and pushes a Docker image to AWS Elastic Container Registry (ECR).
-- **provision-gcr:** Builds and pushes a Docker image to Google Container Registry (GCR).
-- **provision-hub:** Builds, scans, and pushes a Docker image to Docker Hub for enhanced security.
-- **push:** Pushes Docker images to ACR, ECR, GCR, or Docker Hub in one simple command.
-- **remove:** Deletes a Docker image from your local system to free up space.
-- **scan:** Analyzes a Docker image for known security vulnerabilities before deployment.
-- **tag:** Tags a Docker image for easy identification and repository management.
+```bash
+build: Builds a Docker image with the specified name and tag.
+provision-acr: Builds and pushes a Docker image to Azure Container Registry (ACR).
+provision-ec: Builds and pushes a Docker image to AWS Elastic Container Registry (ECR).
+provision-gcr: Builds and pushes a Docker image to Google Container Registry (GCR).
+provision-hub: Builds, scans, and pushes a Docker image to Docker Hub for enhanced security.
+push: Pushes Docker images to ACR, ECR, GCR, or Docker Hub in one simple command.
+remove: Deletes a Docker image from your local system to free up space.
+scan: Analyzes a Docker image for known security vulnerabilities before deployment.
+tag: Tags a Docker image for easy identification and repository management.
+```
 
 ### Helm Commands in Smurf ⎈
 #### The available commands for helm are-
-- **create:** Create a new Helm chart in the specified directory.
-- **install:** Install a Helm chart into a Kubernetes cluster.
-- **lint:** Lint a Helm chart.
-- **list:**  List all Helm releases.
-- **provision:** Combination of install, upgrade, lint, and template for Helm.
-- **repo:**  Add, update, or manage chart repositories.
-- **rollback:** Roll back a release to a previous revision.
-- **status:** Status of a Helm release.
-- **template:** Render chart templates.
-- **uninstall:** Uninstall a Helm release.
-- **upgrade:** Upgrade a deployed Helm chart.
+```bash
+create: Create a new Helm chart in the specified directory.
+install: Install a Helm chart into a Kubernetes cluster.
+lint: Lint a Helm chart.
+list: List all Helm releases.
+provision: Combination of install, upgrade, lint, and template for Helm.
+repo: Add, update, or manage chart repositories.
+rollback: Roll back a release to a previous revision.
+status: Status of a Helm release.
+template: Render chart templates.
+uninstall: Uninstall a Helm release.
+upgrade: Upgrade a deployed Helm chart.
+```
 
 ### Terraform Commands in Smurf ⚙️
 #### The available commands for terraform are-
-- **apply:** Apply the changes required to reach the desired state of Terraform Infrastructure.
-- **destroy:** Destroy the Terraform Infrastructure.
-- **drift:** Detect drift between state and infrastructure for Terraform.
-- **format:** Format the Terraform Infrastructure.
-- **graph:** Generate a visual graph of Terraform resources.
-- **init:** Initialize Terraform.
-- **output:** Generate output for the current state of Terraform Infrastructure.
-- **plan:** Generate and show an execution plan for Terraform.
-- **provision:**  Its the combination of init, plan, apply, output for Terraform.
-- **refresh:** Update the state file of your infrastructure.
-- **state-list:**  List resources in the Terraform state.
+```bash
+apply: Apply the changes required to reach the desired state of Terraform Infrastructure.
+destroy: Destroy the Terraform Infrastructure.
+drift: Detect drift between state and infrastructure for Terraform.
+format: Format the Terraform Infrastructure.
+graph: Generate a visual graph of Terraform resources.
+init: Initialize Terraform.
+output: Generate output for the current state of Terraform Infrastructure.
+plan: Generate and show an execution plan for Terraform.
+provision: Its the combination of init, plan, apply, output for Terraform.
+refresh: Update the state file of your infrastructure.
+state-list: List resources in the Terraform state.
+```
 
 ## Contributors ✨ 
 
