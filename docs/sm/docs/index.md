@@ -42,7 +42,6 @@ With Smurf, you can spin up environments, manage containers, and apply infrastru
 ## What can you do with Smurf 🧑‍💻
 
 ### Docker Commands in Smurf 🐳
-#### The available commands for docker are-
 
 - **`build`**: Builds a Docker image with the specified **name** and **tag**.  
 - **`provision-acr`**: Builds and pushes a Docker image to **Azure Container Registry (ACR)**.  
@@ -55,7 +54,6 @@ With Smurf, you can spin up environments, manage containers, and apply infrastru
 - **`tag`**: Tags a Docker image for easy **identification** and **repository management**.   
 
 ### Helm Commands in Smurf ⎈
-#### The available commands for helm are-
 
 - **`create`**: Create a new Helm chart in the specified directory.  
 - **`install`**: Install a Helm chart into a Kubernetes cluster.  
@@ -70,7 +68,6 @@ With Smurf, you can spin up environments, manage containers, and apply infrastru
 - **`upgrade`**: Upgrade a deployed Helm chart.  
 
 ### Terraform Commands in Smurf ⚙️
-#### The available commands for terraform are-
 
 - **`apply`**: Apply the changes required to reach the desired state of Terraform Infrastructure.  
 - **`destroy`**: Destroy the Terraform Infrastructure.  
