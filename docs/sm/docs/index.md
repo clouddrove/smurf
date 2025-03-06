@@ -32,27 +32,54 @@
 </a>
 </p>
 
+Smurf
 Smurf is a command-line interface (CLI) application built using Golang leveraging technology specific SDKs, designed to simplify and automate commands for essential tools like Terraform and Docker. It provides intuitive, unified commands to execute Terraform plans, Docker container management, and other DevOps tasks seamlessly from one interface. Whether you need to spin up environments, manage containers, or apply infrastructure as code, this CLI streamlines multi-tool operations, boosting productivity and reducing context-switching.
-## Features
 
-- **Terraform Command Wrapper (stf):** Run `init`, `plan`, `apply`, `output`, `drift`, `validate`, `destroy`, `format` commands, and `provision`, a combined operation of `init`, `validate`, and `apply`.
-- **Helm Command Wrapper (selm):** Run `create`, `install`, `lint`, `list`, `status`, `template`, `upgrade`, `uninstall` commands, and `provision`, a combination of `install`, `upgrade`, `lint`, and `template`.
-- **Docker Command Wrapper (sdkr):** Run `build`, `scan`, `tag`, `publish`, `push` commands, and `provision`, a combination of `build`, `scan`, and `publish`.
-- **Multicloud Container registry :** Push images from multiple cloud registries like AWS ECR, GCP GCR, Azure ACR, and Docker Hub.Run `smurf sdkr push --help` to push images from the specified registry.
-- **Git Integration:** *(Yet to come)*
-- **Unified CLI Interface:** Manage multi-tool operations from one interface, reducing the need for multiple command sets.
+## Why Should I Care🤔
+Smurf isn’t just another CLI tool—it’s your DevOps powerhouse. Managing Terraform, Docker, and other essential tools separately is a hassle. Constant context-switching slows you down, and remembering multiple CLI syntaxes is frustrating. Smurf simplifies this by providing a unified, intuitive interface to streamline your workflows.
+With Smurf, you can spin up environments, manage containers, and apply infrastructure as code—all from a single command-line tool. It boosts productivity, reduces errors, and helps you focus on delivering solutions rather than troubleshooting commands. If efficiency and automation matter to you, Smurf is the tool you’ve been waiting for.
 
-## Installation
-[Smurf tool Installation Guide](installation.md)
+## What can you do with Smurf 🧑‍💻
 
-## Usage
+### Docker Commands in Smurf 🐳
+#### The available commands for docker are-
+- **build:** Builds a Docker image with the specified name and tag.
+- **provision-acr:** Builds and pushes a Docker image to Azure Container Registry (ACR).
+- **provision-ec:** Builds and pushes a Docker image to AWS Elastic Container Registry (ECR).
+- **provision-gcr:** Builds and pushes a Docker image to Google Container Registry (GCR).
+- **provision-hub:** Builds, scans, and pushes a Docker image to Docker Hub for enhanced security.
+- **push:** Pushes Docker images to ACR, ECR, GCR, or Docker Hub in one simple command.
+- **remove:** Deletes a Docker image from your local system to free up space.
+- **scan:** Analyzes a Docker image for known security vulnerabilities before deployment.
+- **tag:** Tags a Docker image for easy identification and repository management.
 
-- **For HELM commands (selm)**
-[Usage Guide for using helm commands via smurf tool](selm.md)
-- **For docker commands (sdkr)**
-[Usage Guide for using docker commands via smurf tool](sdkr.md)
-- **For terraform commands (stf)**
-[Usage Guide for using terraform commands via smurf tool](stf.md)
+### Helm Commands in Smurf ⎈
+#### The available commands for helm are-
+- **create:** Create a new Helm chart in the specified directory.
+- **install:** Install a Helm chart into a Kubernetes cluster.
+- **lint:** Lint a Helm chart.
+- **list:**  List all Helm releases.
+- **provision:** Combination of install, upgrade, lint, and template for Helm.
+- **repo:**  Add, update, or manage chart repositories.
+- **rollback:** Roll back a release to a previous revision.
+- **status:** Status of a Helm release.
+- **template:** Render chart templates.
+- **uninstall:** Uninstall a Helm release.
+- **upgrade:** Upgrade a deployed Helm chart.
+
+### Terraform Commands in Smurf ⚙️
+#### The available commands for terraform are-
+- **apply:** Apply the changes required to reach the desired state of Terraform Infrastructure.
+- **destroy:** Destroy the Terraform Infrastructure.
+- **drift:** Detect drift between state and infrastructure for Terraform.
+- **format:** Format the Terraform Infrastructure.
+- **graph:** Generate a visual graph of Terraform resources.
+- **init:** Initialize Terraform.
+- **output:** Generate output for the current state of Terraform Infrastructure.
+- **plan:** Generate and show an execution plan for Terraform.
+- **provision:**  Its the combination of init, plan, apply, output for Terraform.
+- **refresh:** Update the state file of your infrastructure.
+- **state-list:**  List resources in the Terraform state.
 
 ## Contributors ✨ 
 

@@ -37,8 +37,10 @@ theme:
 nav:
   - Home: index.md
   - Installation Guide: installation.md
-  - Usage: usage.md
-  - Integrations: integrations.md
+  - GitHub shared workflow with Smurf: shared_workflow_guide.md
+  - Working with Docker using Smurf: sdkr.md
+  - Working with Helm using Smurf: selm.md
+  - Working with Terraform using Smurf: stf.md
   - Advanced: advanced.md
 
 plugins:
