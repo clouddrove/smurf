@@ -56,6 +56,7 @@ With Smurf, you can spin up environments, manage containers, and apply infrastru
 
 ### Helm Commands in Smurf ⎈
 #### The available commands for helm are-
+
 - **`create`**: Create a new Helm chart in the specified directory.  
 - **`install`**: Install a Helm chart into a Kubernetes cluster.  
 - **`lint`**: Lint a Helm chart.  
@@ -70,6 +71,7 @@ With Smurf, you can spin up environments, manage containers, and apply infrastru
 
 ### Terraform Commands in Smurf ⚙️
 #### The available commands for terraform are-
+
 - **`apply`**: Apply the changes required to reach the desired state of Terraform Infrastructure.  
 - **`destroy`**: Destroy the Terraform Infrastructure.  
 - **`drift`**: Detect drift between state and infrastructure for Terraform.  
