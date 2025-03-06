@@ -2,19 +2,17 @@
 
 Use `smurf selm <command>` to run smurf sdkr commands. Supported commands include:
 
-```bash
-create: Create a new Helm chart in the specified directory.
-install: Install a Helm chart into a Kubernetes cluster.
-lint: Lint a Helm chart.
-list: List all Helm releases.
-provision: Combination of install, upgrade, lint, and template for Helm.
-repo: Add, update, or manage chart repositories.
-rollback: Roll back a release to a previous revision.
-status: Status of a Helm release.
-template: Render chart templates.
-uninstall: Uninstall a Helm release.
-upgrade: Upgrade a deployed Helm chart.
-```
+- **`create`**: Create a new Helm chart in the specified directory.  
+- **`install`**: Install a Helm chart into a Kubernetes cluster.  
+- **`lint`**: Lint a Helm chart.  
+- **`list`**: List all Helm releases.  
+- **`provision`**: Combination of `install`, `upgrade`, `lint`, and `template` for Helm.  
+- **`repo`**: Add, update, or manage chart repositories.  
+- **`rollback`**: Roll back a release to a previous revision.  
+- **`status`**: Status of a Helm release.  
+- **`template`**: Render chart templates.  
+- **`uninstall`**: Uninstall a Helm release.  
+- **`upgrade`**: Upgrade a deployed Helm chart.  
 
 ## Using Smurf Helm in local environment
 To create Helm Chart using Smurf run the command-
