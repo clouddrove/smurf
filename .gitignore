@@ -30,3 +30,4 @@ go.work.sum
 .idea
 
 docs/.venv
+.terraform/
