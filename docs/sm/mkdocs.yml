@@ -7,13 +7,7 @@ theme:
   logo: https://clouddrove.com/assets/images/logo.png
   favicon: https://clouddrove.com/favicon.ico
   features:
-    # - navigation.footer
-    # - navigation.top
-    # - search.suggest
-    # - search.highlight
-    # - content.tabs.link
-    # - content.code.annotations
-    # - content.code.copy
+    - navigation.expand
     - navigation.sections
     - toc.integrate
   palette:

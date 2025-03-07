@@ -17,7 +17,7 @@ Suppose you want to build and push a docker image to AWS Elastic Contaicd ..ner 
 ```bash
 smurf sdkr <ecr_url>
 ```
-![sdkr](images/sdkr_ecr.mov)
+![sdkr](gif/sdkr_ecr.mov)
 
 Suppose you want to scan a docker image named smurf using smurf. 
 To do this run the command: smurf sdkr scan <img_name>
@@ -25,7 +25,7 @@ To do this run the command: smurf sdkr scan <img_name>
 ```bash
 smurf sdkr scan <img_name>
 ```
-![sdkr](images/sdkr_scan.mov)
+![sdkr](gif/sdkr_scan.mov)
 
 ## Using Smurf Docker in GitHub Actions
 Using Smurf Docker in GitHub Actions involves calling the Smurf shared workflow.
@@ -43,4 +43,4 @@ jobs:
      aws_auth_method: oidc
 ```
 
-![sdkr](images/sdkr_provision_ecr.mov)
+![sdkr](gif/sdkr_provision_ecr.mov)

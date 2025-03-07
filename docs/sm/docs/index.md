@@ -35,11 +35,11 @@
 Smurf
 Smurf is a command-line interface (CLI) application built using Golang leveraging technology specific SDKs, designed to simplify and automate commands for essential tools like Terraform and Docker. It provides intuitive, unified commands to execute Terraform plans, Docker container management, and other DevOps tasks seamlessly from one interface. Whether you need to spin up environments, manage containers, or apply infrastructure as code, this CLI streamlines multi-tool operations, boosting productivity and reducing context-switching.
 
-## Why Should I Care🤔
+## Why Should I Care
 Smurf isn’t just another CLI tool—it’s your DevOps powerhouse. Managing Terraform, Docker, and other essential tools separately is a hassle. Constant context-switching slows you down, and remembering multiple CLI syntaxes is frustrating. Smurf simplifies this by providing a unified, intuitive interface to streamline your workflows.
 With Smurf, you can spin up environments, manage containers, and apply infrastructure as code—all from a single command-line tool. It boosts productivity, reduces errors, and helps you focus on delivering solutions rather than troubleshooting commands. If efficiency and automation matter to you, Smurf is the tool you’ve been waiting for.
 
-## What can you do with Smurf 🧑‍💻
+## What can you do with Smurf
 
 Docker Commands in Smurf 🐳
 

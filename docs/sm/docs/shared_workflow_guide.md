@@ -1,7 +1,7 @@
 # Smurf Integration GitHub Actions
 Smurf has a [shared workflow](https://github.com/clouddrove/github-shared-workflows/tree/feat/smurf_shared_workflow/docs)  created to easily work with smurf in GitHub Actions.Shared workflows are a way to reuse things by defining them once and using them at different places.
 
-## Example of using shared workflow for Smurf Docker.
+## Example of using shared workflow for Smurf Docker
 This workflow will build, scan and push docker images to the registry you want.
 ```yaml
 jobs:
@@ -21,7 +21,7 @@ jobs:
       docker_scan_command: scan <img_name>:<tag>
 ```
 
-## Example of using shared workflow for Smurf Helm.
+## Example of using shared workflow for Smurf Helm
 This workflow will lint, template and deploy helm charts to your kubernetes cluster you want.
 ```yaml
 jobs: 

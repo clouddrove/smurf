@@ -19,7 +19,7 @@ To upgrade a helm chart using smurf run the command-
 ```bash
 smurf selm  upgrade smurf ./smurf -n smurf
 ```
-![selm](images/selm_upgrade.mov)
+![selm](gif/selm_upgrade.mov)
 
 ## Using Smurf Helm in GitHub Actions
 Using Smurf Helm in GitHub Actions involves calling the Smurf shared workflow.
@@ -40,4 +40,4 @@ jobs:
      helm_deploy_command: upgrade <release_name> --install --atomic -f <helm_chart_path>/values.yaml <helm_chart_path>
 ```
 
-![selm](images/selm.mov)
+![selm](gif/selm.mov)
