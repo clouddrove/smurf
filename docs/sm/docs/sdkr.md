@@ -13,11 +13,11 @@ Use `smurf sdkr <command>` to run smurf sdkr commands. Supported commands includ
 - **`tag`**: Tags a Docker image for easy **identification** and **repository management**.   
 
 ## Using Smurf Docker in local environment
-Suppose you want to build and push a docker image to AWS Elastic Container Registry (ECR).To do this run the command: 
+Suppose you want to build and push a docker image to AWS Elastic Contaicd ..ner Registry (ECR).To do this run the command: 
 ```bash
 smurf sdkr <ecr_url>
 ```
-![sdkr](images/Screenshot 2025-03-06 at 7.52.36 PM.png)
+![sdkr](images/sdkr_ecr.mov)
 
 Suppose you want to scan a docker image named smurf using smurf. 
 To do this run the command: smurf sdkr scan <img_name>
@@ -25,7 +25,7 @@ To do this run the command: smurf sdkr scan <img_name>
 ```bash
 smurf sdkr scan <img_name>
 ```
-![sdkr](images/Screenshot 2025-03-06 at 11.18.06 PM.png)
+![sdkr](images/sdkr_scan.mov)
 
 ## Using Smurf Docker in GitHub Actions
 Using Smurf Docker in GitHub Actions involves calling the Smurf shared workflow.
@@ -37,12 +37,10 @@ jobs:
    with:
      aws_auth: true
      docker_enable: true
-     docker_build_command: build <img_name>:<img_tag>
-     docker_push_command: push aws <ecr_url>:<img_tag>
+     docker_push_command: provision-ecr <ecr_url>
      aws-role: <aws_role>
      aws-region: <aws_region>
      aws_auth_method: oidc
 ```
 
-![sdkr](images/Screenshot 2025-03-06 at 8.32.12 PM.png)
-![sdkr](images/Screenshot 2025-03-06 at 8.33.01 PM.png)
+![sdkr](images/sdkr_provision_ecr.mov)

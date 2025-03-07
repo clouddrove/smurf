@@ -51,3 +51,5 @@ bash install_smurf.sh
 which smurf
 smurf --help
 ```
+
+## Setup using Brew

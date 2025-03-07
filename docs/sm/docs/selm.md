@@ -15,17 +15,11 @@ Use `smurf selm <command>` to run smurf sdkr commands. Supported commands includ
 - **`upgrade`**: Upgrade a deployed Helm chart.  
 
 ## Using Smurf Helm in local environment
-To create Helm Chart using Smurf run the command-
-```bash
-smurf selm create smurf
-```
-![selm](images/Screenshot 2025-03-06 at 9.29.00 PM.png)
-
 To upgrade a helm chart using smurf run the command-
 ```bash
 smurf selm  upgrade smurf ./smurf -n smurf
 ```
-![selm](images/Screenshot 2025-03-06 at 9.31.58 PM.png)
+![selm](images/selm_upgrade.mov)
 
 ## Using Smurf Helm in GitHub Actions
 Using Smurf Helm in GitHub Actions involves calling the Smurf shared workflow.
@@ -46,5 +40,4 @@ jobs:
      helm_deploy_command: upgrade <release_name> --install --atomic -f <helm_chart_path>/values.yaml <helm_chart_path>
 ```
 
-![sdkr](images/Screenshot 2025-03-06 at 9.44.15 PM.png)
-![sdkr](images/Screenshot 2025-03-06 at 9.44.34 PM.png)
+![selm](images/selm.mov)

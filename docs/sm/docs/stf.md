@@ -19,5 +19,4 @@ Suppose you want to init, plan, apply and output for Terraform with one single c
 ```bash
 smurf stf provision
 ```
-![stf](images/Screenshot 2025-03-06 at 10.02.22 PM.png)
-![stf](images/Screenshot 2025-03-06 at 10.02.44 PM.png)
+![stf](images/stf_provision.mov)
