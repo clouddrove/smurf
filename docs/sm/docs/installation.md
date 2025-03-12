@@ -40,12 +40,7 @@ mv smurf /usr/local/bin/
 ```bash
 bash docs/sm/docs/install_smurf.sh
 ```
-3. Execute the following command to build and install Smurf
-
-```bash
-bash install_smurf.sh
-```
-4. To check if Smurf is installed successfully, run:
+3. To check if Smurf is installed successfully, run:
 
 ```bash
 which smurf
@@ -53,3 +48,14 @@ smurf --help
 ```
 
 ## Setup using Brew
+
+```bash
+brew tap clouddrove/homebrew-tap
+brew install smurf
+```
+
+## Troubleshooting
+
+- **"go: command not found"** → Ensure Go is installed and accessible via `PATH`.
+- **"permission denied"** → Run the installation script with `sudo bash install_smurf.sh`.
+- **"cannot move smurf: No such file or directory"** → Ensure `go build` is successful and the binary exists in the `build` directory.
