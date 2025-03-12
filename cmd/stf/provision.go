@@ -10,28 +10,25 @@ var varNameValue []string
 var varFile []string
 var lock bool
 var upgrade bool
+var provisionDir string // Define provisionDir variable
 
-// provisionCmd orchestrates multiple Terraform operations (init, plan, apply, output)
-// in a sequential flow, grouping them into one streamlined command. After successful
-// initialization, planning, and applying of changes, it retrieves the final outputs
-// asynchronously and handles any errors accordingly.
 var provisionCmd = &cobra.Command{
 	Use:   "provision",
 	Short: "Its the combination of init, plan, apply, output for Terraform",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := terraform.Init(upgrade); err != nil {
+		if err := terraform.Init(provisionDir, upgrade); err != nil {
 			return err
 		}
 
-		if err := terraform.Plan(varNameValue, varFile); err != nil {
+		if err := terraform.Plan(varNameValue, varFile, provisionDir); err != nil {
 			return err
 		}
 
-		if err := terraform.Apply(provisionApprove, varNameValue, varFile, lock); err != nil {
+		if err := terraform.Apply(provisionApprove, varNameValue, varFile, lock, provisionDir); err != nil {
 			return err
 		}
 
-		if err := terraform.Output(); err != nil {
+		if err := terraform.Output(provisionDir); err != nil {
 			return err
 		}
 
@@ -39,6 +36,7 @@ var provisionCmd = &cobra.Command{
 	},
 	Example: `
 	smurf stf provision
+	smurf stf provision --dir=/path/to/terraform/files
 	`,
 }
 
@@ -48,5 +46,6 @@ func init() {
 	provisionCmd.Flags().BoolVar(&provisionApprove, "approve", true, "Skip interactive approval of plan before applying")
 	provisionCmd.Flags().BoolVar(&lock, "lock", false, "Don't hold a state lock during the operation. This is dangerous if others might concurrently run commands against the same workspace.")
 	provisionCmd.Flags().BoolVar(&upgrade, "upgrade", false, "Upgrade the Terraform modules and plugins to the latest versions")
+	provisionCmd.Flags().StringVar(&provisionDir, "dir", "", "Specify the directory for Terraform operations") // Added flag
 	stfCmd.AddCommand(provisionCmd)
 }

@@ -11,8 +11,8 @@ import (
 )
 
 // Graph generates a visual representation of Terraform resources
-func Graph() error {
-	tf, err := GetTerraform()
+func Graph(dir string) error {
+	tf, err := GetTerraform(dir)
 	if err != nil {
 		return err
 	}

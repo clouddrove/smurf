@@ -12,8 +12,8 @@ import (
 )
 
 // Refresh updates the state file of your infrastructure
-func Refresh(vars []string, varFiles []string, lock bool) error {
-	tf, err := GetTerraform()
+func Refresh(vars []string, varFiles []string, lock bool, dir string) error {
+	tf, err := GetTerraform(dir)
 	if err != nil {
 		return err
 	}

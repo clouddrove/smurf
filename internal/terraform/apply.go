@@ -16,8 +16,8 @@ import (
 // It initializes the Terraform client, runs the apply operation with a spinner for user feedback,
 // and handles any errors that occur during the process. Upon successful completion,
 // it sets custom writers for stdout and stderr to handle colored output. lock is by default false
-func Apply(approve bool, vars []string, varFiles []string, lock bool) error {
-	tf, err := GetTerraform()
+func Apply(approve bool, vars []string, varFiles []string, lock bool, dir string) error {
+	tf, err := GetTerraform(dir)
 	if err != nil {
 		return err
 	}

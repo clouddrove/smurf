@@ -13,8 +13,8 @@ import (
 // It performs a `plan` with refresh enabled to detect any changes that differ
 // from the current state. If drift is detected, it lists the affected resources.
 // Provides user feedback through spinners and colored messages for better UX.
-func DetectDrift() error {
-	tf, err := GetTerraform()
+func DetectDrift(dir string) error {
+	tf, err := GetTerraform(dir)
 	if err != nil {
 		return err
 	}
