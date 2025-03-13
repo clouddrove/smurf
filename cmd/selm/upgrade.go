@@ -68,17 +68,6 @@ var upgradeCmd = &cobra.Command{
 
 		timeoutDuration := time.Duration(configs.Timeout) * time.Second
 
-		// options := helm.PathOptions{
-		// 	CaFile:   configs.CaFile,
-		// 	CertFile: configs.CertFile,
-		// 	KeyFile:  configs.KeyFile,
-		// 	RepoURL:  configs.RepoURL,
-		// 	Username: configs.Username,
-		// 	Password: configs.Password,
-		// 	Verify:   configs.Verify,
-		// 	Version:  configs.Version,
-		// }
-
 		if installIfNotPresent {
 			exists, err := helm.HelmReleaseExists(releaseName, configs.Namespace)
 			if err != nil {
@@ -105,6 +94,8 @@ var upgradeCmd = &cobra.Command{
 			configs.Atomic,
 			timeoutDuration,
 			configs.Debug,
+			RepoURL,
+			Version,
 		)
 		if err != nil {
 			return fmt.Errorf(color.RedString("Helm upgrade failed: %v", err))
@@ -117,11 +108,11 @@ smurf selm upgrade my-release ./mychart
 smurf selm upgrade my-release ./mychart -n my-namespace
 smurf selm upgrade my-release ./mychart --set key1=val1,key2=val2
 smurf selm upgrade my-release ./mychart -f values.yaml --timeout 600 --atomic --debug --install
+smurf selm upgrade my-release ./mychart --repo-url https://charts.example.com --version 1.2.3
 smurf selm upgrade
 # In the last example, it will read RELEASE and CHART from the config file
 `,
 }
-
 func init() {
 	upgradeCmd.Flags().StringSliceVar(&configs.Set, "set", []string{}, "Set values on the command line (can specify multiple or separate values with commas: key1=val1,key2=val2)")
 	upgradeCmd.Flags().StringSliceVarP(&configs.File, "values", "f", []string{}, "Specify values in a YAML file (can specify multiple)")

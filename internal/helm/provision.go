@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"sync"
-
 	"github.com/fatih/color"
 	"helm.sh/helm/v3/pkg/action"
 )
@@ -29,8 +28,8 @@ func HelmProvision(releaseName, chartPath, namespace string) error {
 
 	var wg sync.WaitGroup
 	var installErr, upgradeErr, lintErr, templateErr error
-
 	exists := false
+
 	for _, result := range results {
 		if result.Name == releaseName {
 			exists = true
@@ -42,11 +41,26 @@ func HelmProvision(releaseName, chartPath, namespace string) error {
 	if exists {
 		go func() {
 			defer wg.Done()
-			upgradeErr = HelmUpgrade(releaseName, chartPath, namespace, nil, nil, false, false, 0, false)
+			// Updated HelmUpgrade call with the new parameter signature
+			upgradeErr = HelmUpgrade(
+				releaseName, 
+				chartPath, 
+				namespace, 
+				nil,         // setValues
+				nil,         // valuesFiles
+				false,       // createNamespace
+				false,       // atomic
+				0,           // timeout as time.Duration
+				false,       // debug
+				"",          // repoURL
+				"",          // version
+			)
 		}()
 	} else {
 		go func() {
 			defer wg.Done()
+			// Note: you're using different parameter types here:
+			// timeout as int (300) vs. time.Duration (0) in the upgraded version
 			installErr = HelmInstall(releaseName, chartPath, namespace, nil, 300, false, false, []string{}, "", "")
 		}()
 	}
@@ -56,10 +70,9 @@ func HelmProvision(releaseName, chartPath, namespace string) error {
 		defer wg.Done()
 		lintErr = HelmLint(chartPath, nil)
 	}()
-
 	go func() {
 		defer wg.Done()
-		templateErr = HelmTemplate(releaseName, chartPath, namespace, nil)
+		templateErr = HelmTemplate(releaseName, chartPath, namespace, "", []string{})
 	}()
 
 	wg.Wait()

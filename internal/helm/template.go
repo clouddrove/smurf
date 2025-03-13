@@ -13,12 +13,8 @@ import (
 	"helm.sh/helm/v3/pkg/strvals"
 )
 
-// HelmTemplate renders the Helm templates for a given chart and values files.
-// It initializes the Helm action configuration, loads the chart from the provided path,
-// merges the provided values (including --set overrides), and renders the templates.
-// Upon completion, it prints the rendered templates to the console.
-// If any step fails, it logs detailed information about the failure.
-func HelmTemplate(releaseName, chartPath, namespace string, valuesFiles []string) error {
+// HelmTemplate renders the Helm templates for a given chart, values files, and optionally a remote repo.
+func HelmTemplate(releaseName, chartPath, namespace, repoURL string, valuesFiles []string) error {
 	settings := cli.New()
 	actionConfig := new(action.Configuration)
 
@@ -33,10 +29,24 @@ func HelmTemplate(releaseName, chartPath, namespace string, valuesFiles []string
 	client.Namespace = namespace
 	client.Replace = true
 	client.ClientOnly = true
+	client.ChartPathOptions.RepoURL = repoURL // Set repo URL if provided
 
-	chart, err := loader.Load(chartPath)
+	var chartPathFinal string
+	var err error
+
+	if repoURL != "" {
+		chartPathFinal, err = client.ChartPathOptions.LocateChart(chartPath, settings)
+		if err != nil {
+			color.Red("Failed to locate chart in repository '%s': %v \n", repoURL, err)
+			return err
+		}
+	} else {
+		chartPathFinal = chartPath
+	}
+
+	chart, err := loader.Load(chartPathFinal)
 	if err != nil {
-		color.Red("Failed to load chart '%s': %v \n", chartPath, err)
+		color.Red("Failed to load chart '%s': %v \n", chartPathFinal, err)
 		return err
 	}
 
