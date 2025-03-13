@@ -11,10 +11,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// templateCmd provides the functionality to render a Helm chart's templates
-// for a specified release name and chart path. If not given as arguments, it
-// can load these values from the config file. It also allows an optional
-// namespace and values files to further customize the chart rendering.
+// Variables to store flag values
+var repoURL string
+
 var templateCmd = &cobra.Command{
 	Use:   "template [RELEASE] [CHART]",
 	Short: "Render chart templates",
@@ -58,7 +57,7 @@ var templateCmd = &cobra.Command{
 			configs.Namespace = "default"
 		}
 
-		err := helm.HelmTemplate(releaseName, chartPath, configs.Namespace, configs.File)
+		err := helm.HelmTemplate(releaseName, chartPath, configs.Namespace, repoURL, configs.File)
 		if err != nil {
 			return fmt.Errorf(color.RedString("Helm template failed: %v", err))
 		}
@@ -68,8 +67,8 @@ var templateCmd = &cobra.Command{
 smurf selm template my-release ./mychart
 # In this example, it will render templates for 'my-release' in './mychart' within the 'default' namespace
 
-smurf selm template
-# In this example, it will read RELEASE and CHART from the config file and render templates
+smurf selm template my-release mychart --repo https://charts.clouddrove.com/
+# This will pull the chart from the specified Helm repository and render it.
 
 smurf selm template my-release ./mychart -n my-namespace -f values.yaml
 # In this example, it will render templates for 'my-release' in './mychart' within 'my-namespace' using specified values files
@@ -79,5 +78,6 @@ smurf selm template my-release ./mychart -n my-namespace -f values.yaml
 func init() {
 	templateCmd.Flags().StringVarP(&configs.Namespace, "namespace", "n", "", "Specify the namespace to template the Helm chart")
 	templateCmd.Flags().StringArrayVarP(&configs.File, "values", "f", []string{}, "Specify values in a YAML file")
+	templateCmd.Flags().StringVarP(&repoURL, "repo", "r", "", "Specify Helm chart repository URL")
 	selmCmd.AddCommand(templateCmd)
 }
