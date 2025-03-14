@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"time"
+
 	"github.com/fatih/color"
 	"helm.sh/helm/v3/pkg/action"
 )
@@ -48,6 +50,7 @@ func HelmProvision(releaseName, chartPath, namespace string) error {
 				namespace, 
 				nil,         // setValues
 				nil,         // valuesFiles
+				nil,         // setLiteral (new required parameter)
 				false,       // createNamespace
 				false,       // atomic
 				0,           // timeout as time.Duration
@@ -61,7 +64,7 @@ func HelmProvision(releaseName, chartPath, namespace string) error {
 			defer wg.Done()
 			// Note: you're using different parameter types here:
 			// timeout as int (300) vs. time.Duration (0) in the upgraded version
-			installErr = HelmInstall(releaseName, chartPath, namespace, nil, 300, false, false, []string{}, "", "")
+			installErr = HelmInstall(releaseName, chartPath, namespace, []string{}, 300*time.Second, false, false, []string{}, []string{}, "", "")
 		}()
 	}
 

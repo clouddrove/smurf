@@ -127,19 +127,30 @@ func loadAndMergeValues(valuesFiles []string) (map[string]interface{}, error) {
 // loadAndMergeValuesWithSets loads values from the specified files and merges them with the set values.
 // It returns the merged values map or an error if the values cannot be loaded or parsed.
 // The set values are applied after loading the values from the files.
-func loadAndMergeValuesWithSets(valuesFiles, setValues []string) (map[string]interface{}, error) {
+func loadAndMergeValuesWithSets(valuesFiles, setValues, setLiteralValues []string) (map[string]interface{}, error) {
 	vals, err := loadAndMergeValues(valuesFiles)
 	if err != nil {
 		return nil, err
 	}
 
+	// Process --set values (parsed into structured data)
 	for _, set := range setValues {
-		color.Green("Parsing set value: %s \n", set)
+		color.Green("Parsing --set value: %s \n", set)
 		if err := strvals.ParseInto(set, vals); err != nil {
-			color.Red("Error parsing set value '%s': %v \n", set, err)
+			color.Red("Error parsing --set value '%s': %v \n", set, err)
 			return nil, err
 		}
 	}
+
+	// Process --set-literal values (always treated as string)
+	for _, setLiteral := range setLiteralValues {
+		color.Green("Parsing --set-literal value: %s \n", setLiteral)
+		if err := strvals.ParseIntoString(setLiteral, vals); err != nil {
+			color.Red("Error parsing --set-literal value '%s': %v \n", setLiteral, err)
+			return nil, err
+		}
+	}
+
 	return vals, nil
 }
 

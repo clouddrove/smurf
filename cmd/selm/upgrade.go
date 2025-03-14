@@ -74,11 +74,12 @@ var upgradeCmd = &cobra.Command{
 				return fmt.Errorf("failed to check if Helm release exists: %w", err)
 			}
 			if !exists {
-				if err := helm.HelmInstall(releaseName, chartPath, configs.Namespace, configs.File, timeoutDuration, configs.Atomic, configs.Debug, configs.Set, RepoURL, Version); err != nil {
+				if err := helm.HelmInstall(releaseName, chartPath, configs.Namespace, configs.File, timeoutDuration, configs.Atomic, configs.Debug, configs.Set, []string{}, RepoURL, Version); err != nil {
 					return fmt.Errorf(color.RedString("Helm install failed: %v", err))
 				}
 			}
 		}
+
 
 		if configs.Namespace == "" {
 			configs.Namespace = "default"
@@ -90,6 +91,7 @@ var upgradeCmd = &cobra.Command{
 			configs.Namespace,
 			configs.Set,
 			configs.File,
+			[]string{},   
 			createNamespace,
 			configs.Atomic,
 			timeoutDuration,
@@ -109,12 +111,15 @@ smurf selm upgrade my-release ./mychart -n my-namespace
 smurf selm upgrade my-release ./mychart --set key1=val1,key2=val2
 smurf selm upgrade my-release ./mychart -f values.yaml --timeout 600 --atomic --debug --install
 smurf selm upgrade my-release ./mychart --repo-url https://charts.example.com --version 1.2.3
+smurf selm upgrade my-release ./mychart --set key1=val1 --set key2=val2
+smurf selm upgrade my-release ./mychart --set-literal myPassword='MySecurePass!'
 smurf selm upgrade
 # In the last example, it will read RELEASE and CHART from the config file
 `,
 }
 func init() {
 	upgradeCmd.Flags().StringSliceVar(&configs.Set, "set", []string{}, "Set values on the command line (can specify multiple or separate values with commas: key1=val1,key2=val2)")
+	upgradeCmd.Flags().StringSliceVar(&configs.SetLiteral, "set-literal", []string{}, "Set literal values on the command line (values are always treated as strings)")
 	upgradeCmd.Flags().StringSliceVarP(&configs.File, "values", "f", []string{}, "Specify values in a YAML file (can specify multiple)")
 	upgradeCmd.Flags().StringVarP(&configs.Namespace, "namespace", "n", "default", "Specify the namespace to install the release into")
 	upgradeCmd.Flags().BoolVar(&createNamespace, "create-namespace", false, "Create the namespace if it does not exist")

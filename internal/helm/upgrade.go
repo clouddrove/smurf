@@ -14,7 +14,7 @@ import (
 // It initializes the Helm action configuration, sets up the upgrade parameters,
 // executes the upgrade, and then retrieves the status of the release post-upgrade.
 // Detailed error logging is performed if any step fails.
-func HelmUpgrade(releaseName, chartRef, namespace string, setValues []string, valuesFiles []string, createNamespace, atomic bool, timeout time.Duration, debug bool, repoURL string, version string) error {
+func HelmUpgrade(releaseName, chartRef, namespace string, setValues []string, setLiteral []string, valuesFiles []string, createNamespace, atomic bool, timeout time.Duration, debug bool, repoURL string, version string) error {
 	color.Green("Starting Helm Upgrade for release: %s \n", releaseName)
 	
 	// Handle namespace creation separately since Upgrade doesn't have CreateNamespace
@@ -61,7 +61,7 @@ func HelmUpgrade(releaseName, chartRef, namespace string, setValues []string, va
 		return err
 	}
 	
-	vals, err := loadAndMergeValuesWithSets(valuesFiles, setValues)
+	vals, err := loadAndMergeValuesWithSets(valuesFiles, setValues, setLiteral)
 	if err != nil {
 		logDetailedError("values loading", err, namespace, releaseName)
 		return err
