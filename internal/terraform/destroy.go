@@ -17,8 +17,8 @@ import (
 // runs the destroy operation with a spinner for user feedback, and handles any
 // errors that occur during the process. Upon successful completion, it stops
 // the spinner with a success message.
-func Destroy(approve bool, lock bool) error {
-	tf, err := GetTerraform()
+func Destroy(approve bool, lock bool, dir string) error {
+	tf, err := GetTerraform(dir)
 	if err != nil {
 		return err
 	}

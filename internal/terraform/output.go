@@ -13,8 +13,8 @@ import (
 // It refreshes the Terraform state to ensure it reflects the current infrastructure,
 // then retrieves and displays the outputs. Sensitive outputs are hidden for security.
 // Provides user feedback through spinners and colored messages for enhanced UX.
-func Output() error {
-	tf, err := GetTerraform()
+func Output(dir string) error {
+	tf, err := GetTerraform(dir)
 	if err != nil {
 		return err
 	}
