@@ -95,6 +95,7 @@ image:
 				tt.atomic,
 				tt.debug,
 				tt.setValues,
+				[]string{},
 				tt.repoURL,
 				tt.version,
 			)
