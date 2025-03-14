@@ -15,12 +15,7 @@ import (
 var RepoURL string
 var Version string
 
-// installCmd is a subcommand that installs a Helm chart into a Kubernetes cluster,
-// allowing customization through flags or config-file-based defaults. If the
-// required arguments (release name and chart path) are omitted, they can be
-// loaded from the configuration file. Additional features include setting a custom
-// namespace, providing multiple values files, specifying timeouts, enabling atomic
-// installs, and running in debug mode.
+// installCmd is a subcommand that installs a Helm chart into a Kubernetes cluster.
 var installCmd = &cobra.Command{
 	Use:   "install [RELEASE] [CHART]",
 	Short: "Install a Helm chart into a Kubernetes cluster.",
@@ -65,20 +60,12 @@ var installCmd = &cobra.Command{
 
 		timeoutDuration := time.Duration(configs.Timeout) * time.Second
 
-		buildArgsMap := make(map[string]string)
-		for _, arg := range configs.Set {
-			parts := configs.SplitKeyValue(arg)
-			if len(parts) == 2 {
-				buildArgsMap[parts[0]] = parts[1]
-			}
-		}
-
 		if configs.Namespace == "" {
 			configs.Namespace = "default"
 		}
 
 		pterm.Info.Println("Starting Helm install...")
-		err := helm.HelmInstall(releaseName, chartPath, configs.Namespace, configs.File, timeoutDuration, configs.Atomic, configs.Debug, configs.Set, RepoURL, Version)
+		err := helm.HelmInstall(releaseName, chartPath, configs.Namespace, configs.File, timeoutDuration, configs.Atomic, configs.Debug, configs.Set, configs.SetLiteral, RepoURL, Version)
 		if err != nil {
 			return errors.New(color.RedString("Helm install failed: %v", err))
 		}
@@ -92,6 +79,8 @@ var installCmd = &cobra.Command{
   smurf selm install my-release ./mychart --timeout=600
   smurf selm install prometheus-11 prometheus --repo https://prometheus-community.github.io/helm-charts --version 13.0.0
   smurf selm install prometheus prometheus-community/prometheus
+  smurf selm install my-release ./mychart --set key1=val1 --set key2=val2
+  smurf selm install my-release ./mychart --set-literal myPassword='MySecurePass!'
   smurf selm install
   # In the last example, it will read RELEASE and CHART from the config file
   `,
@@ -104,6 +93,7 @@ func init() {
 	installCmd.Flags().BoolVar(&configs.Atomic, "atomic", false, "If set, installation process purges chart on fail")
 	installCmd.Flags().BoolVar(&configs.Debug, "debug", false, "Enable verbose output")
 	installCmd.Flags().StringSliceVar(&configs.Set, "set", []string{}, "Set values on the command line (can specify multiple or separate values with commas: key1=val1,key2=val2)")
+	installCmd.Flags().StringSliceVar(&configs.SetLiteral, "set-literal", []string{}, "Set literal values on the command line (values are always treated as strings)")
 	installCmd.Flags().StringVar(&RepoURL, "repo", "", "Specify the chart repository URL for remote charts")
 	installCmd.Flags().StringVar(&Version, "version", "", "Specify the chart version to install")
 	selmCmd.AddCommand(installCmd)

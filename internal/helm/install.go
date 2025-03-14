@@ -22,7 +22,11 @@ import (
 // 1. Remote repository URL (e.g., "https://prometheus-community.github.io/helm-charts")
 // 2. Local repository reference (e.g., "prometheus-community/prometheus")
 // 3. Local chart path (e.g., "./mychart")
-func HelmInstall(releaseName, chartRef, namespace string, valuesFiles []string, duration time.Duration, atomic bool, debug bool, setValues []string, repoURL string, version string) error {
+func HelmInstall(
+	releaseName, chartRef, namespace string, valuesFiles []string, 
+	duration time.Duration, atomic, debug bool, 
+	setValues, setLiteralValues []string, repoURL, version string,
+) error {
 	spinner, _ := pterm.DefaultSpinner.Start(fmt.Sprintf("Starting Helm Install for release: %s", releaseName))
 	defer spinner.Stop()
 
@@ -64,7 +68,8 @@ func HelmInstall(releaseName, chartRef, namespace string, valuesFiles []string, 
 		return err
 	}
 
-	vals, err := loadAndMergeValuesWithSets(valuesFiles, setValues)
+	// Load and merge values from files, --set, and --set-literal
+	vals, err := loadAndMergeValuesWithSets(valuesFiles, setValues, setLiteralValues)
 	if err != nil {
 		logDetailedError("values loading", err, namespace, releaseName)
 		return err

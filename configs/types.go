@@ -29,6 +29,7 @@ var (
 	Atomic    bool
 	Debug     bool
 	Set       []string
+	SetLiteral []string
 	Force     bool
 	Wait      bool
 	CaFile    string // --ca-file
