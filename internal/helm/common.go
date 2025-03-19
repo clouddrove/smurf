@@ -128,25 +128,46 @@ func loadAndMergeValues(valuesFiles []string) (map[string]interface{}, error) {
 // It returns the merged values map or an error if the values cannot be loaded or parsed.
 // The set values are applied after loading the values from the files.
 func loadAndMergeValuesWithSets(valuesFiles, setValues, setLiteralValues []string) (map[string]interface{}, error) {
+	// Debugging: Print parsed arguments
+	color.Yellow("Values files provided: %v", valuesFiles)
+	color.Yellow("--set values provided: %v", setValues)
+	color.Yellow("--set-literal values provided: %v", setLiteralValues)
+
+	// Ensure that valuesFiles are correctly handled
+	if len(valuesFiles) == 0 {
+		color.Red("")
+	}
+
+	// Load values from files
 	vals, err := loadAndMergeValues(valuesFiles)
 	if err != nil {
 		return nil, err
 	}
 
-	// Process --set values (parsed into structured data)
+	// Process --set values (structured data)
 	for _, set := range setValues {
-		color.Green("Parsing --set value: %s \n", set)
+		color.Green("Parsing --set value: %s", set)
 		if err := strvals.ParseInto(set, vals); err != nil {
-			color.Red("Error parsing --set value '%s': %v \n", set, err)
+			color.Red("Error parsing --set value '%s': %v", set, err)
 			return nil, err
 		}
 	}
 
-	// Process --set-literal values (always treated as string)
+	// Ensure --set-literal does not contain values files
+	cleanedSetLiteralValues := []string{}
 	for _, setLiteral := range setLiteralValues {
-		color.Green("Parsing --set-literal value: %s \n", setLiteral)
+		if strings.HasSuffix(setLiteral, ".yaml") || strings.HasSuffix(setLiteral, ".yml") {
+			color.Red("")
+			continue
+		}
+		cleanedSetLiteralValues = append(cleanedSetLiteralValues, setLiteral)
+	}
+
+	// Process cleaned --set-literal values (always as string)
+	for _, setLiteral := range cleanedSetLiteralValues {
+		color.Green("Parsing --set-literal value: %s", setLiteral)
 		if err := strvals.ParseIntoString(setLiteral, vals); err != nil {
-			color.Red("Error parsing --set-literal value '%s': %v \n", setLiteral, err)
+			color.Red("Error parsing --set-literal value '%s': %v", setLiteral, err)
 			return nil, err
 		}
 	}
