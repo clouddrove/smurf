@@ -23,8 +23,8 @@ import (
 // 2. Local repository reference (e.g., "prometheus-community/prometheus")
 // 3. Local chart path (e.g., "./mychart")
 func HelmInstall(
-	releaseName, chartRef, namespace string, valuesFiles []string, 
-	duration time.Duration, atomic, debug bool, 
+	releaseName, chartRef, namespace string, valuesFiles []string,
+	duration time.Duration, atomic, debug bool,
 	setValues, setLiteralValues []string, repoURL, version string,
 ) error {
 	spinner, _ := pterm.DefaultSpinner.Start(fmt.Sprintf("Starting Helm Install for release: %s", releaseName))
