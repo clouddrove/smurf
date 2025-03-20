@@ -80,7 +80,6 @@ var upgradeCmd = &cobra.Command{
 			}
 		}
 
-
 		if configs.Namespace == "" {
 			configs.Namespace = "default"
 		}
@@ -91,7 +90,7 @@ var upgradeCmd = &cobra.Command{
 			configs.Namespace,
 			configs.Set,
 			configs.File,
-			[]string{},   
+			[]string{},
 			createNamespace,
 			configs.Atomic,
 			timeoutDuration,
@@ -117,6 +116,7 @@ smurf selm upgrade
 # In the last example, it will read RELEASE and CHART from the config file
 `,
 }
+
 func init() {
 	upgradeCmd.Flags().StringSliceVar(&configs.Set, "set", []string{}, "Set values on the command line (can specify multiple or separate values with commas: key1=val1,key2=val2)")
 	upgradeCmd.Flags().StringSliceVar(&configs.SetLiteral, "set-literal", []string{}, "Set literal values on the command line (values are always treated as strings)")
