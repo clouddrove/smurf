@@ -8,6 +8,8 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+var BuildKit bool
+
 // Config represents the structure of the configuration file
 func LoadConfig(filePath string) (*Config, error) {
 	data, err := ioutil.ReadFile(filePath)

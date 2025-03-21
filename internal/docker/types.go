@@ -11,6 +11,7 @@ type BuildOptions struct {
 	Target         string
 	Platform       string
 	Timeout        time.Duration
+	BuildKit       bool
 }
 
 // ImageInfo struct to hold information about a Docker image
