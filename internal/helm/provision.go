@@ -45,18 +45,18 @@ func HelmProvision(releaseName, chartPath, namespace string) error {
 			defer wg.Done()
 			// Updated HelmUpgrade call with the new parameter signature
 			upgradeErr = HelmUpgrade(
-				releaseName, 
-				chartPath, 
-				namespace, 
-				nil,         // setValues
-				nil,         // valuesFiles
-				nil,         // setLiteral (new required parameter)
-				false,       // createNamespace
-				false,       // atomic
-				0,           // timeout as time.Duration
-				false,       // debug
-				"",          // repoURL
-				"",          // version
+				releaseName,
+				chartPath,
+				namespace,
+				nil,   // setValues
+				nil,   // valuesFiles
+				nil,   // setLiteral (new required parameter)
+				false, // createNamespace
+				false, // atomic
+				0,     // timeout as time.Duration
+				false, // debug
+				"",    // repoURL
+				"",    // version
 			)
 		}()
 	} else {
