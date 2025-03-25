@@ -3,15 +3,25 @@ package helm
 import (
 	"fmt"
 	"os/exec"
+	"strings"
 )
 
-// HelmPluginInstall installs a Helm plugin
-func HelmPluginInstall(pluginURL string) error {
-	cmd := exec.Command("helm", "plugin", "install", pluginURL)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to install Helm plugin: %v, output: %s", err, output)
+// HelmPluginInstall installs one or more Helm plugins
+func HelmPluginInstall(plugins string) error {
+	pluginList := strings.Split(plugins, ",")
+	for _, plugin := range pluginList {
+		plugin = strings.TrimSpace(plugin)
+		if plugin == "" {
+			continue
+		}
+		fmt.Printf("Installing Helm plugin: %s\n", plugin)
+		cmd := exec.Command("helm", "plugin", "install", plugin)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			fmt.Printf("Failed to install Helm plugin: %s\nError: %v\nOutput: %s\n", plugin, err, output)
+			continue
+		}
+		fmt.Printf("Helm plugin installed successfully: %s\n", plugin)
 	}
-	fmt.Printf("Helm plugin installed successfully: %s\n", output)
 	return nil
 }
