@@ -6,6 +6,7 @@ import (
 	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/docker"
 	"github.com/spf13/cobra"
+	"os"
 )
 
 // scanCmd provides functionality to scan a Docker image for known security issues.
@@ -17,6 +18,9 @@ var scanCmd = &cobra.Command{
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var imageRef string
+		var sarifPath string
+
+		// Check if image is passed as argument or read from config
 		if len(args) == 1 {
 			imageRef = args[0]
 		} else {
@@ -28,19 +32,20 @@ var scanCmd = &cobra.Command{
 				return errors.New("image name (with optional tag) must be provided either as an argument or in the config")
 			}
 			imageRef = data.Sdkr.ImageName
+			sarifPath = data.Sdkr.SarifPath // Optional SARIF output path from config
 		}
 
 		// Plain log without spinner
-		fmt.Printf("Scanning Docker image %q...\n", imageRef)
+		fmt.Printf("🔍 Scanning Docker image %q...\n", imageRef)
 
 		// Run Trivy scan
-		err := docker.Trivy(imageRef)
+		err := docker.Trivy(imageRef, sarifPath)
 		if err != nil {
-			fmt.Println("❌ Scan failed:", err)
+			fmt.Printf("❌ Scan failed: %v\n", err)
 			return err
 		}
 
-		// Plain success message
+		// Success message without spinner
 		fmt.Println("✅ Scan completed successfully.")
 		return nil
 	},
@@ -51,6 +56,7 @@ var scanCmd = &cobra.Command{
 `,
 }
 
+// init adds the scan command to the parent sdkr command.
 func init() {
 	sdkrCmd.AddCommand(scanCmd)
 }
