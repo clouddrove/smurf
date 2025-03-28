@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/docker"
-	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 )
 
@@ -31,14 +30,18 @@ var scanCmd = &cobra.Command{
 			imageRef = data.Sdkr.ImageName
 		}
 
-		pterm.Info.Printf("Scanning Docker image %q...\n", imageRef)
+		// Plain log without spinner
+		fmt.Printf("Scanning Docker image %q...\n", imageRef)
+
+		// Run Trivy scan
 		err := docker.Trivy(imageRef)
 		if err != nil {
-			pterm.Error.Println("Scan failed:", err)
+			fmt.Println("❌ Scan failed:", err)
 			return err
 		}
 
-		pterm.Success.Println("Scan completed successfully.")
+		// Plain success message
+		fmt.Println("✅ Scan completed successfully.")
 		return nil
 	},
 	Example: `
