@@ -20,11 +20,9 @@ func Trivy(dockerImage string) error {
 	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
 
-	spinner, _ := pterm.DefaultSpinner.Start("Running 'trivy image' scan")
-	defer spinner.Stop()
+	pterm.Info.Println("Running 'trivy image' scan...")
 
 	err := cmd.Run()
-	spinner.Stop()
 
 	outStr := stdoutBuf.String()
 	errStr := stderrBuf.String()
