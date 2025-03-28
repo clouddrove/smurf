@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/fatih/color"
-	"github.com/pterm/pterm"
 	"os/exec"
 )
 
@@ -13,35 +11,36 @@ import (
 // and displays the results. It's a simplified version that accepts just the image name and tag.
 func Trivy(dockerImage string) error {
 	ctx := context.Background()
-	args := []string{"image", dockerImage, "--format", "table"}
+	args := []string{"image", dockerImage, "--format", "table", "--no-progress"}
 
 	cmd := exec.CommandContext(ctx, "trivy", args...)
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
 
-	spinner, _ := pterm.DefaultSpinner.Start("Running 'trivy image' scan")
-	defer spinner.Stop()
+	fmt.Printf("🔍 Running 'trivy image' scan for %s...\n", dockerImage)
 
+	// Run Trivy scan
 	err := cmd.Run()
-	spinner.Stop()
 
 	outStr := stdoutBuf.String()
 	errStr := stderrBuf.String()
 
+	// Handle errors
 	if err != nil {
-		pterm.Error.Println("Error running 'trivy image':", err)
+		fmt.Printf("❌ Error running 'trivy image': %v\n", err)
 		if errStr != "" {
-			pterm.Error.Println(errStr)
+			fmt.Printf("⚠️ Error details: %s\n", errStr)
 		}
 		return fmt.Errorf("failed to run 'trivy image': %w", err)
 	}
 
+	// Print scan results
 	if outStr != "" {
-		pterm.Info.Println("Trivy scan results:")
-		fmt.Println(color.YellowString(outStr))
+		fmt.Println("📄 Trivy scan results:")
+		fmt.Println(outStr)
 	}
 
-	pterm.Success.Println("Scan completed successfully.")
+	fmt.Println("✅ Scan completed successfully.")
 	return nil
 }
