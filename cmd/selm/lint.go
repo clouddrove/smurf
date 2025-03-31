@@ -44,6 +44,7 @@ var lintCmd = &cobra.Command{
 	},
 	Example: `
 smurf selm lint ./mychart
+smurf selm lint ./mychart -f ./my-chart/valus.yaml
 smurf selm lint
 # In the last example, it will read CHART from the config file
 `,

@@ -10,9 +10,9 @@ import (
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/chartutil"
 	"helm.sh/helm/v3/pkg/cli"
-	"helm.sh/helm/v3/pkg/strvals"
 )
 
+// HelmTemplate renders the Helm templates for a given chart, values files, and optionally a remote repo.
 // HelmTemplate renders the Helm templates for a given chart, values files, and optionally a remote repo.
 func HelmTemplate(releaseName, chartPath, namespace, repoURL string, valuesFiles []string) error {
 	settings := cli.New()
@@ -51,6 +51,7 @@ func HelmTemplate(releaseName, chartPath, namespace, repoURL string, valuesFiles
 	}
 
 	vals := make(map[string]interface{})
+	// Process values files
 	for _, f := range valuesFiles {
 		additionalVals, err := chartutil.ReadValuesFile(f)
 		if err != nil {
@@ -62,12 +63,16 @@ func HelmTemplate(releaseName, chartPath, namespace, repoURL string, valuesFiles
 		}
 	}
 
+	// Remove the incorrect use of valuesFiles with strvals.ParseInto
+	// This block is using valuesFiles incorrectly - these are paths to YAML files, not --set style values
+	/*
 	for _, set := range valuesFiles {
 		if err := strvals.ParseInto(set, vals); err != nil {
 			color.Red("Error parsing set values '%s': %v \n", set, err)
 			return err
 		}
 	}
+	*/
 
 	spinner, _ := pterm.DefaultSpinner.Start("Rendering Helm templates...\n")
 	rel, err := client.Run(chart, vals)
