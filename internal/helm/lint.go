@@ -7,7 +7,6 @@ import (
 	"github.com/pterm/pterm"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chartutil"
-	"helm.sh/helm/v3/pkg/strvals"
 )
 
 // HelmLint runs Helm's built-in linting on a specified chart directory or tarball,
@@ -29,13 +28,6 @@ func HelmLint(chartPath string, fileValues []string) error {
 		}
 		for key, value := range additionalVals {
 			vals[key] = value
-		}
-	}
-
-	for _, set := range fileValues {
-		if err := strvals.ParseInto(set, vals); err != nil {
-			color.Red("Failed to parse set values '%s': %v \n", set, err)
-			return err
 		}
 	}
 
