@@ -16,13 +16,21 @@ import (
 	"golang.org/x/oauth2/google"
 )
 
-// PushImageToGCR pushes the specified Docker image to the specified Google Container Registry.
+/// PushImageToGCR pushes the specified Docker image to the specified Google Container Registry.
 // It authenticates with Google Cloud, retrieves the registry details and credentials, tags the image,
 // and pushes it to the registry. It displays a spinner with progress updates and prints the
 // push response messages. Upon successful completion, it prints a success message with a link
 // to the pushed image in the GCR.
-func PushImageToGCR(projectID, imageName string) error {
+func PushImageToGCR(projectID, imageNameWithTag string) error {
 	ctx := context.Background()
+
+	// Parse image name and tag
+	imageName := imageNameWithTag
+	imageTag := "latest"
+	if parts := strings.Split(imageNameWithTag, ":"); len(parts) == 2 {
+		imageName = parts[0]
+		imageTag = parts[1]
+	}
 
 	spinner, _ := pterm.DefaultSpinner.Start("Authenticating with Google Cloud...")
 	creds, err := google.FindDefaultCredentials(ctx, "https://www.googleapis.com/auth/cloud-platform")
@@ -54,13 +62,25 @@ func PushImageToGCR(projectID, imageName string) error {
 
 	spinner, _ = pterm.DefaultSpinner.Start("Tagging the image...")
 	var registryHost string
-	if strings.Contains(imageName, "gcr.io") {
-		registryHost = "gcr.io"
+
+	// Check if the image name already includes a registry
+	if strings.Contains(imageName, "gcr.io") || strings.Contains(imageName, "docker.pkg.dev") {
+		// Use the image name as is, since it already includes a registry
+		registryHost = ""
 	} else {
-		registryHost = fmt.Sprintf("gcr.io/%s", projectID)
+		registryHost = fmt.Sprintf("gcr.io/%s/", projectID)
 	}
-	taggedImage := fmt.Sprintf("%s/%s", registryHost, imageName)
-	err = dockerClient.ImageTag(ctx, imageName, taggedImage)
+
+	// Construct the proper tagged image with registry and tag
+	sourceImage := fmt.Sprintf("%s:%s", imageName, imageTag)
+	taggedImage := fmt.Sprintf("%s%s:%s", registryHost, imageName, imageTag)
+
+	// If the image already has a full registry path, don't prepend registryHost
+	if registryHost == "" {
+		taggedImage = sourceImage
+	}
+
+	err = dockerClient.ImageTag(ctx, sourceImage, taggedImage)
 	if err != nil {
 		spinner.Fail("Failed to tag the image")
 		color.New(color.FgRed).Printf("Error: %v\n", err)
@@ -121,7 +141,15 @@ func PushImageToGCR(projectID, imageName string) error {
 	progressBar.Stop()
 	spinner.Success("Image pushed to GCR")
 
-	link := fmt.Sprintf("https://console.cloud.google.com/gcr/images/%s/%s?project=%s", projectID, imageName, projectID)
+	// Construct the proper console link
+	registryType := "gcr"
+	if strings.Contains(imageName, "docker.pkg.dev") {
+		registryType = "artifacts/repository"
+	}
+
+	link := fmt.Sprintf("https://console.cloud.google.com/%s/images/%s/%s?project=%s",
+		registryType, projectID, imageName, projectID)
+
 	color.New(color.FgGreen).Printf("Image pushed to GCR: %s\n", link)
 	color.New(color.FgGreen).Printf("Successfully pushed image '%s' to GCR\n", taggedImage)
 	return nil
