@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 
 	"github.com/spf13/cobra"
 )
@@ -19,7 +20,6 @@ type githubRelease struct {
 
 func getLatestVersion() string {
 	url := "https://api.github.com/repos/clouddrove/smurf/releases/latest"
-	client := &http.Client{}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		fmt.Println("Error creating request:", err)
@@ -27,6 +27,7 @@ func getLatestVersion() string {
 	}
 	req.Header.Add("Accept", "application/vnd.github.v3+json")
 
+	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
 		fmt.Println("Error sending request:", err)
@@ -69,5 +70,22 @@ var versionCmd = &cobra.Command{
 }
 
 func init() {
+	// for --version
+	// Add the --version flag to the root command
+	RootCmd.Flags().BoolP("version", "", false, "Show the version of the CLI tool")
+
+	// PersistentPreRun to check if --version flag is passed
+	RootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
+		versionFlag, err := cmd.Flags().GetBool("version")
+		if err != nil {
+			fmt.Println("Error getting the version flag:", err)
+		}
+		if versionFlag {
+			fmt.Printf("%s\n", getLatestVersion())
+			os.Exit(0)
+		}
+	}
+
+	// for version
 	RootCmd.AddCommand(versionCmd)
 }
