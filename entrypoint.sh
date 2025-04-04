@@ -82,8 +82,8 @@ gcp_gke_login() {
     fi
 }
 
-# Perform GCP and GKE login only if GCP_AUTH=true
-if [[ "$GCP_AUTH" == "true" ]]; then
+# Perform GCP and GKE login only if PROVIDER=gcp
+if [[ "$PROVIDER" == "GCP" ]]; then
     echo "🔹 GCP authentication is enabled. Performing GCP login..."
     gcp_gke_login
 else
@@ -96,8 +96,8 @@ if [[ -n "$DOCKER_USERNAME" && -n "$DOCKER_PASSWORD" ]]; then
     echo "✅ Successfully logged into Docker Hub."
 fi
 
-# Perform AWS and EKS login only if AWS_AUTH=true
-if [[ "$AWS_AUTH" == "true" ]]; then
+# Perform AWS and EKS login only if PROVIDER=aws
+if [[ "$PROVIDER" == "aws" ]]; then
     echo "🔹 AWS authentication is enabled. Performing AWS login..."
     aws_eks_login
 else
