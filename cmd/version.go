@@ -11,7 +11,14 @@ import (
 )
 
 var (
-	version = "v1.0.0"
+	version    = "v1.0.0"
+	versionCmd = &cobra.Command{
+		Use:   "version",
+		Short: "Show the version information",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Printf("%s\n", getLatestVersion())
+		},
+	}
 )
 
 type githubRelease struct {
@@ -59,33 +66,22 @@ func getLatestVersion() string {
 	return version
 }
 
-// versionCmd represents the version command
-var versionCmd = &cobra.Command{
-	Use:   "version",
-	Short: "Show the version of your CLI tool",
-	Run: func(cmd *cobra.Command, args []string) {
-		latestVersion := getLatestVersion()
-		fmt.Printf("%s\n", latestVersion)
-	},
-}
-
 func init() {
-	// for --version
-	// Add the --version flag to the root command
-	RootCmd.Flags().BoolP("version", "", false, "Show the version of the CLI tool")
+	// Version flag  --version
+	RootCmd.Flags().BoolP("version", "", false, "Show version information")
 
-	// PersistentPreRun to check if --version flag is passed
+	// Chain the PersistentPreRun to handle version flag
+	originalPersistentPreRun := RootCmd.PersistentPreRun
 	RootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
-		versionFlag, err := cmd.Flags().GetBool("version")
-		if err != nil {
-			fmt.Println("Error getting the version flag:", err)
-		}
-		if versionFlag {
-			fmt.Printf("%s\n", getLatestVersion())
+		if versionFlag, _ := cmd.Flags().GetBool("version"); versionFlag {
+			fmt.Println(getLatestVersion())
 			os.Exit(0)
+		}
+		if originalPersistentPreRun != nil {
+			originalPersistentPreRun(cmd, args)
 		}
 	}
 
-	// for version
+	// Add version command
 	RootCmd.AddCommand(versionCmd)
 }
