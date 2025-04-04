@@ -83,7 +83,7 @@ gcp_gke_login() {
 }
 
 # Perform GCP and GKE login only if PROVIDER=gcp
-if [[ "$PROVIDER" == "GCP" ]]; then
+if [[ "$PROVIDER" == "gcp" ]]; then
     echo "🔹 GCP authentication is enabled. Performing GCP login..."
     gcp_gke_login
 else
