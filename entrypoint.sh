@@ -44,50 +44,23 @@ aws_eks_login() {
     fi
 }
 
-gcp_gke_login() {
-    if [[ -z "$GCP_SERVICE_ACCOUNT_KEY" || -z "$GCP_PROJECT_ID" || -z "$GCP_REGION" || -z "$GKE_CLUSTER_NAME" ]]; then
-        echo "⚠️ Warning: Required environment variables not set. Please ensure the following are set:"
-        echo "  - GCP_SERVICE_ACCOUNT_KEY (path to service account key file)"
-        echo "  - GCP_PROJECT_ID"
-        echo "  - GCP_REGION"
-        echo "  - GKE_CLUSTER_NAME"
-        echo "Skipping GCP and GKE login."
-        return 1
-    fi
-
-    # Check if service account key file exists
-    check_file_exists "$GCP_SERVICE_ACCOUNT_KEY"
-
-    echo "🔹 Authenticating with Google Cloud..."
-    gcloud auth activate-service-account --key-file="$GCP_SERVICE_ACCOUNT_KEY"
-    if [ $? -eq 0 ]; then
-        echo "✅ Successfully authenticated with GCP."
-    else
-        echo "❌ Failed to authenticate with GCP."
-        return 1
-    fi
-
-    # Set current project
-    echo "🔹 Setting GCP project: $GCP_PROJECT_ID..."
-    gcloud config set project "$GCP_PROJECT_ID"
-
-    # GKE Cluster Login
-    echo "🔹 Getting GKE credentials for cluster: $GKE_CLUSTER_NAME..."
-    gcloud container clusters get-credentials "$GKE_CLUSTER_NAME" --region "$GCP_REGION" --project "$GCP_PROJECT_ID"
-    if [ $? -eq 0 ]; then
-        echo "✅ Successfully configured GKE cluster access."
-    else
-        echo "❌ Failed to configure GKE cluster access."
-        return 1
-    fi
-}
-
-# Perform GCP and GKE login only if PROVIDER=gcp
-if [[ "$PROVIDER" == "gcp" ]]; then
-    echo "🔹 GCP authentication is enabled. Performing GCP login..."
-    gcp_gke_login
+# Use service account key from GitHub Secret
+if [ -n "$GCP_SERVICE_ACCOUNT_KEY" ]; then
+  echo "Authenticating using service account key from GitHub Secret..."
+  echo "$GCP_SERVICE_ACCOUNT_KEY" > /tmp/gcp-key.json
+  gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
+  export GCP_SERVICE_ACCOUNT_KEY=/tmp/gcp-key.json
+elif [ -f "$GCP_SERVICE_ACCOUNT_KEY" ]; then
+  echo "Using existing service account key file..."
+  gcloud auth activate-service-account --key-file="$GCP_SERVICE_ACCOUNT_KEY"
 else
-    echo "⚠️ GCP authentication is disabled. Skipping GCP login."
+  echo "Error: No GCP credentials found"
+  exit 1
+fi
+
+if [ -n "$GKE_CLUSTER_NAME" ] && [ -n "$GCP_REGION" ] && [ -n "$GCP_PROJECT_ID" ]; then
+  echo "Configuring kubectl for GKE cluster: $GKE_CLUSTER_NAME..."
+  gcloud container clusters get-credentials "$GKE_CLUSTER_NAME" --zone "$GCP_REGION" --project "$GCP_PROJECT_ID"
 fi
 
 # Docker login if credentials are provided
