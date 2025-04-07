@@ -1,18 +1,22 @@
+name: Build
+
+env:
+  GO_VERSION: 1.21
+
 on:
   push:
     branches:
       - "**"
-
-name: Build
-env:
-  GO_VERSION: 1.23
+  pull_request:
 
 jobs:
   build:
-    name: Run checks and build
+    name: Build and Test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -25,20 +29,49 @@ jobs:
       - name: Test
         run: make test
 
+      - name: Get Version
+        id: version
+        run: |
+          set -euo pipefail
+          echo "Attempting to detect version..."
+          
+          # Try GitHub API (for official releases)
+          if API_RESPONSE=$(curl -sf https://api.github.com/repos/clouddrove/smurf/releases/latest); then
+            VERSION=$(echo "$API_RESPONSE" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+            echo "Using GitHub release version: $VERSION"
+          else
+            # Fallback to git tags
+            VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+            [ -z "$VERSION" ] && echo "No version detected - using code default" || echo "Using git tag version: $VERSION"
+          fi
+          
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
       - name: Build
-        run: make
+        run: |
+          echo "Building binary..."
+          if [ -n "${{steps.version.outputs.version}}" ]; then
+            make VERSION=${{steps.version.outputs.version}}  # Pass version to Makefile
+          else
+            make  # Build with default version
+          fi
+          echo "Build complete"
+
+      - name: Verify Version
+        run: |
+          echo "Binary version report:"
+          ./smurf --version
+          ./smurf version
 
   format:
+    name: Check Formatting
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - uses: actions/setup-go@v5
         with:
           go-version: ${{env.GO_VERSION}}
-
       - run: go fmt ./...
-
+      - run: git diff --exit-code || (echo "Formatting changes detected!" && exit 1)
       # - name: Verify No Differences after format
       #   run: test -z "$(git diff)"

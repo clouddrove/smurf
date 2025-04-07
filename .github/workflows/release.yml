@@ -24,6 +24,13 @@ jobs:
       with:
         go-version: ${{ env.GO_VERSION }}
 
+    - name: Get Version  # version handling
+      id: version
+      run: |
+        # Use the exact tag that triggered this workflow
+        echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        echo "Building version: ${GITHUB_REF#refs/tags/}"
+
     - name: Repo Name
       id: repo-name
       run: echo name=$(basename ${{ github.repository }}) >> $GITHUB_OUTPUT
@@ -32,7 +39,11 @@ jobs:
     #   run: go test -v ./...
 
     - name: Build
-      run: make package PROGRAM=${{ env.GOOS }}-${{ env.GOARCH }}/${{ steps.repo-name.outputs.name }}${{ matrix.ext }} PACKAGE=dist/${{ steps.repo-name.outputs.name }}-${{ matrix.GOOS }}-${{ matrix.GOARCH }}.zip
+      run: |
+        make package \
+          PROGRAM=${{ env.GOOS }}-${{ env.GOARCH }}/${{ steps.repo-name.outputs.name }}${{ matrix.ext }} \
+          PACKAGE=dist/${{ steps.repo-name.outputs.name }}-${{ matrix.GOOS }}-${{ matrix.GOARCH }}.zip \
+          VERSION=${{ steps.version.outputs.version }}  # <<< Pass version to make
       env:
         GOOS: ${{ matrix.GOOS }}
         GOARCH: ${{ matrix.GOARCH }}
