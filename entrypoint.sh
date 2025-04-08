@@ -18,6 +18,16 @@ check_file_exists() {
     fi
 }
 
+# ✅ Function to ensure required env vars are set
+require_env() {
+    for var in "$@"; do
+        if [ -z "${!var}" ]; then
+            echo "❌ Environment variable $var is required but not set."
+            exit 1
+        fi
+    done
+}
+
 aws_eks_login() {
     if [[ -z "$AWS_ACCESS_KEY_ID" || -z "$AWS_SECRET_ACCESS_KEY" || -z "$AWS_DEFAULT_REGION" || -z "$EKS_CLUSTER_NAME" ]]; then
         echo "⚠️ Warning: Required environment variables not set. Please ensure the following are set:"
