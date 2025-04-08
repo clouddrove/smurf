@@ -46,36 +46,18 @@ aws_eks_login() {
     fi
 }
 
+# GCP & GKE Login
 gcp_gke_login() {
-    if [[ -z "$GCP_PROJECT_ID" || -z "$GCP_REGION" || -z "$GKE_CLUSTER_NAME" ]]; then
-        echo "⚠️ Warning: Required GCP environment variables not set. Please ensure the following are set:"
-        echo "  - GCP_PROJECT_ID"
-        echo "  - GCP_REGION"
-        echo "  - GKE_CLUSTER_NAME"
-        echo "Skipping GCP and GKE login."
-        return 1
-    fi
+  require_env GCP_PROJECT_ID GCP_REGION GKE_CLUSTER_NAME GCP_SERVICE_ACCOUNT_KEY
 
-    # Use service account key from GitHub Secret
-    if [ -n "$GCP_SERVICE_ACCOUNT_KEY" ]; then
-        echo "🔹 Authenticating using GCP service account key from environment variable..."
-        echo "$GCP_SERVICE_ACCOUNT_KEY" > /tmp/gcp-key.json
-        gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
-        export GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-key.json
-        echo "✅ GCP authentication successful."
-    else
-        echo "❌ Error: No GCP credentials found in GCP_SERVICE_ACCOUNT_KEY"
-        return 1
-    fi
+  echo "🔹 Authenticating with GCP..."
+  echo "$GCP_SERVICE_ACCOUNT_KEY" > /tmp/gcp-key.json
+  gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
+  export GOOGLE_APPLICATION_CREDENTIALS="/tmp/gcp-key.json"
 
-    echo "🔹 Configuring kubectl for GKE cluster: $GKE_CLUSTER_NAME..."
-    gcloud container clusters get-credentials "$GKE_CLUSTER_NAME" --region "$GCP_REGION" --project "$GCP_PROJECT_ID"
-    if [ $? -eq 0 ]; then
-        echo "✅ Successfully configured GKE cluster access."
-    else
-        echo "❌ Failed to configure GKE cluster access."
-        return 1
-    fi
+  echo "🔹 Getting GKE credentials..."
+  gcloud container clusters get-credentials "$GKE_CLUSTER_NAME" --region "$GCP_REGION" --project "$GCP_PROJECT_ID"
+  echo "✅ GCP & GKE login complete."
 }
 
 # Docker login if credentials are provided
