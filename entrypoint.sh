@@ -58,13 +58,15 @@ aws_eks_login() {
 
 # GCP & GKE Login
 gcp_gke_login() {
-  require_env GCP_PROJECT_ID GCP_REGION GKE_CLUSTER_NAME GCP_SERVICE_ACCOUNT_KEY
+  require_env GCP_PROJECT_ID GCP_REGION GKE_CLUSTER_NAME GOOGLE_APPLICATION_CREDENTIALS
 
   echo "🔹 Authenticating with GCP..."
-  echo "$GCP_SERVICE_ACCOUNT_KEY" > /tmp/gcp-key.json
-  gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
-  export GOOGLE_APPLICATION_CREDENTIALS="/tmp/gcp-key.json"
+  if [[ ! -f "$GOOGLE_APPLICATION_CREDENTIALS" ]]; then
+    echo "❌ GCP key file not found at $GOOGLE_APPLICATION_CREDENTIALS"
+    exit 1
+  fi
 
+  gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
   echo "🔹 Getting GKE credentials..."
   gcloud container clusters get-credentials "$GKE_CLUSTER_NAME" --region "$GCP_REGION" --project "$GCP_PROJECT_ID"
   echo "✅ GCP & GKE login complete."
