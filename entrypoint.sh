@@ -61,6 +61,13 @@ gcp_gke_login() {
   require_env GCP_PROJECT_ID GCP_REGION GKE_CLUSTER_NAME GOOGLE_APPLICATION_CREDENTIALS
 
   echo "🔹 Authenticating with GCP..."
+
+  # Decode base64 GCP key if not present
+  if [[ ! -f "$GOOGLE_APPLICATION_CREDENTIALS" && -n "$GCP_KEY_B64" ]]; then
+    echo "$GCP_KEY_B64" | base64 -d > "$GOOGLE_APPLICATION_CREDENTIALS"
+    echo "🔹 Decoded GCP key to $GOOGLE_APPLICATION_CREDENTIALS"
+  fi
+
   if [[ ! -f "$GOOGLE_APPLICATION_CREDENTIALS" ]]; then
     echo "❌ GCP key file not found at $GOOGLE_APPLICATION_CREDENTIALS"
     exit 1
