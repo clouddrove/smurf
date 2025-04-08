@@ -3,19 +3,11 @@ description: "Build and push docker images"
 runs:
   using: "docker"
   image: "Dockerfile"
-  env:
-    GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-creds.json
   args:
     - ${{ inputs.tool }}
     - ${{ inputs.command }}
 
 inputs:
-  aws_access_key_id:
-    required: false
-  aws_secret_access_key:
-    required: false
-  aws_session_token:
-    required: false
   tool:
     required: true
   command:
