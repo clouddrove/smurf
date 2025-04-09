@@ -80,12 +80,8 @@ gcp_gke_login() {
     echo "🔹 Using Workload Identity Federation (WIP) for authentication..."
     require_env GCP_PROJECT_ID GCP_REGION GKE_CLUSTER_NAME WIP_PROVIDER WIP_SERVICE_ACCOUNT
 
-    gcloud auth login
-    gcloud iam service-accounts add-iam-policy-binding "$WIP_SERVICE_ACCOUNT" \
-        --role="roles/iam.workloadIdentityUser" \
-        --member="$WIP_PROVIDER"
-    gcloud auth print-identity-token \
-        --impersonate-service-account="$WIP_SERVICE_ACCOUNT"
+    gcloud auth login --quiet --no-browser \
+        --cred-file=<(echo '{"type":"external_account","audience":"//iam.googleapis.com/'"$WIP_PROVIDER"'","subject_token_type":"urn:ietf:params:oauth:token-type:jwt","token_url":"https://sts.googleapis.com/v1/token","service_account_impersonation_url":"https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/'"$WIP_SERVICE_ACCOUNT"':generateAccessToken","credential_source":{"file":"/tmp/gha-creds.json"}}')
 
   elif [[ -n "$WIP_CREDENTIALS_FILE" || -n "$WIP_CREDS_B64" ]]; then
     echo "🔹 Using WIP credentials JSON file for authentication..."
