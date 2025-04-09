@@ -58,22 +58,34 @@ aws_eks_login() {
 
 # GCP & GKE Login
 gcp_gke_login() {
-  require_env GCP_PROJECT_ID GCP_REGION GKE_CLUSTER_NAME GOOGLE_APPLICATION_CREDENTIALS
+  echo "🔹 Starting GCP & GKE login..."
 
-  echo "🔹 Authenticating with GCP..."
+  if [[ -n "$GCP_KEY_B64" || -f "$GOOGLE_APPLICATION_CREDENTIALS" ]]; then
+    echo "🔹 Using service account JSON for authentication..."
+    require_env GCP_PROJECT_ID GCP_REGION GKE_CLUSTER_NAME GOOGLE_APPLICATION_CREDENTIALS
 
-  # Decode base64 GCP key if not present
-  if [[ ! -f "$GOOGLE_APPLICATION_CREDENTIALS" && -n "$GCP_KEY_B64" ]]; then
-    echo "$GCP_KEY_B64" | base64 -d > "$GOOGLE_APPLICATION_CREDENTIALS"
-    echo "🔹 Decoded GCP key to $GOOGLE_APPLICATION_CREDENTIALS"
-  fi
+    if [[ ! -f "$GOOGLE_APPLICATION_CREDENTIALS" && -n "$GCP_KEY_B64" ]]; then
+      echo "$GCP_KEY_B64" | base64 -d > "$GOOGLE_APPLICATION_CREDENTIALS"
+      echo "🔹 Decoded GCP key to $GOOGLE_APPLICATION_CREDENTIALS"
+    fi
 
-  if [[ ! -f "$GOOGLE_APPLICATION_CREDENTIALS" ]]; then
-    echo "❌ GCP key file not found at $GOOGLE_APPLICATION_CREDENTIALS"
+    if [[ ! -f "$GOOGLE_APPLICATION_CREDENTIALS" ]]; then
+      echo "❌ GCP key file not found at $GOOGLE_APPLICATION_CREDENTIALS"
+      exit 1
+    fi
+
+    gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
+
+  elif [[ -n "$WIP_CREDENTIALS_FILE" ]]; then
+    echo "🔹 Using Workload Identity Federation (WIP) for authentication..."
+    require_env WIP_CREDENTIALS_FILE GCP_PROJECT_ID GCP_REGION GKE_CLUSTER_NAME
+
+    gcloud auth login --cred-file="$WIP_CREDENTIALS_FILE"
+  else
+    echo "❌ No valid GCP authentication method provided."
     exit 1
   fi
 
-  gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
   echo "🔹 Getting GKE credentials..."
   gcloud container clusters get-credentials "$GKE_CLUSTER_NAME" --region "$GCP_REGION" --project "$GCP_PROJECT_ID"
   echo "✅ GCP & GKE login complete."
