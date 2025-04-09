@@ -76,11 +76,22 @@ gcp_gke_login() {
 
     gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
 
-  elif [[ -n "$WIP_CREDENTIALS_FILE" ]]; then
+  elif [[ -n "$WIP_CREDENTIALS_FILE" || -n "$WIP_CREDS_B64" ]]; then
     echo "🔹 Using Workload Identity Federation (WIP) for authentication..."
-    require_env WIP_CREDENTIALS_FILE GCP_PROJECT_ID GCP_REGION GKE_CLUSTER_NAME
+    require_env GCP_PROJECT_ID GCP_REGION GKE_CLUSTER_NAME WIP_CREDENTIALS_FILE
+
+    if [[ ! -f "$WIP_CREDENTIALS_FILE" && -n "$WIP_CREDS_B64" ]]; then
+      echo "$WIP_CREDS_B64" | base64 -d > "$WIP_CREDENTIALS_FILE"
+      echo "🔹 Decoded WIP credentials to $WIP_CREDENTIALS_FILE"
+    fi
+
+    if [[ ! -f "$WIP_CREDENTIALS_FILE" ]]; then
+      echo "❌ WIP credentials file not found at $WIP_CREDENTIALS_FILE"
+      exit 1
+    fi
 
     gcloud auth login --cred-file="$WIP_CREDENTIALS_FILE"
+
   else
     echo "❌ No valid GCP authentication method provided."
     exit 1
