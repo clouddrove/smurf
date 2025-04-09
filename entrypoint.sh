@@ -76,8 +76,16 @@ gcp_gke_login() {
 
     gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
 
-  elif [[ -n "$WIP_CREDENTIALS_FILE" || -n "$WIP_CREDS_B64" ]]; then
+  elif [[ -n "$WIP_PROVIDER" && -n "$WIP_SERVICE_ACCOUNT" ]]; then
     echo "🔹 Using Workload Identity Federation (WIP) for authentication..."
+    require_env GCP_PROJECT_ID GCP_REGION GKE_CLUSTER_NAME WIP_PROVIDER WIP_SERVICE_ACCOUNT
+
+    gcloud auth login \
+      --workload-identity-provider="$WIP_PROVIDER" \
+      --impersonate-service-account="$WIP_SERVICE_ACCOUNT"
+
+  elif [[ -n "$WIP_CREDENTIALS_FILE" || -n "$WIP_CREDS_B64" ]]; then
+    echo "🔹 Using WIP credentials JSON file for authentication..."
     require_env GCP_PROJECT_ID GCP_REGION GKE_CLUSTER_NAME WIP_CREDENTIALS_FILE
 
     if [[ ! -f "$WIP_CREDENTIALS_FILE" && -n "$WIP_CREDS_B64" ]]; then
