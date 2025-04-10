@@ -56,76 +56,47 @@ aws_eks_login() {
     fi
 }
 
-# GCP & GKE Login
-# GCP & GKE Login
 gcp_gke_login() {
-  echo "🔹 Starting GCP & GKE login..."
-  if [[ -n "$GCP_KEY_B64" || -f "$GOOGLE_APPLICATION_CREDENTIALS" ]]; then
-    echo "🔹 Using service account JSON for authentication..."
-    require_env GCP_PROJECT_ID GCP_REGION GKE_CLUSTER_NAME GOOGLE_APPLICATION_CREDENTIALS
-    if [[ ! -f "$GOOGLE_APPLICATION_CREDENTIALS" && -n "$GCP_KEY_B64" ]]; then
-      echo "$GCP_KEY_B64" | base64 -d > "$GOOGLE_APPLICATION_CREDENTIALS"
-      echo "🔹 Decoded GCP key to $GOOGLE_APPLICATION_CREDENTIALS"
+    if [ "$INPUT_GCP_AUTH_METHOD" == "wip" ]; then
+        echo "🔹 Using Workload Identity Provider authentication method"
+        
+        # Validate required parameters
+        if [ -z "$INPUT_WORKLOAD_IDENTITY_PROVIDER" ]; then
+            echo "❌ Error: workload_identity_provider is required for WIP authentication"
+            exit 1
+        fi
+        
+        if [ -z "$INPUT_SERVICE_ACCOUNT" ]; then
+            echo "❌ Error: service_account is required for WIP authentication"
+            exit 1
+        fi
+        
+        if [ -z "$INPUT_GCP_PROJECT_ID" ]; then
+            echo "❌ Error: gcp_project_id is required"
+            exit 1
+        fi
+        
+        # Authenticate with gcloud using workload identity
+        echo "🔹 Authenticating with Google Cloud using Workload Identity Federation..."
+        gcloud auth login --brief \
+            --impersonate-service-account="$INPUT_SERVICE_ACCOUNT" \
+            --workload-identity-provider="$INPUT_WORKLOAD_IDENTITY_PROVIDER" \
+            --project="$GCP_PROJECT_ID" \
+            --access-token-lifetime="300s"
+        
+        # Configure kubectl for GKE if cluster details are provided
+        if [ ! -z "$GKE_CLUSTER_NAME" ] && [ ! -z "$GCP_REGION" ]; then
+            echo "🔹 Configuring kubectl for GKE cluster: $GKE_CLUSTER_NAME"
+            gcloud container clusters get-credentials "$GKE_CLUSTER_NAME" \
+                --region="$GCP_REGION" \
+                --project="$GCP_PROJECT_ID"
+        fi
+        
+        echo "✅ Successfully authenticated with GCP using Workload Identity Provider"
+    else
+        echo "⚠️ Authentication method is not 'wip', skipping GCP authentication"
+        return 1
     fi
-    if [[ ! -f "$GOOGLE_APPLICATION_CREDENTIALS" ]]; then
-      echo "❌ GCP key file not found at $GOOGLE_APPLICATION_CREDENTIALS"
-      exit 1
-    fi
-    gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
-  elif [[ -n "$WIP_PROVIDER" && -n "$WIP_SERVICE_ACCOUNT" ]]; then
-    echo "🔹 Using Workload Identity Federation (WIP) for authentication..."
-    require_env GCP_PROJECT_ID GCP_REGION GKE_CLUSTER_NAME WIP_PROVIDER WIP_SERVICE_ACCOUNT
-    
-    # Create a temporary credentials configuration file
-    TEMP_CRED_FILE=$(mktemp)
-    cat > "$TEMP_CRED_FILE" << EOF
-{
-  "type": "external_account",
-  "audience": "${WIP_PROVIDER#*/*/}",
-  "subject_token_type": "urn:ietf:params:oauth:token-type:jwt",
-  "token_url": "https://sts.googleapis.com/v1/token",
-  "service_account_impersonation_url": "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${WIP_SERVICE_ACCOUNT}:generateAccessToken",
-  "credential_source": {
-    "url": "http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/identity?audience=32555940559.apps.googleusercontent.com",
-    "headers": {
-      "Metadata-Flavor": "Google"
-    },
-    "format": {
-      "type": "text"
-    }
-  }
-}
-EOF
-    
-    # Authenticate using the configuration file
-    gcloud auth login --quiet --no-browser --cred-file="$TEMP_CRED_FILE"
-    
-    # Set the project explicitly
-    gcloud config set project "$GCP_PROJECT_ID"
-    
-    # Cleanup
-    rm -f "$TEMP_CRED_FILE"
-  elif [[ -n "$WIP_CREDENTIALS_FILE" || -n "$WIP_CREDS_B64" ]]; then
-    echo "🔹 Using WIP credentials JSON file for authentication..."
-    require_env GCP_PROJECT_ID GCP_REGION GKE_CLUSTER_NAME WIP_CREDENTIALS_FILE
-    if [[ ! -f "$WIP_CREDENTIALS_FILE" && -n "$WIP_CREDS_B64" ]]; then
-      echo "$WIP_CREDS_B64" | base64 -d > "$WIP_CREDENTIALS_FILE"
-      echo "🔹 Decoded WIP credentials to $WIP_CREDENTIALS_FILE"
-    fi
-    if [[ ! -f "$WIP_CREDENTIALS_FILE" ]]; then
-      echo "❌ WIP credentials file not found at $WIP_CREDENTIALS_FILE"
-      exit 1
-    fi
-    gcloud auth login --cred-file="$WIP_CREDENTIALS_FILE"
-    # Set the project explicitly
-    gcloud config set project "$GCP_PROJECT_ID"
-  else
-    echo "❌ No valid GCP authentication method provided."
-    exit 1
-  fi
-  echo "🔹 Getting GKE credentials..."
-  gcloud container clusters get-credentials "$GKE_CLUSTER_NAME" --region "$GCP_REGION" --project "$GCP_PROJECT_ID"
-  echo "✅ GCP & GKE login complete."
 }
 
 # Docker login if credentials are provided
