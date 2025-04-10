@@ -56,47 +56,27 @@ aws_eks_login() {
     fi
 }
 
+# GCP & GKE Login
 gcp_gke_login() {
-    if [ "$INPUT_GCP_AUTH_METHOD" == "wip" ]; then
-        echo "🔹 Using Workload Identity Provider authentication method"
-        
-        # Validate required parameters
-        if [ -z "$INPUT_WORKLOAD_IDENTITY_PROVIDER" ]; then
-            echo "❌ Error: workload_identity_provider is required for WIP authentication"
-            exit 1
-        fi
-        
-        if [ -z "$INPUT_SERVICE_ACCOUNT" ]; then
-            echo "❌ Error: service_account is required for WIP authentication"
-            exit 1
-        fi
-        
-        if [ -z "$INPUT_GCP_PROJECT_ID" ]; then
-            echo "❌ Error: gcp_project_id is required"
-            exit 1
-        fi
-        
-        # Authenticate with gcloud using workload identity
-        echo "🔹 Authenticating with Google Cloud using Workload Identity Federation..."
-        gcloud auth login --brief \
-            --impersonate-service-account="$INPUT_SERVICE_ACCOUNT" \
-            --workload-identity-provider="$INPUT_WORKLOAD_IDENTITY_PROVIDER" \
-            --project="$GCP_PROJECT_ID" \
-            --access-token-lifetime="300s"
-        
-        # Configure kubectl for GKE if cluster details are provided
-        if [ ! -z "$GKE_CLUSTER_NAME" ] && [ ! -z "$GCP_REGION" ]; then
-            echo "🔹 Configuring kubectl for GKE cluster: $GKE_CLUSTER_NAME"
-            gcloud container clusters get-credentials "$GKE_CLUSTER_NAME" \
-                --region="$GCP_REGION" \
-                --project="$GCP_PROJECT_ID"
-        fi
-        
-        echo "✅ Successfully authenticated with GCP using Workload Identity Provider"
-    else
-        echo "⚠️ Authentication method is not 'wip', skipping GCP authentication"
-        return 1
-    fi
+  require_env GCP_PROJECT_ID GCP_REGION GKE_CLUSTER_NAME GOOGLE_APPLICATION_CREDENTIALS
+
+  echo "🔹 Authenticating with GCP..."
+
+  # Decode base64 GCP key if not present
+  if [[ ! -f "$GOOGLE_APPLICATION_CREDENTIALS" && -n "$GCP_KEY_B64" ]]; then
+    echo "$GCP_KEY_B64" | base64 -d > "$GOOGLE_APPLICATION_CREDENTIALS"
+    echo "🔹 Decoded GCP key to $GOOGLE_APPLICATION_CREDENTIALS"
+  fi
+
+  if [[ ! -f "$GOOGLE_APPLICATION_CREDENTIALS" ]]; then
+    echo "❌ GCP key file not found at $GOOGLE_APPLICATION_CREDENTIALS"
+    exit 1
+  fi
+
+  gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
+  echo "🔹 Getting GKE credentials..."
+  gcloud container clusters get-credentials "$GKE_CLUSTER_NAME" --region "$GCP_REGION" --project "$GCP_PROJECT_ID"
+  echo "✅ GCP & GKE login complete."
 }
 
 # Docker login if credentials are provided
