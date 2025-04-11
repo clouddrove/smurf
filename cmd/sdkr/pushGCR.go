@@ -2,8 +2,8 @@ package sdkr
 
 import (
 	"errors"
-	"fmt"
 	"os"
+	"strings"
 
 	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/docker"
@@ -17,8 +17,7 @@ import (
 var pushGcrCmd = &cobra.Command{
 	Use:   "gcp [IMAGE_NAME[:TAG]]",
 	Short: "Push Docker images to GCR",
-	Long: `Push Docker images to Google Container Registry.
-Set the GOOGLE_APPLICATION_CREDENTIALS environment variable to the path of your service account JSON key file, for example:
+	Long: `Push Docker images to Google Container Registry. Set the GOOGLE_APPLICATION_CREDENTIALS environment variable to the path of your service account JSON key file, for example:
   export GOOGLE_APPLICATION_CREDENTIALS="/path/to/your/service-account-key.json"`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -57,46 +56,42 @@ Set the GOOGLE_APPLICATION_CREDENTIALS environment variable to the path of your 
 			}
 		}
 
-		repoName, tag, parseErr := configs.ParseImage(imageRef)
-		if parseErr != nil {
-			return fmt.Errorf("invalid image format: %w", parseErr)
-		}
-		if repoName == "" {
-			return errors.New("invalid image reference")
-		}
-		if tag == "" {
-			tag = "latest"
-		}
-
+		// Don't parse the image name here, let PushImageToGCR handle it
 		if configs.ProjectID == "" {
 			pterm.Error.Println("GCP project ID is required.")
 			return errors.New("missing required GCP project ID")
 		}
 
-		fullGcrImage := fmt.Sprintf("gcr.io/%s/%s:%s", configs.ProjectID, repoName, tag)
 		pterm.Info.Println("Pushing image to Google Container Registry...")
 
-		if err := docker.PushImageToGCR(configs.ProjectID, repoName); err != nil {
+		// Pass the full image reference to PushImageToGCR
+		if err := docker.PushImageToGCR(configs.ProjectID, imageRef); err != nil {
 			pterm.Error.Println("Failed to push image to GCR:", err)
 			return err
 		}
-		pterm.Success.Println("Successfully pushed image to GCR:", fullGcrImage)
+
+		// Construct a success message after the push is successful
+		pterm.Success.Println("Successfully pushed image to GCR:", imageRef)
 
 		if configs.DeleteAfterPush {
-			pterm.Info.Printf("Deleting local image %s...\n", repoName)
-			if err := docker.RemoveImage(repoName); err != nil {
+			// Extract base image name for deletion
+			baseName := imageRef
+			if parts := strings.Split(imageRef, ":"); len(parts) > 0 {
+				baseName = parts[0]
+			}
+
+			pterm.Info.Printf("Deleting local image %s...\n", baseName)
+			if err := docker.RemoveImage(baseName); err != nil {
 				pterm.Error.Println("Failed to delete local image:", err)
 				return err
 			}
-			pterm.Success.Println("Successfully deleted local image:", repoName)
+			pterm.Success.Println("Successfully deleted local image:", baseName)
 		}
 
 		return nil
 	},
-	Example: `
-  smurf sdkr push gcp myapp:v1 --project-id <project-id>
-  smurf sdkr push gcp myapp:v1 --project-id <project-id> --delete
-`,
+	Example: `  smurf sdkr push gcp myapp:v1 --project-id <project-id>
+  smurf sdkr push gcp myapp:v1 --project-id <project-id> --delete`,
 }
 
 func init() {

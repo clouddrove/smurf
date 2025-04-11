@@ -7,6 +7,8 @@ echo "Current User: $(whoami)"
 echo "Working Directory: $(pwd)"
 echo "AWS Region: ${AWS_REGION:-not set}"
 echo "EKS Cluster: ${EKS_CLUSTER_NAME:-not set}"
+echo "GCP Project: ${GCP_PROJECT_ID:-not set}"
+echo "GKE Cluster: ${GKE_CLUSTER_NAME:-not set}"
 
 # Function to check file existence and non-emptiness
 check_file_exists() {
@@ -14,6 +16,16 @@ check_file_exists() {
         echo "Error: $1 is either missing or empty."
         exit 1
     fi
+}
+
+# ✅ Function to ensure required env vars are set
+require_env() {
+    for var in "$@"; do
+        if [ -z "${!var}" ]; then
+            echo "❌ Environment variable $var is required but not set."
+            exit 1
+        fi
+    done
 }
 
 aws_eks_login() {
@@ -44,18 +56,46 @@ aws_eks_login() {
     fi
 }
 
+# GCP & GKE Login
+gcp_gke_login() {
+  require_env GCP_PROJECT_ID GCP_REGION GKE_CLUSTER_NAME GOOGLE_APPLICATION_CREDENTIALS
+
+  echo "🔹 Authenticating with GCP..."
+
+  # Decode base64 GCP key if not present
+  if [[ ! -f "$GOOGLE_APPLICATION_CREDENTIALS" && -n "$GCP_KEY_B64" ]]; then
+    echo "$GCP_KEY_B64" | base64 -d > "$GOOGLE_APPLICATION_CREDENTIALS"
+    echo "🔹 Decoded GCP key to $GOOGLE_APPLICATION_CREDENTIALS"
+  fi
+
+  if [[ ! -f "$GOOGLE_APPLICATION_CREDENTIALS" ]]; then
+    echo "❌ GCP key file not found at $GOOGLE_APPLICATION_CREDENTIALS"
+    exit 1
+  fi
+
+  gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS"
+  echo "🔹 Getting GKE credentials..."
+  gcloud container clusters get-credentials "$GKE_CLUSTER_NAME" --region "$GCP_REGION" --project "$GCP_PROJECT_ID"
+  echo "✅ GCP & GKE login complete."
+}
+
 # Docker login if credentials are provided
 if [[ -n "$DOCKER_USERNAME" && -n "$DOCKER_PASSWORD" ]]; then
+    echo "🔹 Logging into Docker Hub..."
     echo "$DOCKER_PASSWORD" | docker login --username "$DOCKER_USERNAME" --password-stdin
     echo "✅ Successfully logged into Docker Hub."
 fi
 
-# Perform AWS and EKS login only if AWS_AUTH=true
-if [[ "$AWS_AUTH" == "true" ]]; then
+# Authenticate based on provider
+if [[ "$PROVIDER" == "aws" ]]; then
     echo "🔹 AWS authentication is enabled. Performing AWS login..."
     aws_eks_login
+elif [[ "$PROVIDER" == "gcp" ]]; then
+    echo "🔹 GCP authentication is enabled. Performing GCP login..."
+    gcp_gke_login
 else
-    echo "⚠️ AWS authentication is disabled. Skipping AWS login."
+    echo "⚠️ Unknown or unspecified provider: ${PROVIDER:-none}"
+    echo "⚠️ Skipping cloud provider authentication."
 fi
 
 # Initialize command with base command

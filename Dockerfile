@@ -10,6 +10,14 @@ RUN apk add --no-cache \
     bash \
     docker
 
+# Install Google Cloud SDK
+ENV CLOUDSDK_INSTALL_DIR /usr/local/gcloud
+RUN curl -sSL https://sdk.cloud.google.com | bash -s -- --disable-prompts --install-dir=${CLOUDSDK_INSTALL_DIR}
+ENV PATH $PATH:${CLOUDSDK_INSTALL_DIR}/google-cloud-sdk/bin
+
+# Install GKE auth plugin
+RUN gcloud components install gke-gcloud-auth-plugin --quiet
+
 # Install Terraform
 RUN curl -fsSL https://releases.hashicorp.com/terraform/1.5.7/terraform_1.5.7_linux_amd64.zip -o terraform.zip && \
     unzip terraform.zip && \
