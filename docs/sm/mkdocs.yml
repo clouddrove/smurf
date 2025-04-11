@@ -7,24 +7,17 @@ theme:
   logo: https://clouddrove.com/assets/images/logo.png
   favicon: https://clouddrove.com/favicon.ico
   features:
-    # - navigation.footer
-    # - navigation.top
-    # - search.suggest
-    # - search.highlight
-    # - content.tabs.link
-    # - content.code.annotations
-    # - content.code.copy
+    - navigation.expand
     - navigation.sections
     - toc.integrate
   palette:
-    # Dark Mode
+    # Dark Mode
     - scheme: slate
       toggle:
         icon: material/weather-sunny
         name: Dark mode
       primary: black
       accent: deep purple
-
     # Light Mode
     - scheme: default
       toggle:
@@ -33,35 +26,14 @@ theme:
       primary: blue
       accent: deep orange
 
-
 nav:
   - Home: index.md
-  - Installation Guide:
-      - Prerequisites: installation.md#prerequisites
-      - CLI Installation: installation.md#cli-installation
-      - GitHub Action Setup: installation.md#github-action-setup
-  - Getting Started:
-      - Running on Local CLI: getting-started.md#running-on-local-cli
-      - Using in GitHub Actions: getting-started.md#using-in-github-actions
-  - Usage:
-      - CLI Commands: usage/cli-commands.md
-      - GitHub Action: usage/github-action.md
-      - Examples: usage/examples.md
-  - Configuration:
-      - Environment Variables: configuration.md#environment-variables
-      - YAML/JSON Config Files: configuration.md#yamljson-config-files
-      - Secrets Management: configuration.md#secrets-management
-  - Integrations:
-      - Docker: integrations/docker.md
-      - Kubernetes: integrations/kubernetes.md
-      - Helm: integrations/helm.md
-      - Terraform: integrations/terraform.md
-  - Advanced:
-      - Troubleshooting: advanced/troubleshooting.md
-      - Best Practices: advanced/best-practices.md
-      - Contributing: advanced/contributing.md
-  - FAQ: faq.md
-  - Changelog: changelog.md
+  - Installation Guide: installation.md
+  - GitHub shared workflow with Smurf: shared_workflow_guide.md
+  - Working with Docker using Smurf: sdkr.md
+  - Working with Helm using Smurf: selm.md
+  - Working with Terraform using Smurf: stf.md
+  - Advanced: advanced.md
 
 plugins:
   - search
@@ -75,6 +47,7 @@ repo_name: Smurf
 
 markdown_extensions:
   - attr_list
+  - md_in_html  # Enables rendering of raw HTML inside Markdown
   - pymdownx.emoji:
       emoji_index: !!python/name:material.extensions.emoji.twemoji
       emoji_generator: !!python/name:material.extensions.emoji.to_svg
@@ -107,6 +80,3 @@ extra_css:
   - css/custom.css
 
 copyright: Copyright &copy; 2025 CloudDrove
-
-
-
