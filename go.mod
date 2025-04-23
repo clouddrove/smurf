@@ -5,7 +5,7 @@ go 1.23.2
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.9.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerregistry/armcontainerregistry v1.2.0
-	github.com/aws/aws-sdk-go v1.55.6
+	github.com/aws/aws-sdk-go v1.55.7
 	github.com/docker/docker v28.1.1+incompatible
 	github.com/fatih/color v1.18.0
 	github.com/hashicorp/terraform-exec v0.23.0
