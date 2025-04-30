@@ -17,8 +17,8 @@ inputs:
     required: true
 
 runs:
-  using: 'docker'
-  image: './Dockerfile'
+  using: "docker"
+  image: 'docker://ghcr.io/clouddrove/smurf:v1.0.9'
   args:
     - ${{ inputs.tool }}
     - ${{ inputs.command }}
