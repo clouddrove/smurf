@@ -16,7 +16,7 @@ var (
 
 var originalHelpFunc func(*cobra.Command, []string)
 
-// RootCmd represents the base command
+// RootCmd represents the base command.
 var RootCmd = &cobra.Command{
 	Use:     "smurf",
 	Version: version, // This enables --version flag automatically
