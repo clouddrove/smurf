@@ -48,6 +48,7 @@ func init() {
 	RootCmd.AddCommand(versionCmd)
 }
 
+// display smurf word
 func displayBigText() {
 	pterm.DefaultBigText.WithLetters(
 		putils.LettersFromStringWithStyle("S", pterm.FgCyan.ToStyle()),

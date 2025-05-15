@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// versionCmd represents subcommand for version
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print detailed version information",
@@ -15,6 +16,7 @@ var versionCmd = &cobra.Command{
 	},
 }
 
+// print smurf version, git commit, build data
 func printVersion() {
 	fmt.Printf("Smurf CLI version: %s\n", version)
 	fmt.Printf("Git commit: %s\n", commit)
