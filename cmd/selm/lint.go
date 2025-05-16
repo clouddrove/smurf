@@ -38,7 +38,7 @@ var lintCmd = &cobra.Command{
 
 		err := helm.HelmLint(chartPath, configs.File)
 		if err != nil {
-			return fmt.Errorf(color.RedString("Helm lint failed: %v", err))
+			return fmt.Errorf("%v", color.RedString("Helm lint failed: %v", err))
 		}
 		return nil
 	},

@@ -16,10 +16,10 @@ import (
 // Detailed error logging is performed if any step fails.
 func HelmRollback(releaseName string, revision int, opts RollbackOptions) error {
 	if releaseName == "" {
-		return fmt.Errorf("release name cannot be empty \n")
+		return fmt.Errorf("release name cannot be empty")
 	}
 	if revision < 1 {
-		return fmt.Errorf("revision must be a positive integer \n")
+		return fmt.Errorf("revision must be a positive integer")
 	}
 
 	color.Green("Starting Helm Rollback for release: %s to revision %d \n", releaseName, revision)
@@ -34,7 +34,7 @@ func HelmRollback(releaseName string, revision int, opts RollbackOptions) error 
 		}
 	}); err != nil {
 		logDetailedError("helm rollback", err, opts.Namespace, releaseName)
-		return fmt.Errorf("failed to initialize Helm action configuration: %w \n", err)
+		return fmt.Errorf("failed to initialize Helm action configuration: %w", err)
 	}
 
 	rollbackAction := action.NewRollback(actionConfig)

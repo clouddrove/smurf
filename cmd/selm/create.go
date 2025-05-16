@@ -44,7 +44,7 @@ var createChartCmd = &cobra.Command{
 
 		err := helm.CreateChart(name, configs.Directory)
 		if err != nil {
-			return fmt.Errorf(color.RedString("failed to create Helm chart: %v", err))
+			return fmt.Errorf("%v", color.RedString("failed to create Helm chart: %v", err))
 		}
 		return nil
 	},

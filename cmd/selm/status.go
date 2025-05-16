@@ -52,7 +52,7 @@ var statusCmd = &cobra.Command{
 
 		err := helm.HelmStatus(releaseName, configs.Namespace)
 		if err != nil {
-			return fmt.Errorf(color.RedString("Helm status failed: %v", err))
+			return fmt.Errorf("%v", color.RedString("Helm status failed: %v", err))
 		}
 		return nil
 	},

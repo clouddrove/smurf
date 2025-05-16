@@ -11,8 +11,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var pluginNames string
-
 // pluginInstallCmd is a subcommand that installs multiple Helm plugins.
 var pluginInstallCmd = &cobra.Command{
 	Use:   "plugin install [PLUGINS]",

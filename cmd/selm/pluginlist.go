@@ -36,7 +36,7 @@ var pluginListCmd = &cobra.Command{
 		fmt.Println("Listing Helm plugins...")
 		err := HelmPluginList()
 		if err != nil {
-			return fmt.Errorf("Failed to list Helm plugins: %v", err)
+			return fmt.Errorf("failed to list Helm plugins: %v", err)
 		}
 		fmt.Println("Helm plugins listed successfully.")
 		return nil
