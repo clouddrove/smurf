@@ -22,25 +22,24 @@ import (
 // executes the upgrade, and then retrieves the status of the release post-upgrade.
 // Detailed error logging is performed if any step fails.
 func HelmUpgrade(releaseName, chartRef, namespace string, setValues []string, valuesFiles []string, setLiteral []string, createNamespace, atomic bool, timeout time.Duration, debug bool, repoURL string, version string) error {
-	// Initialize action config
+	startTime := time.Now()
+	logOperation(debug, "Starting Helm upgrade for release %s in namespace %s", releaseName, namespace)
+
 	actionConfig, err := initActionConfig(namespace, debug)
 	if err != nil {
 		return fmt.Errorf("failed to initialize helm: %w", err)
 	}
 
-	// Load chart
-	chart, err := loadChart(chartRef)
+	chart, err := loadChart(chartRef, debug)
 	if err != nil {
 		return fmt.Errorf("failed to load chart: %w", err)
 	}
 
-	// Load and merge values
-	vals, err := loadAndMergeValuesWithSets(valuesFiles, setValues, nil)
+	vals, err := loadAndMergeValuesWithSets(valuesFiles, setValues, setLiteral, debug)
 	if err != nil {
 		return fmt.Errorf("failed to load values: %w", err)
 	}
 
-	// Create upgrade client
 	client := action.NewUpgrade(actionConfig)
 	client.Namespace = namespace
 	client.Atomic = atomic
@@ -48,23 +47,25 @@ func HelmUpgrade(releaseName, chartRef, namespace string, setValues []string, va
 	client.Wait = true
 	client.WaitForJobs = true
 
-	// Run upgrade
 	rel, err := client.Run(releaseName, chart, vals)
 	if err != nil {
-		// Enhanced error reporting
+		pterm.Error.Printf("HELM UPGRADE FAILED: %v\n", err)
+
+		// Get pod details for debugging
 		pods, _ := getPods(namespace, releaseName)
 		for _, pod := range pods {
-			printPodDetails(pod)
+			printPodDetails(pod) // Now matches the correct signature
 		}
+
 		return fmt.Errorf("upgrade failed: %w", err)
 	}
 
-	// Verify final readiness
-	if err := verifyFinalReadiness(namespace, releaseName, 30*time.Second); err != nil {
-		return fmt.Errorf("upgrade completed but readiness check failed: %w", err)
+	if err := verifyFinalReadiness(namespace, releaseName, 30*time.Second, debug); err != nil {
+		return fmt.Errorf("readiness verification failed: %w", err)
 	}
 
-	pterm.Success.Printf("Release %q successfully upgraded\n", rel.Name)
+	pterm.Success.Printf("Release %q successfully upgraded in %s\n", rel.Name, time.Since(startTime))
+	printReleaseInfo(rel, debug)
 	return nil
 }
 
@@ -85,13 +86,23 @@ func initActionConfig(namespace string, debug bool) (*action.Configuration, erro
 }
 
 // Load chart from path or repo
-func loadChart(chartRef string) (*chart.Chart, error) {
-	// Handle local charts
+func loadChart(chartRef string, debug bool) (*chart.Chart, error) {
+	logOperation(debug, "Resolving chart path: %s", chartRef)
 	absPath, err := filepath.Abs(chartRef)
 	if err != nil {
+		logOperation(debug, "Path resolution failed: %v", err)
 		return nil, fmt.Errorf("failed to resolve chart path: %w", err)
 	}
-	return loader.Load(absPath)
+	logOperation(debug, "Absolute chart path: %s", absPath)
+
+	chart, err := loader.Load(absPath)
+	if err != nil {
+		logOperation(debug, "Chart loading failed: %v", err)
+		return nil, err
+	}
+	logOperation(debug, "Chart metadata loaded - Name: %s, Version: %s",
+		chart.Metadata.Name, chart.Metadata.Version)
+	return chart, nil
 }
 
 // loadAndMergeValuesWithSets loads values from the specified files and merges them with the set values.
@@ -99,33 +110,41 @@ func loadChart(chartRef string) (*chart.Chart, error) {
 // The set values are applied after loading the values from the files.
 // loadAndMergeValuesWithSets loads values from the specified files and merges them with the set values.
 // It properly handles relative paths for nested values files.
-func loadAndMergeValuesWithSets(valuesFiles, setValues, setLiteralValues []string) (map[string]interface{}, error) {
-	resolvedFiles, err := resolveValuesPaths(valuesFiles)
+func loadAndMergeValuesWithSets(valuesFiles, setValues, setLiteralValues []string, debug bool) (map[string]interface{}, error) {
+	logOperation(debug, "Starting values files processing")
+	resolvedFiles, err := resolveValuesPaths(valuesFiles, debug)
 	if err != nil {
 		return nil, err
 	}
 
 	vals := make(map[string]interface{})
-	for _, f := range resolvedFiles {
+	for i, f := range resolvedFiles {
+		logOperation(debug, "Processing values file %d/%d: %s", i+1, len(resolvedFiles), f)
 		currentVals, err := chartutil.ReadValuesFile(f)
 		if err != nil {
+			logOperation(debug, "Error reading values file: %v", err)
 			return nil, fmt.Errorf("failed to read %s: %w", f, err)
 		}
 		vals = mergeMaps(vals, currentVals)
 	}
 
 	for _, set := range setValues {
+		logOperation(debug, "Applying --set value: %s", set)
 		if err := strvals.ParseInto(set, vals); err != nil {
+			logOperation(debug, "Error parsing --set value: %v", err)
 			return nil, fmt.Errorf("invalid --set value %s: %w", set, err)
 		}
 	}
 
 	for _, setLiteral := range setLiteralValues {
+		logOperation(debug, "Applying --set-literal value: %s", setLiteral)
 		if err := strvals.ParseIntoString(setLiteral, vals); err != nil {
+			logOperation(debug, "Error parsing --set-literal value: %v", err)
 			return nil, fmt.Errorf("invalid --set-literal value %s: %w", setLiteral, err)
 		}
 	}
 
+	logOperation(debug, "Successfully merged all values")
 	return vals, nil
 }
 
@@ -147,7 +166,7 @@ func getPods(namespace, releaseName string) ([]corev1.Pod, error) {
 }
 
 // Verify final pod readiness
-func verifyFinalReadiness(namespace, releaseName string, timeout time.Duration) error {
+func verifyFinalReadiness(namespace, releaseName string, timeout time.Duration, debug bool) error {
 	deadline := time.Now().Add(timeout)
 	for {
 		if time.Now().After(deadline) {
@@ -174,6 +193,7 @@ func verifyFinalReadiness(namespace, releaseName string, timeout time.Duration) 
 		}
 
 		if allReady {
+			logOperation(debug, "All pods are ready")
 			return nil
 		}
 		time.Sleep(5 * time.Second)
@@ -181,6 +201,7 @@ func verifyFinalReadiness(namespace, releaseName string, timeout time.Duration) 
 }
 
 // Helper function to print pod details
+// printPodDetails now matches all call sites
 func printPodDetails(pod corev1.Pod) {
 	pterm.Info.Println("Pod:", pod.Name, "Status:", pod.Status.Phase)
 	for _, cond := range pod.Status.Conditions {
@@ -198,18 +219,23 @@ func printPodDetails(pod corev1.Pod) {
 		}
 	}
 }
-
-func resolveValuesPaths(valuesFiles []string) ([]string, error) {
+func resolveValuesPaths(valuesFiles []string, debug bool) ([]string, error) {
 	var resolved []string
-	for _, f := range valuesFiles {
+	for i, f := range valuesFiles {
+		logOperation(debug, "Resolving path for values file %d: %s", i+1, f)
 		absPath, err := filepath.Abs(f)
 		if err != nil {
+			logOperation(debug, "Path resolution failed: %v", err)
 			return nil, fmt.Errorf("failed to resolve path %s: %w", f, err)
 		}
+
 		if _, err := os.Stat(absPath); err != nil {
+			logOperation(debug, "Values file not found: %v", err)
 			return nil, fmt.Errorf("values file not found: %s", absPath)
 		}
+
 		resolved = append(resolved, absPath)
+		logOperation(debug, "Resolved path: %s -> %s", f, absPath)
 	}
 	return resolved, nil
 }

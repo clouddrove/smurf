@@ -71,6 +71,13 @@ func debugLog(format string, v ...interface{}) {
 	fmt.Println()
 }
 
+// logOperation prints consistent operation logs with timing
+func logOperation(debug bool, operation string, args ...interface{}) {
+	if debug {
+		pterm.Info.Printf("[%s] %s\n", time.Now().Format("15:04:05.000"), fmt.Sprintf(operation, args...))
+	}
+}
+
 func ensureNamespace(namespace string, create bool) error {
 	clientset, err := getKubeClient()
 	if err != nil {
@@ -140,18 +147,21 @@ func loadAndMergeValues(valuesFiles []string) (map[string]interface{}, error) {
 }
 
 // printReleaseInfo prints detailed information about the specified Helm release.
-func printReleaseInfo(rel *release.Release) {
-	color.Cyan("----- RELEASE INFO ----- \n")
-	color.Green("NAME: %s \n", rel.Name)
-	color.Green("CHART: %s-%s \n", rel.Chart.Metadata.Name, rel.Chart.Metadata.Version)
-	color.Green("NAMESPACE: %s \n", rel.Namespace)
-	color.Green("LAST DEPLOYED: %s \n", rel.Info.LastDeployed)
-	color.Green("STATUS: %s \n", rel.Info.Status)
-	color.Green("REVISION: %d \n", rel.Version)
+func printReleaseInfo(rel *release.Release, debug bool) {
+	logOperation(debug, "Printing release info for %s", rel.Name)
+
+	color.Cyan("\n----- RELEASE INFO -----")
+	color.Green("NAME: %s", rel.Name)
+	color.Green("CHART: %s-%s", rel.Chart.Metadata.Name, rel.Chart.Metadata.Version)
+	color.Green("NAMESPACE: %s", rel.Namespace)
+	color.Green("STATUS: %s", rel.Info.Status)
+	color.Green("REVISION: %d", rel.Version)
+
 	if rel.Info.Notes != "" {
-		color.Green("NOTES:\n%s \n", rel.Info.Notes)
+		logOperation(debug, "Release notes available")
+		color.Green("\nNOTES:\n%s", rel.Info.Notes)
 	}
-	color.Cyan("------------------------ \n")
+	color.Cyan("-----------------------")
 }
 
 // convertToMapStringInterface converts an interface{} to a map[string]interface{} recursively.
