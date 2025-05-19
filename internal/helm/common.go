@@ -19,16 +19,19 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
+// getKubeClient returns a Kubernetes clientset using the kubeconfig file specified in the settings.
 func getKubeClient() (*kubernetes.Clientset, error) {
 	if kubeClientset != nil {
 		return kubeClientset, nil
 	}
 	config, err := clientcmd.BuildConfigFromFlags("", settings.KubeConfig)
 	if err != nil {
+		color.Red("Failed to build Kubernetes configuration: %v \n", err)
 		return nil, fmt.Errorf("failed to build kubeconfig: %w", err)
 	}
 	kubeClientset, err = kubernetes.NewForConfig(config)
 	if err != nil {
+		color.Red("Failed to create Kubernetes clientset: %v \n", err)
 		return nil, fmt.Errorf("failed to create clientset: %w", err)
 	}
 	return kubeClientset, nil
@@ -154,6 +157,7 @@ func printReleaseInfo(rel *release.Release, debug bool) {
 	color.Green("NAME: %s", rel.Name)
 	color.Green("CHART: %s-%s", rel.Chart.Metadata.Name, rel.Chart.Metadata.Version)
 	color.Green("NAMESPACE: %s", rel.Namespace)
+	color.Green("LAST DEPLOYED: %s \n", rel.Info.LastDeployed)
 	color.Green("STATUS: %s", rel.Info.Status)
 	color.Green("REVISION: %d", rel.Version)
 

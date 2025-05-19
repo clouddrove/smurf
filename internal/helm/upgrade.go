@@ -12,6 +12,7 @@ import (
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/chartutil"
+	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/strvals"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,6 +25,36 @@ import (
 func HelmUpgrade(releaseName, chartRef, namespace string, setValues []string, valuesFiles []string, setLiteral []string, createNamespace, atomic bool, timeout time.Duration, debug bool, repoURL string, version string) error {
 	startTime := time.Now()
 	logOperation(debug, "Starting Helm upgrade for release %s in namespace %s", releaseName, namespace)
+
+	// Handle namespace creation separately since Upgrade doesn't have CreateNamespace
+	if createNamespace {
+		if err := ensureNamespace(namespace, true); err != nil {
+			logDetailedError("namespace creation", err, namespace, releaseName)
+			return err
+		}
+	}
+
+	settings := cli.New()
+	settings.SetNamespace(namespace)
+	actionConfig := new(action.Configuration)
+
+	logFn := func(format string, v ...interface{}) {
+		if debug {
+			fmt.Printf(format, v...)
+			fmt.Println()
+		}
+	}
+
+	if err := actionConfig.Init(settings.RESTClientGetter(), namespace, os.Getenv("HELM_DRIVER"), logFn); err != nil {
+		logDetailedError("helm action configuration", err, namespace, releaseName)
+		return err
+	}
+
+	if actionConfig.KubeClient == nil {
+		err := fmt.Errorf("KubeClient initialization failed")
+		logDetailedError("kubeclient initialization", err, namespace, releaseName)
+		return err
+	}
 
 	actionConfig, err := initActionConfig(namespace, debug)
 	if err != nil {
@@ -66,6 +97,7 @@ func HelmUpgrade(releaseName, chartRef, namespace string, setValues []string, va
 
 	pterm.Success.Printf("Release %q successfully upgraded in %s\n", rel.Name, time.Since(startTime))
 	printReleaseInfo(rel, debug)
+	printResourcesFromRelease(rel)
 	return nil
 }
 
