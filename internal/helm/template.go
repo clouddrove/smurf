@@ -66,12 +66,12 @@ func HelmTemplate(releaseName, chartPath, namespace, repoURL string, valuesFiles
 	// Remove the incorrect use of valuesFiles with strvals.ParseInto
 	// This block is using valuesFiles incorrectly - these are paths to YAML files, not --set style values
 	/*
-	for _, set := range valuesFiles {
-		if err := strvals.ParseInto(set, vals); err != nil {
-			color.Red("Error parsing set values '%s': %v \n", set, err)
-			return err
+		for _, set := range valuesFiles {
+			if err := strvals.ParseInto(set, vals); err != nil {
+				color.Red("Error parsing set values '%s': %v \n", set, err)
+				return err
+			}
 		}
-	}
 	*/
 
 	spinner, _ := pterm.DefaultSpinner.Start("Rendering Helm templates...\n")
