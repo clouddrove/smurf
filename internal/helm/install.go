@@ -69,7 +69,7 @@ func HelmInstall(
 	}
 
 	// Load and merge values from files, --set, and --set-literal
-	vals, err := loadAndMergeValuesWithSets(valuesFiles, setValues, setLiteralValues)
+	vals, err := loadAndMergeValuesWithSets(valuesFiles, setValues, setLiteralValues, debug)
 	if err != nil {
 		logDetailedError("values loading", err, namespace, releaseName)
 		return err
@@ -82,7 +82,7 @@ func HelmInstall(
 	}
 
 	spinner.Success(fmt.Sprintf("Installation Completed Successfully for release: %s", releaseName))
-	printReleaseInfo(rel)
+	printReleaseInfo(rel, debug)
 	printResourcesFromRelease(rel)
 
 	err = monitorResources(rel, namespace, client.Timeout)
