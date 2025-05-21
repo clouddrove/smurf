@@ -75,7 +75,7 @@ var upgradeCmd = &cobra.Command{
 			}
 			if !exists {
 				if err := helm.HelmInstall(releaseName, chartPath, configs.Namespace, configs.File, timeoutDuration, configs.Atomic, configs.Debug, configs.Set, []string{}, RepoURL, Version); err != nil {
-					return fmt.Errorf("%v", color.RedString("Helm install failed: %v", err))
+					return errors.New(color.RedString("Helm install failed: %v", err))
 				}
 			}
 		}
@@ -99,7 +99,7 @@ var upgradeCmd = &cobra.Command{
 			Version,
 		)
 		if err != nil {
-			return fmt.Errorf("%v", color.RedString("Helm upgrade failed: %v", err))
+			return errors.New(color.RedString("Helm upgrade failed: %v", err))
 		}
 		pterm.Success.Println("Helm chart upgraded successfully.")
 		return nil

@@ -63,7 +63,7 @@ func (cv *CustomValidator) formatValidationError(err ValidationError) string {
 // ValidateWithDetails performs validation and returns detailed error output
 func (cv *CustomValidator) ValidateWithDetails(ctx context.Context) error {
 	if cv.tf == nil {
-		return fmt.Errorf("Terraform instance is nil")
+		return fmt.Errorf("%v", "Terraform instance is nil")
 	}
 
 	spinner, _ := pterm.DefaultSpinner.Start("Validating Terraform configuration...")
@@ -149,7 +149,7 @@ func Validate(dir string) error {
 	}
 
 	if tf == nil {
-		return fmt.Errorf("Terraform instance is nil")
+		return fmt.Errorf("%v", "Terraform instance is nil")
 	}
 
 	validator := NewCustomValidator(tf)
