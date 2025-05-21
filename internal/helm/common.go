@@ -11,8 +11,8 @@ import (
 	"gopkg.in/yaml.v2"
 	"helm.sh/helm/v3/pkg/chartutil"
 	"helm.sh/helm/v3/pkg/release"
-	"helm.sh/helm/v3/pkg/strvals"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"k8s.io/client-go/kubernetes"
@@ -27,13 +27,12 @@ func getKubeClient() (*kubernetes.Clientset, error) {
 	config, err := clientcmd.BuildConfigFromFlags("", settings.KubeConfig)
 	if err != nil {
 		color.Red("Failed to build Kubernetes configuration: %v \n", err)
-		return nil, err
+		return nil, fmt.Errorf("failed to build kubeconfig: %w", err)
 	}
-
 	kubeClientset, err = kubernetes.NewForConfig(config)
 	if err != nil {
 		color.Red("Failed to create Kubernetes clientset: %v \n", err)
-		return nil, err
+		return nil, fmt.Errorf("failed to create clientset: %w", err)
 	}
 	return kubeClientset, nil
 }
@@ -75,8 +74,13 @@ func debugLog(format string, v ...interface{}) {
 	fmt.Println()
 }
 
-// ensureNamespace checks if the specified namespace exists and creates it if it does not.
-// If the 'create' flag is set to false, it returns an error if the namespace does not exist.
+// logOperation prints consistent operation logs with timing
+func logOperation(debug bool, operation string, args ...interface{}) {
+	if debug {
+		pterm.Info.Printf("[%s] %s\n", time.Now().Format("15:04:05.000"), fmt.Sprintf(operation, args...))
+	}
+}
+
 func ensureNamespace(namespace string, create bool) error {
 	clientset, err := getKubeClient()
 	if err != nil {
@@ -85,25 +89,46 @@ func ensureNamespace(namespace string, create bool) error {
 
 	_, err = clientset.CoreV1().Namespaces().Get(context.Background(), namespace, metav1.GetOptions{})
 	if err == nil {
-		color.Green("Namespace '%s' already exists.  \n", namespace)
+		color.Green("Namespace '%s' already exists.\n", namespace)
 		return nil
 	}
-
-	if create {
-		ns := &corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{Name: namespace},
+	if apierrors.IsNotFound(err) {
+		if create {
+			ns := &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{Name: namespace},
+			}
+			_, err = clientset.CoreV1().Namespaces().Create(context.Background(), ns, metav1.CreateOptions{})
+			if err != nil {
+				color.Red("Failed to create namespace '%s': %v\n", namespace, err)
+				return fmt.Errorf("failed to create namespace '%s': %v", namespace, err)
+			}
+			color.Green("Namespace '%s' created successfully.\n", namespace)
+			return nil
 		}
-		_, err = clientset.CoreV1().Namespaces().Create(context.Background(), ns, metav1.CreateOptions{})
-		if err != nil {
-			color.Red("Failed to create namespace '%s': %v \n", namespace, err)
-			return fmt.Errorf("failed to create namespace '%s': %v \n", namespace, err)
-		}
-		color.Green("Namespace '%s' created successfully. \n", namespace)
-	} else {
-		return fmt.Errorf("namespace '%s' does not exist and was not created \n", namespace)
+		return fmt.Errorf("namespace '%s' does not exist and was not created", namespace)
 	}
 
-	return nil
+	// Unknown error
+	return fmt.Errorf("error checking namespace '%s': %v", namespace, err)
+}
+
+func mergeMaps(a, b map[string]interface{}) map[string]interface{} {
+	out := make(map[string]interface{}, len(a))
+	for k, v := range a {
+		out[k] = v
+	}
+	for k, v := range b {
+		if vMap, ok := v.(map[string]interface{}); ok {
+			if bv, ok := out[k]; ok {
+				if bvMap, ok := bv.(map[string]interface{}); ok {
+					out[k] = mergeMaps(bvMap, vMap)
+					continue
+				}
+			}
+		}
+		out[k] = v
+	}
+	return out
 }
 
 // loadAndMergeValues loads values from the specified files and merges them into a single map.
@@ -124,70 +149,23 @@ func loadAndMergeValues(valuesFiles []string) (map[string]interface{}, error) {
 	return vals, nil
 }
 
-// loadAndMergeValuesWithSets loads values from the specified files and merges them with the set values.
-// It returns the merged values map or an error if the values cannot be loaded or parsed.
-// The set values are applied after loading the values from the files.
-func loadAndMergeValuesWithSets(valuesFiles, setValues, setLiteralValues []string) (map[string]interface{}, error) {
-	// Debugging: Print parsed arguments
-	color.Yellow("Values files provided: %v", valuesFiles)
-	color.Yellow("--set values provided: %v", setValues)
-	color.Yellow("--set-literal values provided: %v", setLiteralValues)
-
-	// Ensure that valuesFiles are correctly handled
-	if len(valuesFiles) == 0 {
-		color.Red("")
-	}
-
-	// Load values from files
-	vals, err := loadAndMergeValues(valuesFiles)
-	if err != nil {
-		return nil, err
-	}
-
-	// Process --set values (structured data)
-	for _, set := range setValues {
-		color.Green("Parsing --set value: %s", set)
-		if err := strvals.ParseInto(set, vals); err != nil {
-			color.Red("Error parsing --set value '%s': %v", set, err)
-			return nil, err
-		}
-	}
-
-	// Ensure --set-literal does not contain values files
-	cleanedSetLiteralValues := []string{}
-	for _, setLiteral := range setLiteralValues {
-		if strings.HasSuffix(setLiteral, ".yaml") || strings.HasSuffix(setLiteral, ".yml") {
-			color.Red("")
-			continue
-		}
-		cleanedSetLiteralValues = append(cleanedSetLiteralValues, setLiteral)
-	}
-
-	// Process cleaned --set-literal values (always as string)
-	for _, setLiteral := range cleanedSetLiteralValues {
-		color.Green("Parsing --set-literal value: %s", setLiteral)
-		if err := strvals.ParseIntoString(setLiteral, vals); err != nil {
-			color.Red("Error parsing --set-literal value '%s': %v", setLiteral, err)
-			return nil, err
-		}
-	}
-
-	return vals, nil
-}
-
 // printReleaseInfo prints detailed information about the specified Helm release.
-func printReleaseInfo(rel *release.Release) {
-	color.Cyan("----- RELEASE INFO ----- \n")
-	color.Green("NAME: %s \n", rel.Name)
-	color.Green("CHART: %s-%s \n", rel.Chart.Metadata.Name, rel.Chart.Metadata.Version)
-	color.Green("NAMESPACE: %s \n", rel.Namespace)
+func printReleaseInfo(rel *release.Release, debug bool) {
+	logOperation(debug, "Printing release info for %s", rel.Name)
+
+	color.Cyan("\n----- RELEASE INFO -----")
+	color.Green("NAME: %s", rel.Name)
+	color.Green("CHART: %s-%s", rel.Chart.Metadata.Name, rel.Chart.Metadata.Version)
+	color.Green("NAMESPACE: %s", rel.Namespace)
 	color.Green("LAST DEPLOYED: %s \n", rel.Info.LastDeployed)
-	color.Green("STATUS: %s \n", rel.Info.Status)
-	color.Green("REVISION: %d \n", rel.Version)
+	color.Green("STATUS: %s", rel.Info.Status)
+	color.Green("REVISION: %d", rel.Version)
+
 	if rel.Info.Notes != "" {
-		color.Green("NOTES:\n%s \n", rel.Info.Notes)
+		logOperation(debug, "Release notes available")
+		color.Green("\nNOTES:\n%s", rel.Info.Notes)
 	}
-	color.Cyan("------------------------ \n")
+	color.Cyan("-----------------------")
 }
 
 // convertToMapStringInterface converts an interface{} to a map[string]interface{} recursively.
@@ -477,7 +455,7 @@ func printResourcesFromRelease(rel *release.Release) {
 // monitorResources monitors the resources created by the Helm release until they are all ready.
 // It checks the status of the resources in the Kubernetes API and waits until they are all ready.
 // The function returns an error if the resources are not ready within the specified timeout.
-func monitorResources(rel *release.Release, namespace string, timeout time.Duration) error {
+func monitorResources(rel *release.Release, namespace string, timeout time.Duration) (err error) {
 	resources, err := parseResourcesFromManifest(rel.Manifest)
 	if err != nil {
 		return err
@@ -496,7 +474,7 @@ func monitorResources(rel *release.Release, namespace string, timeout time.Durat
 		allReady, notReadyResources, err := resourcesReady(clientset, namespace, resources)
 		if err != nil {
 			spinner.Fail("Error checking resources readiness \n")
-			return fmt.Errorf("error checking resources readiness: %v \n", err)
+			return fmt.Errorf("error checking resources readiness: %v", err)
 		}
 		if allReady {
 			spinner.Success("All resources are ready. \n")
@@ -504,7 +482,7 @@ func monitorResources(rel *release.Release, namespace string, timeout time.Durat
 		}
 		if time.Now().After(deadline) {
 			spinner.Fail("Timeout waiting for all resources to become ready \n")
-			return fmt.Errorf("timeout waiting for all resources to become ready \n")
+			return fmt.Errorf("timeout waiting for all resources to become ready")
 		}
 
 		spinner.UpdateText(fmt.Sprintf("Waiting for resources: %s \n", strings.Join(notReadyResources, ", ")))

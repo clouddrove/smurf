@@ -93,7 +93,7 @@ func HelmProvision(releaseName, chartPath, namespace string) error {
 		if templateErr != nil {
 			color.Red("Template rendering failed: %v \n", templateErr)
 		}
-		return fmt.Errorf("provisioning failed \n")
+		return fmt.Errorf("provisioning failed")
 	}
 
 	color.Green("Provisioning completed successfully. \n")
