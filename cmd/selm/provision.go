@@ -65,7 +65,7 @@ var provisionCmd = &cobra.Command{
 
 		err := helm.HelmProvision(releaseName, chartPath, configs.Namespace)
 		if err != nil {
-			return fmt.Errorf(color.RedString("Helm provision failed: %v", err))
+			return errors.New(color.RedString("Helm provision failed: %v", err))
 		}
 		return nil
 	},

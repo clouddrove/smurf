@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -35,7 +36,7 @@ func Build(imageName, tag string, opts BuildOptions) error {
 	)
 	if err != nil {
 		spinner.Fail()
-		return fmt.Errorf(color.RedString("docker client init failed: %v", err))
+		return errors.New(color.RedString("docker client init failed: %v", err))
 	}
 	defer cli.Close()
 
@@ -44,13 +45,13 @@ func Build(imageName, tag string, opts BuildOptions) error {
 	})
 	if err != nil {
 		spinner.Fail()
-		return fmt.Errorf(color.RedString("context creation failed: %v", err))
+		return errors.New(color.RedString("context creation failed: %v", err))
 	}
 	defer buildCtx.Close()
 
 	relDockerfilePath, err := filepath.Rel(opts.ContextDir, opts.DockerfilePath)
 	if err != nil {
-		return fmt.Errorf(color.RedString("invalid dockerfile path: %v", err))
+		return errors.New(color.RedString("invalid dockerfile path: %v", err))
 	}
 
 	buildArgsPtr := make(map[string]*string)
@@ -63,7 +64,7 @@ func Build(imageName, tag string, opts BuildOptions) error {
 	if platform != "" {
 		parts := strings.Split(platform, "/")
 		if len(parts) != 2 {
-			return fmt.Errorf(color.RedString("invalid platform format. Expected os/arch, got: %s", platform))
+			return errors.New(color.RedString("invalid platform format. Expected os/arch, got: %s", platform))
 		}
 	}
 
@@ -95,120 +96,120 @@ func Build(imageName, tag string, opts BuildOptions) error {
 
 	// Build function modification
 
-// Modify this part in your docker.Build function
-if opts.BuildKit {
-    spinner.UpdateText("Running build with BuildKit enabled...")
-    
-    // Construct docker command arguments
-    args := []string{"build"}
-    
-    // Add the tag
-    args = append(args, "--tag", fullImageName)
-    
-    // Add other build options
-    if opts.NoCache {
-        args = append(args, "--no-cache")
-    }
-    if relDockerfilePath != "" {
-        args = append(args, "--file", relDockerfilePath)
-    }
-    for k, v := range opts.BuildArgs {
-        args = append(args, "--build-arg", fmt.Sprintf("%s=%s", k, v))
-    }
-    if opts.Target != "" {
-        args = append(args, "--target", opts.Target)
-    }
-    if platform != "" {
-        args = append(args, "--platform", platform)
-    }
-    
-    // Add the context directory as the last argument
-    args = append(args, opts.ContextDir)
-    
-    // Create and configure the command
-    cmd := exec.Command("docker", args...)
-    
-    // Set environment with BuildKit enabled
-    cmd.Env = append(os.Environ(), "DOCKER_BUILDKIT=1")
-    
-    // Create pipes for stdout and stderr
-    stdoutPipe, err := cmd.StdoutPipe()
-    if err != nil {
-        return fmt.Errorf(color.RedString("failed to create stdout pipe: %v", err))
-    }
-    stderrPipe, err := cmd.StderrPipe()
-    if err != nil {
-        return fmt.Errorf(color.RedString("failed to create stderr pipe: %v", err))
-    }
-    
-    // Start the command
-    if err := cmd.Start(); err != nil {
-        return fmt.Errorf(color.RedString("failed to start build: %v", err))
-    }
-    
-    spinner.Success()
-    progressBar, _ := pterm.DefaultProgressbar.WithTotal(100).WithTitle("Building").Start()
-    
-    // Process stdout
-    go func() {
-        scanner := bufio.NewScanner(stdoutPipe)
-        for scanner.Scan() {
-            line := scanner.Text()
-            if strings.HasPrefix(line, "Step ") {
-                pterm.Info.Println(color.CyanString(line))
-                progressBar.Add(5)
-            } else {
-                trimmed := strings.TrimSpace(line)
-                if trimmed != "" {
-                    pterm.Debug.Println(trimmed)
-                }
-            }
-        }
-    }()
-    
-    // Process stderr
-    go func() {
-        scanner := bufio.NewScanner(stderrPipe)
-        for scanner.Scan() {
-            line := scanner.Text()
-            pterm.Debug.Println(color.YellowString(line))
-        }
-    }()
-    
-    // Wait for the command to complete
-    if err := cmd.Wait(); err != nil {
-        progressBar.Stop()
-        return fmt.Errorf(color.RedString("BuildKit build failed: %v", err))
-    }
-    
-    progressBar.Add(100 - progressBar.Current)
-    
-    time.Sleep(2 * time.Second)
-    
-    inspect, _, err := cli.ImageInspectWithRaw(ctx, fullImageName)
-    if err != nil {
-        return fmt.Errorf(color.RedString("failed to get image info: %v", err))
-    }
-    
-    panel := pterm.DefaultBox.WithTitle("Build Complete").Sprintf(` %s %s %s %s %s %s %s `,
-        color.GreenString("✓ Image Built Successfully"),
-        color.CyanString("Image: %s", fullImageName),
-        color.CyanString("ID: %s", inspect.ID[:12]),
-        color.CyanString("Size: %.2f MB", float64(inspect.Size)/1024/1024),
-        color.CyanString("Platform: %s/%s", inspect.Os, inspect.Architecture),
-        color.CyanString("Created: %s", inspect.Created[:19]),
-        color.CyanString("Layers: %d", len(inspect.RootFS.Layers)),
-    )
-    
-    fmt.Println(panel)
-    return nil
-}
+	// Modify this part in your docker.Build function
+	if opts.BuildKit {
+		spinner.UpdateText("Running build with BuildKit enabled...")
 
-// The rest of your original Build function continues below for non-BuildKit builds
+		// Construct docker command arguments
+		args := []string{"build"}
+
+		// Add the tag
+		args = append(args, "--tag", fullImageName)
+
+		// Add other build options
+		if opts.NoCache {
+			args = append(args, "--no-cache")
+		}
+		if relDockerfilePath != "" {
+			args = append(args, "--file", relDockerfilePath)
+		}
+		for k, v := range opts.BuildArgs {
+			args = append(args, "--build-arg", fmt.Sprintf("%s=%s", k, v))
+		}
+		if opts.Target != "" {
+			args = append(args, "--target", opts.Target)
+		}
+		if platform != "" {
+			args = append(args, "--platform", platform)
+		}
+
+		// Add the context directory as the last argument
+		args = append(args, opts.ContextDir)
+
+		// Create and configure the command
+		cmd := exec.Command("docker", args...)
+
+		// Set environment with BuildKit enabled
+		cmd.Env = append(os.Environ(), "DOCKER_BUILDKIT=1")
+
+		// Create pipes for stdout and stderr
+		stdoutPipe, err := cmd.StdoutPipe()
+		if err != nil {
+			return errors.New(color.RedString("failed to create stdout pipe: %v", err))
+		}
+		stderrPipe, err := cmd.StderrPipe()
+		if err != nil {
+			return errors.New(color.RedString("failed to create stderr pipe: %v", err))
+		}
+
+		// Start the command
+		if err := cmd.Start(); err != nil {
+			return errors.New(color.RedString("failed to start build: %v", err))
+		}
+
+		spinner.Success()
+		progressBar, _ := pterm.DefaultProgressbar.WithTotal(100).WithTitle("Building").Start()
+
+		// Process stdout
+		go func() {
+			scanner := bufio.NewScanner(stdoutPipe)
+			for scanner.Scan() {
+				line := scanner.Text()
+				if strings.HasPrefix(line, "Step ") {
+					pterm.Info.Println(color.CyanString(line))
+					progressBar.Add(5)
+				} else {
+					trimmed := strings.TrimSpace(line)
+					if trimmed != "" {
+						pterm.Debug.Println(trimmed)
+					}
+				}
+			}
+		}()
+
+		// Process stderr
+		go func() {
+			scanner := bufio.NewScanner(stderrPipe)
+			for scanner.Scan() {
+				line := scanner.Text()
+				pterm.Debug.Println(color.YellowString(line))
+			}
+		}()
+
+		// Wait for the command to complete
+		if err := cmd.Wait(); err != nil {
+			progressBar.Stop()
+			return errors.New(color.RedString("BuildKit build failed: %v", err))
+		}
+
+		progressBar.Add(100 - progressBar.Current)
+
+		time.Sleep(2 * time.Second)
+
+		inspect, _, err := cli.ImageInspectWithRaw(ctx, fullImageName)
+		if err != nil {
+			return errors.New(color.RedString("failed to get image info: %v", err))
+		}
+
+		panel := pterm.DefaultBox.WithTitle("Build Complete").Sprintf(` %s %s %s %s %s %s %s `,
+			color.GreenString("✓ Image Built Successfully"),
+			color.CyanString("Image: %s", fullImageName),
+			color.CyanString("ID: %s", inspect.ID[:12]),
+			color.CyanString("Size: %.2f MB", float64(inspect.Size)/1024/1024),
+			color.CyanString("Platform: %s/%s", inspect.Os, inspect.Architecture),
+			color.CyanString("Created: %s", inspect.Created[:19]),
+			color.CyanString("Layers: %d", len(inspect.RootFS.Layers)),
+		)
+
+		fmt.Println(panel)
+		return nil
+	}
+
+	// The rest of your original Build function continues below for non-BuildKit builds
 	resp, err := cli.ImageBuild(ctx, buildCtx, buildOptions)
 	if err != nil {
 		spinner.Fail()
-		return fmt.Errorf(color.RedString("build failed: %v", err))
+		return errors.New(color.RedString("build failed: %v", err))
 	}
 	defer resp.Body.Close()
 
@@ -229,7 +230,7 @@ if opts.BuildKit {
 
 		if msg.Error != nil {
 			progressBar.Stop()
-			return fmt.Errorf(color.RedString("build error: %v", msg.Error))
+			return errors.New(color.RedString("build error: %v", msg.Error))
 		}
 
 		if msg.Stream != "" {
@@ -252,7 +253,7 @@ if opts.BuildKit {
 
 	if lastError != nil {
 		progressBar.Stop()
-		return fmt.Errorf(color.RedString("build process error: %v", lastError))
+		return errors.New(color.RedString("build process error: %v", lastError))
 	}
 
 	progressBar.Add(100 - progressBar.Current)
@@ -261,7 +262,7 @@ if opts.BuildKit {
 
 	inspect, _, err := cli.ImageInspectWithRaw(ctx, fullImageName)
 	if err != nil {
-		return fmt.Errorf(color.RedString("failed to get image info: %v", err))
+		return errors.New(color.RedString("failed to get image info: %v", err))
 	}
 
 	panel := pterm.DefaultBox.WithTitle("Build Complete").Sprintf(` %s %s %s %s %s %s %s `,

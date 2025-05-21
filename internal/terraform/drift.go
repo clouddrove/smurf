@@ -42,7 +42,7 @@ func DetectDrift(dir string) error {
 	if len(plan.ResourceChanges) > 0 {
 		pterm.Warning.Println("Drift detected:")
 		for _, change := range plan.ResourceChanges {
-			pterm.Printf(color.YellowString("- %s: %s\n", change.Address, change.Change.Actions))
+			pterm.Println(color.YellowString("- %s: %s", change.Address, change.Change.Actions))
 		}
 	} else {
 		pterm.Success.Println("No drift detected.")

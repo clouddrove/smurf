@@ -92,7 +92,7 @@ The first argument is the name of the release to roll back, and the second is th
 
 		err := helm.HelmRollback(releaseName, revision, rollbackOpts)
 		if err != nil {
-			return fmt.Errorf(color.RedString("Helm rollback failed: %v", err))
+			return errors.New(color.RedString("Helm rollback failed: %v", err))
 		}
 		pterm.Success.Println(fmt.Sprintf("Successfully rolled back release '%s' to revision '%d'", releaseName, revision))
 		return nil
