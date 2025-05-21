@@ -42,7 +42,7 @@ var tagCmd = &cobra.Command{
 			}
 
 			if source == "" || target == "" {
-				return fmt.Errorf(color.RedString("both SOURCE and TARGET must be provided either as arguments or in the config"))
+				return fmt.Errorf("%v", color.RedString("both SOURCE and TARGET must be provided either as arguments or in the config"))
 			}
 		}
 
@@ -52,7 +52,7 @@ var tagCmd = &cobra.Command{
 			Target: target,
 		}
 		if err := docker.TagImage(opts); err != nil {
-			return fmt.Errorf(color.RedString("failed to tag image: %v", err))
+			return fmt.Errorf("%v", color.RedString("failed to tag image: %v", err))
 		}
 		pterm.Success.Printf("Successfully tagged image from %q to %q.\n", source, target)
 		return nil

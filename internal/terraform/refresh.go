@@ -18,7 +18,7 @@ func Refresh(vars []string, varFiles []string, lock bool, dir string) error {
 		return err
 	}
 
-	spinner, err := pterm.DefaultSpinner.Start("Refreshing state...")
+	spinner, _ := pterm.DefaultSpinner.Start("Refreshing state...")
 
 	applyOptions := []tfexec.RefreshCmdOption{}
 

@@ -13,7 +13,7 @@ import (
 
 // StateList displays all resources in the Terraform state
 func StateList(dir string) error {
-	tf, err := GetTerraform(dir)
+	tf, _ := GetTerraform(dir)
 	spinner, err := pterm.DefaultSpinner.Start("Reading state...")
 	if err != nil {
 		return err

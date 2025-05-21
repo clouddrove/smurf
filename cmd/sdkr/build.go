@@ -80,7 +80,7 @@ var buildCmd = &cobra.Command{
 		}
 
 		if _, err := os.Stat(configs.DockerfilePath); os.IsNotExist(err) {
-			return fmt.Errorf(color.RedString("Dockerfile not found at %s", configs.DockerfilePath))
+			return fmt.Errorf("%v", color.RedString("Dockerfile not found at %s", configs.DockerfilePath))
 		}
 
 		// In the RunE function, when creating the opts
@@ -97,7 +97,7 @@ var buildCmd = &cobra.Command{
 
 		err := docker.Build(imageName, tag, opts)
 		if err != nil {
-			return fmt.Errorf(color.RedString("Docker build failed: %v", err))
+			return fmt.Errorf("%v", color.RedString("Docker build failed: %v", err))
 		}
 		return nil
 	},
@@ -110,14 +110,14 @@ smurf sdkr build
 }
 
 func init() {
-    buildCmd.Flags().StringVarP(&configs.DockerfilePath, "file", "f", "", "Path to Dockerfile relative to context directory")
-    buildCmd.Flags().StringVar(&configs.ContextDir, "context", "", "Build context directory (default: current directory)")
-    buildCmd.Flags().BoolVar(&configs.NoCache, "no-cache", false, "Do not use cache when building the image")
-    buildCmd.Flags().StringArrayVar(&configs.BuildArgs, "build-arg", []string{}, "Set build-time variables")
-    buildCmd.Flags().StringVar(&configs.Target, "target", "", "Set the target build stage to build")
-    buildCmd.Flags().StringVar(&configs.Platform, "platform", "", "Set the platform for the build (e.g., linux/amd64, linux/arm64)")
-    buildCmd.Flags().IntVar(&configs.BuildTimeout, "timeout", 1500, "Set the build timeout")
-    buildCmd.Flags().BoolVar(&configs.BuildKit, "buildkit", false, "Enable BuildKit for advanced Dockerfile features")
+	buildCmd.Flags().StringVarP(&configs.DockerfilePath, "file", "f", "", "Path to Dockerfile relative to context directory")
+	buildCmd.Flags().StringVar(&configs.ContextDir, "context", "", "Build context directory (default: current directory)")
+	buildCmd.Flags().BoolVar(&configs.NoCache, "no-cache", false, "Do not use cache when building the image")
+	buildCmd.Flags().StringArrayVar(&configs.BuildArgs, "build-arg", []string{}, "Set build-time variables")
+	buildCmd.Flags().StringVar(&configs.Target, "target", "", "Set the target build stage to build")
+	buildCmd.Flags().StringVar(&configs.Platform, "platform", "", "Set the platform for the build (e.g., linux/amd64, linux/arm64)")
+	buildCmd.Flags().IntVar(&configs.BuildTimeout, "timeout", 1500, "Set the build timeout")
+	buildCmd.Flags().BoolVar(&configs.BuildKit, "buildkit", false, "Enable BuildKit for advanced Dockerfile features")
 
-    sdkrCmd.AddCommand(buildCmd)
+	sdkrCmd.AddCommand(buildCmd)
 }
