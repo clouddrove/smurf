@@ -59,7 +59,7 @@ var templateCmd = &cobra.Command{
 
 		err := helm.HelmTemplate(releaseName, chartPath, configs.Namespace, repoURL, configs.File)
 		if err != nil {
-			return fmt.Errorf("%v", color.RedString("Helm template failed: %v", err))
+			return errors.New(color.RedString("Helm template failed: %v", err))
 		}
 		return nil
 	},

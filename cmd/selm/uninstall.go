@@ -52,7 +52,7 @@ var uninstallCmd = &cobra.Command{
 
 		err := helm.HelmUninstall(releaseName, configs.Namespace)
 		if err != nil {
-			return fmt.Errorf("%v", color.RedString("Helm uninstall failed: %v", err))
+			return errors.New(color.RedString("Helm uninstall failed: %v", err))
 		}
 		return nil
 	},
