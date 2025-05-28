@@ -27,10 +27,10 @@ RUN apk add --no-cache \
     aws-cli \
     unzip
 
-# Install optional tools via build arguments
-ARG INSTALL_AWS_CLI=false
-ARG INSTALL_GCLOUD=false
-ARG INSTALL_TERRAFORM=false
+# Install tools
+ARG INSTALL_AWS_CLI=true
+ARG INSTALL_GCLOUD=true
+ARG INSTALL_TERRAFORM=true
 
 # Conditionally install AWS CLI
 RUN if [ "$INSTALL_AWS_CLI" = "true" ]; then \
