@@ -1,0 +1,6 @@
+.git
+*.log
+test/
+README.md
+Dockerfile
+tools.Dockerfile
