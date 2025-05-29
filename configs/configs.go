@@ -2,7 +2,6 @@ package configs
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 
 	"gopkg.in/yaml.v2"
@@ -12,7 +11,7 @@ var BuildKit bool
 
 // Config represents the structure of the configuration file
 func LoadConfig(filePath string) (*Config, error) {
-	data, err := ioutil.ReadFile(filePath)
+	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, err
 	}
