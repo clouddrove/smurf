@@ -124,7 +124,7 @@ Set DOCKER_USERNAME and DOCKER_PASSWORD environment variables for Docker Hub aut
 		}
 
 		if scanErr != nil {
-			return fmt.Errorf("Docker Hub provisioning failed due to previous errors")
+			return fmt.Errorf("docker Hub provisioning failed due to previous errors")
 		}
 
 		if !configs.ConfirmAfterPush {

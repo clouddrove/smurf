@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"archive/tar"
 	"bufio"
 	"context"
 	"encoding/json"
@@ -15,7 +16,6 @@ import (
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
-	"github.com/docker/docker/pkg/archive"
 	"github.com/docker/docker/pkg/jsonmessage"
 	"github.com/fatih/color"
 	"github.com/pterm/pterm"
@@ -40,9 +40,7 @@ func Build(imageName, tag string, opts BuildOptions) error {
 	}
 	defer cli.Close()
 
-	buildCtx, err := archive.TarWithOptions(opts.ContextDir, &archive.TarOptions{
-		ExcludePatterns: []string{".git", "node_modules"},
-	})
+	buildCtx, err := createTarball(opts.ContextDir, []string{".git", "node_modules"})
 	if err != nil {
 		spinner.Fail()
 		return errors.New(color.RedString("context creation failed: %v", err))
@@ -186,7 +184,7 @@ func Build(imageName, tag string, opts BuildOptions) error {
 
 		time.Sleep(2 * time.Second)
 
-		inspect, _, err := cli.ImageInspectWithRaw(ctx, fullImageName)
+		inspect, err := cli.ImageInspect(ctx, fullImageName)
 		if err != nil {
 			return errors.New(color.RedString("failed to get image info: %v", err))
 		}
@@ -260,7 +258,7 @@ func Build(imageName, tag string, opts BuildOptions) error {
 
 	time.Sleep(2 * time.Second)
 
-	inspect, _, err := cli.ImageInspectWithRaw(ctx, fullImageName)
+	inspect, err := cli.ImageInspect(ctx, fullImageName)
 	if err != nil {
 		return errors.New(color.RedString("failed to get image info: %v", err))
 	}
@@ -277,4 +275,67 @@ func Build(imageName, tag string, opts BuildOptions) error {
 
 	fmt.Println(panel)
 	return nil
+}
+
+// createTarball creates a tar archive of the specified directory, excluding specified patterns.
+func createTarball(srcDir string, excludePatterns []string) (io.ReadCloser, error) {
+	pr, pw := io.Pipe()
+	tw := tar.NewWriter(pw)
+
+	go func() {
+		defer pw.Close()
+		defer tw.Close()
+
+		filepath.Walk(srcDir, func(file string, fi os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+
+			relPath, err := filepath.Rel(srcDir, file)
+			if err != nil {
+				return err
+			}
+
+			// Skip excluded patterns
+			for _, pattern := range excludePatterns {
+				if strings.HasPrefix(relPath, pattern) {
+					if fi.IsDir() {
+						return filepath.SkipDir
+					}
+					return nil
+				}
+			}
+
+			// Skip the source directory itself
+			if relPath == "." {
+				return nil
+			}
+
+			hdr, err := tar.FileInfoHeader(fi, relPath)
+			if err != nil {
+				return err
+			}
+			hdr.Name = relPath
+
+			if err := tw.WriteHeader(hdr); err != nil {
+				return err
+			}
+
+			if fi.Mode().IsRegular() {
+				f, err := os.Open(file)
+				if err != nil {
+					return err
+				}
+				defer f.Close()
+
+				if _, err := io.Copy(tw, f); err != nil {
+					return err
+				}
+			}
+
+			return nil
+		})
+	}()
+
+	return pr, nil
 }
