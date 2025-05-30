@@ -27,7 +27,7 @@ func PushImage(opts PushOptions) error {
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		spinner.Fail("Failed to initialize Docker client")
-		return fmt.Errorf("docker client init failed: %w", err)
+		return logAndReturnError("Failed to initialize Docker client : %v", err)
 	}
 	defer cli.Close()
 
@@ -41,7 +41,7 @@ func PushImage(opts PushOptions) error {
 	encodedJSON, err := json.Marshal(authConfig)
 	if err != nil {
 		spinner.Fail("Authentication preparation failed")
-		return fmt.Errorf("auth encoding failed: %w", err)
+		return logAndReturnError("Authentication preparation failed : %v", err)
 	}
 
 	authStr := base64.URLEncoding.EncodeToString(encodedJSON)
@@ -53,7 +53,7 @@ func PushImage(opts PushOptions) error {
 	})
 	if err != nil {
 		spinner.Fail(fmt.Sprintf("Failed to push image %s", opts.ImageName))
-		return fmt.Errorf("push failed: %w", err)
+		return logAndReturnError("Failed to push image : %v", err)
 	}
 	defer pushResp.Close()
 
@@ -68,7 +68,7 @@ func PushImage(opts PushOptions) error {
 
 		if msg.Error != "" {
 			spinner.Fail(msg.Error)
-			return fmt.Errorf("push error: %s", msg.Error)
+			return logAndReturnError("Failed to push image : %v", msg.Error)
 		}
 
 		if msg.Status != "" {

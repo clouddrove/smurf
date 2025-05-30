@@ -15,15 +15,13 @@ func TagImage(opts TagOptions) error {
 	ctx := context.Background()
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
-		color.New(color.FgRed).Printf("Error creating Docker client: %v\n", err)
-		return err
+		return logAndReturnError("Error creating Docker client : %v", err)
 	}
 
 	spinner, _ := pterm.DefaultSpinner.Start(fmt.Sprintf("Tagging image %s as %s...", opts.Source, opts.Target))
 	if err := cli.ImageTag(ctx, opts.Source, opts.Target); err != nil {
 		spinner.Fail(fmt.Sprintf("Failed to tag image: %v", err))
-		color.New(color.FgRed).Println(err)
-		return err
+		return logAndReturnError("Failed to tag image : %v", err)
 	}
 
 	spinner.Success(fmt.Sprintf("Successfully tagged %s as %s", opts.Source, opts.Target))

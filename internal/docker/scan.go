@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os/exec"
+
 	"github.com/fatih/color"
 	"github.com/pterm/pterm"
-	"os/exec"
 )
 
 // Trivy runs 'trivy image' to scan a Docker image for vulnerabilities
@@ -32,7 +33,7 @@ func Trivy(dockerImage string) error {
 		if errStr != "" {
 			pterm.Error.Println(errStr)
 		}
-		return fmt.Errorf("failed to run 'trivy image': %w", err)
+		return logAndReturnError("failed to run 'trivy image : %v", err)
 	}
 
 	if outStr != "" {

@@ -29,8 +29,7 @@ func PushImageToECR(imageName, region, repositoryName string) error {
 		Region: aws.String(region),
 	})
 	if err != nil {
-		pterm.Error.Println(color.RedString("failed to create AWS session: %w", err))
-		return err
+		return logAndReturnError("failed to create AWS session : %v", err)
 	}
 
 	ecrClient := ecr.New(sess)
@@ -46,36 +45,31 @@ func PushImageToECR(imageName, region, repositoryName string) error {
 			}
 			_, err = ecrClient.CreateRepository(createRepositoryInput)
 			if err != nil {
-				pterm.Error.Println(color.RedString("failed to create ECR repository: %w", err))
-				return err
+				return logAndReturnError("failed to create ECR repository : %v", err)
 			}
 			pterm.Info.Println("Created ECR repository:", repositoryName)
 		} else {
-			pterm.Error.Println(color.RedString("failed to describe ECR repositories: %w", err))
-			return err
+			return logAndReturnError("failed to describe ECR repositories : %v", err)
 		}
 	}
 
 	authTokenOutput, err := ecrClient.GetAuthorizationToken(&ecr.GetAuthorizationTokenInput{})
 	if err != nil {
-		pterm.Error.Println(color.RedString("failed to get ECR authorization token: %w", err))
-		return err
+		return logAndReturnError("failed to get ECR authorization token : %v", err)
 	}
 	if len(authTokenOutput.AuthorizationData) == 0 {
-		pterm.Error.Println(color.RedString("No authorization data received from ECR"))
-		return fmt.Errorf("no authorization data received from ECR")
+		return logAndReturnError("No authorization data received from ECR : %v", 0)
 	}
 
 	authData := authTokenOutput.AuthorizationData[0]
 	authToken, err := base64.StdEncoding.DecodeString(*authData.AuthorizationToken)
 	if err != nil {
-		pterm.Error.Println(color.RedString("failed to decode authorization token: %w", err))
-		return err
+		return logAndReturnError("failed to decode authorization token: %v", err)
 	}
 
 	credentials := strings.SplitN(string(authToken), ":", 2)
 	if len(credentials) != 2 {
-		pterm.Error.Println(color.RedString("Invalid authorization token format"))
+		pterm.Error.Println("Invalid authorization token format")
 		return fmt.Errorf("invalid authorization token format")
 	}
 
@@ -84,8 +78,7 @@ func PushImageToECR(imageName, region, repositoryName string) error {
 	pterm.Info.Println(color.CyanString("Initializing Docker client..."))
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
-		pterm.Error.Println(fmt.Errorf("failed to create Docker client: %w", err))
-		return err
+		return logAndReturnError("failed to create Docker client: %v", err)
 	}
 
 	authConfig := registry.AuthConfig{
@@ -96,8 +89,7 @@ func PushImageToECR(imageName, region, repositoryName string) error {
 	pterm.Info.Println(color.CyanString("Authenticating Docker client to ECR..."))
 	encodedJSON, err := json.Marshal(authConfig)
 	if err != nil {
-		pterm.Error.Println(color.RedString("failed to encode auth config: %w", err))
-		return err
+		return logAndReturnError("failed to encode auth config: %v", err)
 	}
 	authStr := base64.URLEncoding.EncodeToString(encodedJSON)
 
@@ -105,8 +97,7 @@ func PushImageToECR(imageName, region, repositoryName string) error {
 	ecrImage := fmt.Sprintf("%s/%s:%s", ecrURL, repositoryName, tag)
 	pterm.Info.Println(color.CyanString("Tagging image for ECR..."))
 	if err := cli.ImageTag(context.Background(), imageName, ecrImage); err != nil {
-		pterm.Error.Println(color.RedString("failed to tag image: %w", err))
-		return err
+		return logAndReturnError("failed to tag image: %v", err)
 	}
 
 	pterm.Info.Println(color.CyanString("Starting push to ECR..."))
@@ -114,8 +105,7 @@ func PushImageToECR(imageName, region, repositoryName string) error {
 		RegistryAuth: authStr,
 	})
 	if err != nil {
-		pterm.Error.Println(color.RedString("Failed to push image to ECR:", err))
-		return err
+		return logAndReturnError("Failed to push image to ECR: %v", err)
 	}
 	defer pushResponse.Close()
 
@@ -129,14 +119,12 @@ func PushImageToECR(imageName, region, repositoryName string) error {
 			if err == io.EOF {
 				break
 			}
-			pterm.Error.Println(color.RedString("Error decoding JSON message from push:", err))
-			return err
+			return logAndReturnError("Error decoding JSON message from push: %v", err)
 		}
 
 		if errorDetail, ok := message["errorDetail"].(map[string]interface{}); ok {
 			lastError = fmt.Errorf("error pushing image: %v", errorDetail["message"])
-			pterm.Error.Println(color.RedString("%v", lastError))
-			return lastError
+			return logAndReturnError("failed to tag image: %v", lastError)
 		}
 
 		if status, ok := message["status"].(string); ok {

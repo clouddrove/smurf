@@ -5,7 +5,6 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -36,20 +35,21 @@ func Build(imageName, tag string, opts BuildOptions) error {
 	)
 	if err != nil {
 		spinner.Fail()
-		return errors.New(color.RedString("docker client init failed: %v", err))
+		return logAndReturnError("docker client init failed: %v", err)
 	}
 	defer cli.Close()
 
 	buildCtx, err := createTarball(opts.ContextDir, []string{".git", "node_modules"})
 	if err != nil {
 		spinner.Fail()
-		return errors.New(color.RedString("context creation failed: %v", err))
+		return logAndReturnError("context creation failed: %v", err)
 	}
 	defer buildCtx.Close()
 
+	// Get relative path to Dockerfile within context
 	relDockerfilePath, err := filepath.Rel(opts.ContextDir, opts.DockerfilePath)
 	if err != nil {
-		return errors.New(color.RedString("invalid dockerfile path: %v", err))
+		return logAndReturnError("invalid dockerfile path: %v", err)
 	}
 
 	buildArgsPtr := make(map[string]*string)
@@ -58,11 +58,12 @@ func Build(imageName, tag string, opts BuildOptions) error {
 		buildArgsPtr[k] = &value
 	}
 
+	// Validate platform format if specified
 	platform := opts.Platform
 	if platform != "" {
 		parts := strings.Split(platform, "/")
 		if len(parts) != 2 {
-			return errors.New(color.RedString("invalid platform format. Expected os/arch, got: %s", platform))
+			return logAndReturnError("invalid platform format. Expected os/arch, got: %s", opts.Platform)
 		}
 	}
 
@@ -133,16 +134,16 @@ func Build(imageName, tag string, opts BuildOptions) error {
 		// Create pipes for stdout and stderr
 		stdoutPipe, err := cmd.StdoutPipe()
 		if err != nil {
-			return errors.New(color.RedString("failed to create stdout pipe: %v", err))
+			return logAndReturnError("failed to create stdout pipe: %v", err)
 		}
 		stderrPipe, err := cmd.StderrPipe()
 		if err != nil {
-			return errors.New(color.RedString("failed to create stderr pipe: %v", err))
+			return logAndReturnError("failed to create stderr pipe: %v", err)
 		}
 
 		// Start the command
 		if err := cmd.Start(); err != nil {
-			return errors.New(color.RedString("failed to start build: %v", err))
+			return logAndReturnError("failed to start build: %v", err)
 		}
 
 		spinner.Success()
@@ -177,7 +178,7 @@ func Build(imageName, tag string, opts BuildOptions) error {
 		// Wait for the command to complete
 		if err := cmd.Wait(); err != nil {
 			progressBar.Stop()
-			return errors.New(color.RedString("BuildKit build failed: %v", err))
+			return logAndReturnError("BuildKit build failed: %v", err)
 		}
 
 		progressBar.Add(100 - progressBar.Current)
@@ -186,7 +187,7 @@ func Build(imageName, tag string, opts BuildOptions) error {
 
 		inspect, err := cli.ImageInspect(ctx, fullImageName)
 		if err != nil {
-			return errors.New(color.RedString("failed to get image info: %v", err))
+			return logAndReturnError("failed to get image info: %v", err)
 		}
 
 		panel := pterm.DefaultBox.WithTitle("Build Complete").Sprintf(` %s %s %s %s %s %s %s `,
@@ -207,7 +208,7 @@ func Build(imageName, tag string, opts BuildOptions) error {
 	resp, err := cli.ImageBuild(ctx, buildCtx, buildOptions)
 	if err != nil {
 		spinner.Fail()
-		return errors.New(color.RedString("build failed: %v", err))
+		return logAndReturnError("build failed: %v", err)
 	}
 	defer resp.Body.Close()
 
@@ -228,7 +229,7 @@ func Build(imageName, tag string, opts BuildOptions) error {
 
 		if msg.Error != nil {
 			progressBar.Stop()
-			return errors.New(color.RedString("build error: %v", msg.Error))
+			return logAndReturnError("build error: %v", msg.Error)
 		}
 
 		if msg.Stream != "" {
@@ -251,7 +252,7 @@ func Build(imageName, tag string, opts BuildOptions) error {
 
 	if lastError != nil {
 		progressBar.Stop()
-		return errors.New(color.RedString("build process error: %v", lastError))
+		return logAndReturnError("build process error: %v", lastError)
 	}
 
 	progressBar.Add(100 - progressBar.Current)
@@ -260,7 +261,7 @@ func Build(imageName, tag string, opts BuildOptions) error {
 
 	inspect, err := cli.ImageInspect(ctx, fullImageName)
 	if err != nil {
-		return errors.New(color.RedString("failed to get image info: %v", err))
+		return logAndReturnError("failed to get image info: %v", err)
 	}
 
 	panel := pterm.DefaultBox.WithTitle("Build Complete").Sprintf(` %s %s %s %s %s %s %s `,
@@ -288,12 +289,12 @@ func createTarball(srcDir string, excludePatterns []string) (io.ReadCloser, erro
 
 		filepath.Walk(srcDir, func(file string, fi os.FileInfo, err error) error {
 			if err != nil {
-				return err
+				return logAndReturnError("failed : %v", err)
 			}
 
 			relPath, err := filepath.Rel(srcDir, file)
 			if err != nil {
-				return err
+				return logAndReturnError("failed to get relative path : %v", err)
 			}
 
 			// Skip excluded patterns
@@ -313,23 +314,23 @@ func createTarball(srcDir string, excludePatterns []string) (io.ReadCloser, erro
 
 			hdr, err := tar.FileInfoHeader(fi, relPath)
 			if err != nil {
-				return err
+				return logAndReturnError("failed to get file info header: %v", err)
 			}
 			hdr.Name = relPath
 
 			if err := tw.WriteHeader(hdr); err != nil {
-				return err
+				return logAndReturnError("failed to write header : %v", err)
 			}
 
 			if fi.Mode().IsRegular() {
 				f, err := os.Open(file)
 				if err != nil {
-					return err
+					return logAndReturnError("failed to open file: %v", err)
 				}
 				defer f.Close()
 
 				if _, err := io.Copy(tw, f); err != nil {
-					return err
+					return logAndReturnError("failed: %v", err)
 				}
 			}
 

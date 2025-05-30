@@ -16,7 +16,7 @@ import (
 	"golang.org/x/oauth2/google"
 )
 
-/// PushImageToGCR pushes the specified Docker image to the specified Google Container Registry.
+// / PushImageToGCR pushes the specified Docker image to the specified Google Container Registry.
 // It authenticates with Google Cloud, retrieves the registry details and credentials, tags the image,
 // and pushes it to the registry. It displays a spinner with progress updates and prints the
 // push response messages. Upon successful completion, it prints a success message with a link
@@ -36,8 +36,7 @@ func PushImageToGCR(projectID, imageNameWithTag string) error {
 	creds, err := google.FindDefaultCredentials(ctx, "https://www.googleapis.com/auth/cloud-platform")
 	if err != nil {
 		spinner.Fail("Failed to authenticate with Google Cloud")
-		color.New(color.FgRed).Printf("Error: %v\n", err)
-		return err
+		return logAndReturnError("Failed to authenticate with Google Cloud: %v", err)
 	}
 	spinner.Success("Authenticated with Google Cloud")
 
@@ -46,8 +45,7 @@ func PushImageToGCR(projectID, imageNameWithTag string) error {
 	token, err := tokenSource.Token()
 	if err != nil {
 		spinner.Fail("Failed to obtain access token")
-		color.New(color.FgRed).Printf("Error: %v\n", err)
-		return err
+		return logAndReturnError("Failed to obtain access token: %v", err)
 	}
 	spinner.Success("Access token obtained")
 
@@ -55,8 +53,7 @@ func PushImageToGCR(projectID, imageNameWithTag string) error {
 	dockerClient, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		spinner.Fail("Failed to create Docker client")
-		color.New(color.FgRed).Printf("Error: %v\n", err)
-		return err
+		return logAndReturnError("Failed to create Docker client: %v", err)
 	}
 	spinner.Success("Docker client created")
 
@@ -83,8 +80,7 @@ func PushImageToGCR(projectID, imageNameWithTag string) error {
 	err = dockerClient.ImageTag(ctx, sourceImage, taggedImage)
 	if err != nil {
 		spinner.Fail("Failed to tag the image")
-		color.New(color.FgRed).Printf("Error: %v\n", err)
-		return err
+		return logAndReturnError("Failed to tag the image: %v", err)
 	}
 	spinner.Success("Image tagged")
 
@@ -97,8 +93,7 @@ func PushImageToGCR(projectID, imageNameWithTag string) error {
 	encodedAuth, err := encodeAuthToBase64(authConfig)
 	if err != nil {
 		spinner.Fail("Failed to encode authentication credentials")
-		color.New(color.FgRed).Printf("Error: %v\n", err)
-		return err
+		return logAndReturnError("Failed to encode authentication credentials: %v", err)
 	}
 
 	pushOptions := image.PushOptions{
@@ -108,8 +103,7 @@ func PushImageToGCR(projectID, imageNameWithTag string) error {
 	pushResponse, err := dockerClient.ImagePush(ctx, taggedImage, pushOptions)
 	if err != nil {
 		spinner.Fail("Failed to push the image")
-		color.New(color.FgRed).Printf("Error: %v\n", err)
-		return err
+		return logAndReturnError("Failed to push the image: %v", err)
 	}
 	defer pushResponse.Close()
 
@@ -122,13 +116,11 @@ func PushImageToGCR(projectID, imageNameWithTag string) error {
 				break
 			}
 			spinner.Fail("Failed to read push response")
-			color.New(color.FgRed).Printf("Error: %v\n", err)
-			return err
+			return logAndReturnError("Failed to read push response: %v", err)
 		}
 		if event.Error != nil {
 			spinner.Fail("Failed to push the image")
-			color.New(color.FgRed).Printf("Error: %v\n", event.Error)
-			return event.Error
+			return logAndReturnError("Failed to push the image: %v", err)
 		}
 		if event.Progress != nil && event.Progress.Total > 0 {
 			progress := int(float64(event.Progress.Current) / float64(event.Progress.Total) * 100)

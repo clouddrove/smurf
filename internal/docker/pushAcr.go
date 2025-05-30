@@ -28,8 +28,7 @@ func PushImageToACR(subscriptionID, resourceGroupName, registryName, imageName s
 	cred, err := azidentity.NewDefaultAzureCredential(nil)
 	if err != nil {
 		spinner.Fail("Failed to authenticate with Azure")
-		color.New(color.FgRed).Printf("Error: %v\n", err)
-		return err
+		return logAndReturnError("Failed to authenticate with Azure : %v", err)
 	}
 	spinner.Success("Authenticated with Azure")
 
@@ -37,8 +36,7 @@ func PushImageToACR(subscriptionID, resourceGroupName, registryName, imageName s
 	registryClient, err := armcontainerregistry.NewRegistriesClient(subscriptionID, cred, nil)
 	if err != nil {
 		spinner.Fail("Failed to create registry client")
-		color.New(color.FgRed).Printf("Error: %v\n", err)
-		return err
+		return logAndReturnError("Failed to create registry client : %v", err)
 	}
 	spinner.Success("Registry client created")
 
@@ -46,8 +44,7 @@ func PushImageToACR(subscriptionID, resourceGroupName, registryName, imageName s
 	registryResp, err := registryClient.Get(ctx, resourceGroupName, registryName, nil)
 	if err != nil {
 		spinner.Fail("Failed to retrieve registry details")
-		color.New(color.FgRed).Printf("Error: %v\n", err)
-		return err
+		return logAndReturnError("Failed to retrieve registry details : %v", err)
 	}
 	loginServer := *registryResp.Properties.LoginServer
 	spinner.Success("Registry details retrieved")
@@ -56,13 +53,11 @@ func PushImageToACR(subscriptionID, resourceGroupName, registryName, imageName s
 	credentialsResp, err := registryClient.ListCredentials(ctx, resourceGroupName, registryName, nil)
 	if err != nil {
 		spinner.Fail("Failed to retrieve registry credentials")
-		color.New(color.FgRed).Printf("Error: %v\n", err)
-		return err
+		return logAndReturnError("Failed to retrieve registry credentials : %v", err)
 	}
 	if credentialsResp.Username == nil || len(credentialsResp.Passwords) == 0 || credentialsResp.Passwords[0].Value == nil {
 		spinner.Fail("Registry credentials are not available")
-		color.New(color.FgRed).Println("Error: Registry credentials are not available")
-		return fmt.Errorf("registry credentials are not available")
+		return logAndReturnError("Registry credentials are not available")
 	}
 	username := *credentialsResp.Username
 	password := *credentialsResp.Passwords[0].Value
@@ -72,8 +67,7 @@ func PushImageToACR(subscriptionID, resourceGroupName, registryName, imageName s
 	dockerClient, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		spinner.Fail("Failed to create Docker client")
-		color.New(color.FgRed).Printf("Error: %v\n", err)
-		return err
+		return logAndReturnError("Failed to create Docker client : %v", err)
 	}
 	spinner.Success("Docker client created")
 
@@ -82,8 +76,7 @@ func PushImageToACR(subscriptionID, resourceGroupName, registryName, imageName s
 	err = dockerClient.ImageTag(ctx, imageName, taggedImage)
 	if err != nil {
 		spinner.Fail("Failed to tag the image")
-		color.New(color.FgRed).Printf("Error: %v\n", err)
-		return err
+		return logAndReturnError("Failed to tag the image : %v", err)
 	}
 	spinner.Success("Image tagged")
 
@@ -96,8 +89,7 @@ func PushImageToACR(subscriptionID, resourceGroupName, registryName, imageName s
 	encodedAuth, err := encodeAuthToBase64(authConfig)
 	if err != nil {
 		spinner.Fail("Failed to encode authentication credentials")
-		color.New(color.FgRed).Printf("Error: %v\n", err)
-		return err
+		return logAndReturnError("Failed to encode authentication credentials : %v", err)
 	}
 
 	pushOptions := image.PushOptions{
@@ -107,8 +99,7 @@ func PushImageToACR(subscriptionID, resourceGroupName, registryName, imageName s
 	pushResponse, err := dockerClient.ImagePush(ctx, taggedImage, pushOptions)
 	if err != nil {
 		spinner.Fail("Failed to push the image")
-		color.New(color.FgRed).Printf("Error: %v\n", err)
-		return err
+		return logAndReturnError("Failed to push the image : %v", err)
 	}
 	defer pushResponse.Close()
 
@@ -120,13 +111,11 @@ func PushImageToACR(subscriptionID, resourceGroupName, registryName, imageName s
 				break
 			}
 			spinner.Fail("Failed to read push response")
-			color.New(color.FgRed).Printf("Error: %v\n", err)
-			return err
+			return logAndReturnError("Failed to read push response : %v", err)
 		}
 		if event.Error != nil {
 			spinner.Fail("Failed to push the image")
-			color.New(color.FgRed).Printf("Error: %v\n", event.Error)
-			return event.Error
+			return logAndReturnError("Failed to push the image : %v", event.Error)
 		}
 		if event.Status != "" {
 			spinner.UpdateText(event.Status)
