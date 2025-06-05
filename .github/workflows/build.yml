@@ -1,4 +1,4 @@
-name: Build
+name: Go Build
 
 env:
   GO_VERSION: 1.24
