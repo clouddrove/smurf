@@ -10,7 +10,6 @@ import (
 
 	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/docker"
-	"github.com/fatih/color"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 )
@@ -44,7 +43,7 @@ var buildCmd = &cobra.Command{
 			if len(args) < 1 && data.Sdkr.ImageName != "" {
 				imageName, tag, err = configs.ParseImage(data.Sdkr.ImageName)
 				if err != nil {
-					return fmt.Errorf("invalid image format in config: %w", err)
+					return fmt.Errorf("invalid image format in config: %v", err)
 				}
 				if tag == "" {
 					tag = "latest"
@@ -80,7 +79,7 @@ var buildCmd = &cobra.Command{
 		}
 
 		if _, err := os.Stat(configs.DockerfilePath); os.IsNotExist(err) {
-			return errors.New(color.RedString("Dockerfile not found at %s", configs.DockerfilePath))
+			return fmt.Errorf("dockerfile not found at %v", configs.DockerfilePath)
 		}
 
 		// In the RunE function, when creating the opts
@@ -97,7 +96,7 @@ var buildCmd = &cobra.Command{
 
 		err := docker.Build(imageName, tag, opts)
 		if err != nil {
-			return errors.New(color.RedString("Docker build failed: %v", err))
+			return err
 		}
 		return nil
 	},

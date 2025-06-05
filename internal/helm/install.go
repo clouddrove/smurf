@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fatih/color"
 	"github.com/pterm/pterm"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart"
@@ -91,7 +90,7 @@ func HelmInstall(
 		return err
 	}
 
-	color.Green("All resources for release '%s' are ready and running.\n", releaseName)
+	pterm.Success.Printfln("All resources for release '%s' are ready and running.\n", releaseName)
 	return nil
 }
 
@@ -115,6 +114,7 @@ func LoadFromLocalRepo(chartRef, version string, settings *cli.EnvSettings) (*ch
 
 	repoFile, err := repo.LoadFile(settings.RepositoryConfig)
 	if err != nil {
+		pterm.Error.Printfln("failed to load repository file: %v", err)
 		return nil, fmt.Errorf("failed to load repository file: %v", err)
 	}
 
@@ -127,6 +127,7 @@ func LoadFromLocalRepo(chartRef, version string, settings *cli.EnvSettings) (*ch
 	}
 
 	if repoURL == "" {
+		pterm.Error.Printfln("repository %s not found in local repositories", repoName)
 		return nil, fmt.Errorf("repository %s not found in local repositories", repoName)
 	}
 
@@ -142,15 +143,18 @@ func LoadRemoteChart(chartName, repoURL string, version string, settings *cli.En
 
 	chartRepo, err := repo.NewChartRepository(repoEntry, getter.All(settings))
 	if err != nil {
+		pterm.Error.Printfln("failed to create chart repository: %v", err)
 		return nil, fmt.Errorf("failed to create chart repository: %v", err)
 	}
 
 	if _, err := chartRepo.DownloadIndexFile(); err != nil {
+		pterm.Error.Printfln("failed to download index file: %v", err)
 		return nil, fmt.Errorf("failed to download index file: %v", err)
 	}
 
 	chartURL, err := repo.FindChartInRepoURL(repoURL, chartName, version, "", "", "", getter.All(settings))
 	if err != nil {
+		pterm.Error.Printfln("failed to find chart in repository: %v", err)
 		return nil, fmt.Errorf("failed to find chart in repository: %v", err)
 	}
 
@@ -162,8 +166,10 @@ func LoadRemoteChart(chartName, repoURL string, version string, settings *cli.En
 
 	chartPath, _, err := chartDownloader.DownloadTo(chartURL, version, settings.RepositoryCache)
 	if err != nil {
+		pterm.Error.Printfln("failed to download chart: %v", err)
 		return nil, fmt.Errorf("failed to download chart: %v", err)
 	}
 
+	pterm.Success.Print("Successfuly load remote chart...")
 	return loader.Load(chartPath)
 }

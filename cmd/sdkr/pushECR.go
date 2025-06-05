@@ -28,6 +28,7 @@ var pushEcrCmd = &cobra.Command{
 				return err
 			}
 			if data.Sdkr.ImageName == "" {
+				pterm.Error.Printfln("image name (with optional tag) must be provided either as an argument or in the config")
 				return errors.New("image name (with optional tag) must be provided either as an argument or in the config")
 			}
 			imageRef = data.Sdkr.ImageName
@@ -35,10 +36,11 @@ var pushEcrCmd = &cobra.Command{
 
 		accountID, ecrRegionName, ecrRepositoryName, ecrImageTag, parseErr := configs.ParseEcrImageRef(imageRef)
 		if parseErr != nil {
-			return fmt.Errorf("invalid image format: %w", parseErr)
+			return parseErr
 		}
 
 		if accountID == "" || ecrRegionName == "" || ecrRepositoryName == "" || ecrImageTag == "" {
+			pterm.Error.Printfln("invalid image reference: missing account ID, region, or repository name")
 			return errors.New("invalid image reference: missing account ID, region, or repository name")
 		}
 

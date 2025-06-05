@@ -37,7 +37,7 @@ Set the GOOGLE_APPLICATION_CREDENTIALS environment variable to the path of your 
 		} else {
 			data, err := configs.LoadConfig(configs.FileName)
 			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
+				return err
 			}
 
 			if os.Getenv("GOOGLE_APPLICATION_CREDENTIALS") == "" {
@@ -57,6 +57,7 @@ Set the GOOGLE_APPLICATION_CREDENTIALS environment variable to the path of your 
 			}
 
 			if data.Sdkr.ImageName == "" {
+				pterm.Error.Printfln("image name (with optional tag) must be provided either as an argument or in the config")
 				return errors.New("image name (with optional tag) must be provided either as an argument or in the config")
 			}
 			imageRef = data.Sdkr.ImageName
@@ -65,7 +66,7 @@ Set the GOOGLE_APPLICATION_CREDENTIALS environment variable to the path of your 
 		if configs.ProjectID == "" {
 			data, err := configs.LoadConfig(configs.FileName)
 			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
+				return err
 			}
 			if data.Sdkr.ProvisionGcrProjectID != "" {
 				configs.ProjectID = data.Sdkr.ProvisionGcrProjectID
@@ -78,7 +79,8 @@ Set the GOOGLE_APPLICATION_CREDENTIALS environment variable to the path of your 
 
 		localImageName, localTag, parseErr := configs.ParseImage(imageRef)
 		if parseErr != nil {
-			return fmt.Errorf("invalid image format: %w", parseErr)
+			pterm.Error.Println("invalid image format: %w", parseErr)
+			return fmt.Errorf("invalid image format: %v", parseErr)
 		}
 		if localTag == "" {
 			localTag = "latest"
@@ -97,6 +99,7 @@ Set the GOOGLE_APPLICATION_CREDENTIALS environment variable to the path of your 
 		if configs.ContextDir == "" {
 			wd, err := os.Getwd()
 			if err != nil {
+				pterm.Error.Printfln("failed to get current working directory: %v", err)
 				return fmt.Errorf("failed to get current working directory: %w", err)
 			}
 			configs.ContextDir = wd
@@ -120,7 +123,6 @@ Set the GOOGLE_APPLICATION_CREDENTIALS environment variable to the path of your 
 
 		pterm.Info.Println("Starting GCR build...")
 		if err := docker.Build(localImageName, localTag, buildOpts); err != nil {
-			pterm.Error.Println("Build failed:", err)
 			return err
 		}
 		pterm.Success.Println("Build completed successfully.")
@@ -134,7 +136,6 @@ Set the GOOGLE_APPLICATION_CREDENTIALS environment variable to the path of your 
 
 		pterm.Info.Printf("Pushing image %s to GCR...\n", pushImage)
 		if err := docker.PushImageToGCR(configs.ProjectID, localImageName+":"+localTag); err != nil {
-			pterm.Error.Println("Push to GCR failed:", err)
 			return err
 		}
 		pterm.Success.Println("Push to GCR completed successfully.")
@@ -142,7 +143,6 @@ Set the GOOGLE_APPLICATION_CREDENTIALS environment variable to the path of your 
 		if configs.DeleteAfterPush {
 			pterm.Info.Printf("Deleting local image %s...\n", fullGcrImage)
 			if err := docker.RemoveImage(fullGcrImage); err != nil {
-				pterm.Error.Println("Failed to delete local image:", err)
 				return err
 			}
 			pterm.Success.Println("Successfully deleted local image:", fullGcrImage)

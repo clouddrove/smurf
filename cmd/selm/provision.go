@@ -2,12 +2,11 @@ package selm
 
 import (
 	"errors"
-	"fmt"
 	"path/filepath"
 
 	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/helm"
-	"github.com/fatih/color"
+	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 )
 
@@ -32,7 +31,7 @@ var provisionCmd = &cobra.Command{
 		if releaseName == "" || chartPath == "" {
 			data, err := configs.LoadConfig(configs.FileName)
 			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
+				return err
 			}
 
 			if releaseName == "" {
@@ -47,7 +46,8 @@ var provisionCmd = &cobra.Command{
 			}
 
 			if releaseName == "" || chartPath == "" {
-				return errors.New(color.RedString("RELEASE and CHART must be provided either as arguments or in the config"))
+				pterm.Error.Printfln("RELEASE and CHART must be provided either as arguments or in the config")
+				return errors.New("RELEASE and CHART must be provided either as arguments or in the config")
 			}
 
 			if configs.Namespace == "" && data.Selm.Namespace != "" {
@@ -56,7 +56,8 @@ var provisionCmd = &cobra.Command{
 		}
 
 		if releaseName == "" || chartPath == "" {
-			return errors.New(color.RedString("RELEASE and CHART must be provided"))
+			pterm.Error.Printfln("RELEASE and CHART must be provided")
+			return errors.New("RELEASE and CHART must be provided")
 		}
 
 		if configs.Namespace == "" {
@@ -65,7 +66,7 @@ var provisionCmd = &cobra.Command{
 
 		err := helm.HelmProvision(releaseName, chartPath, configs.Namespace)
 		if err != nil {
-			return errors.New(color.RedString("Helm provision failed: %v", err))
+			return err
 		}
 		return nil
 	},

@@ -2,12 +2,11 @@ package selm
 
 import (
 	"errors"
-	"fmt"
 	"path/filepath"
 
 	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/helm"
-	"github.com/fatih/color"
+	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 )
 
@@ -31,7 +30,7 @@ var templateCmd = &cobra.Command{
 		if releaseName == "" || chartPath == "" {
 			data, err := configs.LoadConfig(configs.FileName)
 			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
+				return err
 			}
 
 			if releaseName == "" {
@@ -45,7 +44,8 @@ var templateCmd = &cobra.Command{
 			}
 
 			if releaseName == "" || chartPath == "" {
-				return errors.New(color.RedString("RELEASE and CHART must be provided either as arguments or in the config"))
+				pterm.Error.Printfln("RELEASE and CHART must be provided either as arguments or in the config")
+				return errors.New(pterm.Error.Sprintfln("RELEASE and CHART must be provided either as arguments or in the config"))
 			}
 
 			if configs.Namespace == "" && data.Selm.Namespace != "" {
@@ -59,7 +59,7 @@ var templateCmd = &cobra.Command{
 
 		err := helm.HelmTemplate(releaseName, chartPath, configs.Namespace, repoURL, configs.File)
 		if err != nil {
-			return errors.New(color.RedString("Helm template failed: %v", err))
+			return err
 		}
 		return nil
 	},

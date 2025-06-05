@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/clouddrove/smurf/configs"
+	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v2"
 )
@@ -36,20 +37,22 @@ var generateConfig = &cobra.Command{
 
 		file, err := os.Create(configs.FileName)
 		if err != nil {
+			pterm.Error.Printfln("error creating YAML file: %v", err)
 			return fmt.Errorf("error creating YAML file: %v", err)
 		}
 		defer file.Close()
 
 		data, err := yaml.Marshal(&config)
 		if err != nil {
+			pterm.Error.Printfln("error marshaling data to YAML: %v", err)
 			return fmt.Errorf("error marshaling data to YAML: %v", err)
 		}
 
 		if _, err := file.Write(data); err != nil {
+			pterm.Error.Printfln("error writing to YAML file: %v", err)
 			return fmt.Errorf("error writing to YAML file: %v", err)
 		}
-
-		fmt.Println("smurf.yaml configuration file generated successfully with empty values.")
+		pterm.FgGreen.Print("smurf.yaml configuration file generated successfully with empty values.")
 		return nil
 	},
 }

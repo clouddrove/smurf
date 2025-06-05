@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/fatih/color"
 	"github.com/hashicorp/terraform-exec/tfexec"
 	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/pterm/pterm"
@@ -18,7 +17,7 @@ func Refresh(vars []string, varFiles []string, lock bool, dir string) error {
 		return err
 	}
 
-	spinner, err := pterm.DefaultSpinner.Start("Refreshing state...")
+	spinner, _ := pterm.DefaultSpinner.Start("Refreshing state...")
 
 	applyOptions := []tfexec.RefreshCmdOption{}
 
@@ -39,8 +38,7 @@ func Refresh(vars []string, varFiles []string, lock bool, dir string) error {
 	}
 
 	if !lock {
-		yellow := color.New(color.FgYellow).SprintFunc()
-		fmt.Printf("%s\n\n", yellow("Note: State locking is disabled!"))
+		fmt.Printf("%s\n\n", pterm.Yellow("Note: State locking is disabled!"))
 	}
 
 	startTime := time.Now()
@@ -60,10 +58,9 @@ func Refresh(vars []string, varFiles []string, lock bool, dir string) error {
 
 	err = tf.Refresh(context.Background(), applyOptions...)
 	if err != nil {
-		red := color.New(color.FgRed).SprintFunc()
-		fmt.Printf("%s Error refreshing state: %v\n\n", red("│"), err)
-		fmt.Printf("%s Terraform failed to refresh state. The error shown above occurred\n", red("│"))
-		fmt.Printf("%s when Terraform attempted to refresh the state file.\n\n", red("│"))
+		fmt.Printf("%s Error refreshing state: %v\n\n", pterm.Red("│"), err)
+		fmt.Printf("%s Terraform failed to refresh state. The error shown above occurred\n", pterm.Red("│"))
+		fmt.Printf("%s when Terraform attempted to refresh the state file.\n\n", pterm.Red("│"))
 		spinner.Fail("Failed to refresh state")
 		return err
 	}
@@ -109,9 +106,4 @@ func countResources(module *tfjson.StateModule) int {
 		count += countResources(childModule)
 	}
 	return count
-}
-
-// formatResourceChange formats a single resource change line
-func formatResourceChange(address string, action string) string {
-	return fmt.Sprintf("  %s %s", action, address)
 }

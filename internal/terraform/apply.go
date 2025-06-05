@@ -7,7 +7,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/fatih/color"
 	"github.com/hashicorp/terraform-exec/tfexec"
 	"github.com/pterm/pterm"
 )
@@ -126,10 +125,9 @@ func Apply(approve bool, vars []string, varFiles []string, lock bool, dir string
 		}
 	}
 
-	pterm.Success.Println("\nApply complete! Resources: " +
-		color.GreenString(fmt.Sprintf("%d added", added)) +
-		color.YellowString(fmt.Sprintf(", %d changed", changed)) +
-		color.RedString(fmt.Sprintf(", %d destroyed", destroyed)))
-
+	pterm.Success.Println("Apply complete! Resources: " +
+		fmt.Sprintf("%d added", added) +
+		fmt.Sprintf(", %d changed", changed) +
+		fmt.Sprintf(", %d destroyed", destroyed))
 	return nil
 }

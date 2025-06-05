@@ -1,8 +1,8 @@
 package selm
 
 import (
-	"fmt"
 	"github.com/clouddrove/smurf/internal/helm"
+	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 )
 
@@ -17,7 +17,7 @@ var listCmd = &cobra.Command{
 			return err
 		}
 		for _, release := range releases {
-			fmt.Printf("%v\n", release.Name)
+			pterm.FgGreen.Printfln("%v\n", release.Name)
 		}
 		return nil
 	},

@@ -2,6 +2,7 @@ package docker
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
@@ -15,7 +16,8 @@ func RemoveImage(imageTag string) error {
 	ctx := context.Background()
 	cli, err := client.NewClientWithOpts(client.WithAPIVersionNegotiation())
 	if err != nil {
-		return logAndReturnError("failed to create Docker client : %v", err)
+		pterm.Error.Printf("failed to create Docker client : %v", err)
+		return fmt.Errorf("failed to create Docker client : %v", err)
 	}
 
 	pterm.Info.Println("Removing local Docker image:", imageTag)
@@ -23,8 +25,8 @@ func RemoveImage(imageTag string) error {
 
 	_, err = cli.ImageRemove(ctx, imageTag, image.RemoveOptions{Force: true})
 	if err != nil {
-		spinner.Fail("Failed to remove local Docker image:", imageTag)
-		return logAndReturnError("Failed to remove local Docker image : %v", err)
+		spinner.Fail("Failed to remove local Docker image:", imageTag, "error :", err)
+		return fmt.Errorf("failed to remove local Docker image : %v", err)
 	}
 
 	spinner.Success("Successfully removed local Docker image:", imageTag)

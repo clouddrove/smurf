@@ -7,7 +7,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/fatih/color"
 	"github.com/hashicorp/terraform-exec/tfexec"
 	"github.com/pterm/pterm"
 )
@@ -27,9 +26,9 @@ func (l *CustomLogger) Write(p []byte) (n int, err error) {
 		parts := strings.Split(msg, " ")
 		if len(parts) >= 4 {
 			pterm.Info.Printf("- Downloading %s %s for %s...\n",
-				color.CyanString(parts[1]),
-				color.YellowString(parts[2]),
-				color.CyanString(strings.TrimSpace(parts[4])))
+				pterm.Cyan(parts[1]),
+				pterm.Yellow(parts[2]),
+				pterm.Cyan(strings.TrimSpace(parts[4])))
 		}
 		return len(p), nil
 	}
@@ -38,7 +37,7 @@ func (l *CustomLogger) Write(p []byte) (n int, err error) {
 		if strings.Contains(msg, "Installing") {
 			parts := strings.Split(msg, " ")
 			pterm.Info.Printf("- Installing %s...\n",
-				color.CyanString(strings.Join(parts[1:], " ")))
+				pterm.Cyan(strings.Join(parts[1:], " ")))
 		} else if strings.Contains(msg, "Reusing") {
 			pterm.Info.Printf("- %s\n", msg)
 		}

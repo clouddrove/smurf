@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/fatih/color"
 	"github.com/pterm/pterm"
 )
 
@@ -43,14 +42,12 @@ func Output(dir string) error {
 		return nil
 	}
 
-	green := color.New(color.FgGreen).SprintfFunc()
-
 	pterm.Info.Println("Outputs: ")
 	for key, value := range outputs {
 		if value.Sensitive {
-			fmt.Println(green("%s: [sensitive value hidden]", key))
+			fmt.Println(pterm.Green("%s: [sensitive value hidden]", key))
 		} else {
-			fmt.Println(green("%s: %v", key, value.Value))
+			fmt.Println(pterm.Green("%s: %v", key, value.Value))
 		}
 	}
 

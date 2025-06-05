@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os/exec"
 
-	"github.com/fatih/color"
 	"github.com/pterm/pterm"
 )
 
@@ -33,12 +32,12 @@ func Trivy(dockerImage string) error {
 		if errStr != "" {
 			pterm.Error.Println(errStr)
 		}
-		return logAndReturnError("failed to run 'trivy image : %v", err)
+		pterm.Error.Printfln("failed to run 'trivy image : %v", err)
+		return fmt.Errorf("failed to run 'trivy image : %v", err)
 	}
 
 	if outStr != "" {
-		pterm.Info.Println("Trivy scan results:")
-		fmt.Println(color.YellowString(outStr))
+		pterm.Info.Println("Trivy scan results : ", outStr)
 	}
 
 	pterm.Success.Println("Scan completed successfully.")

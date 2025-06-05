@@ -6,14 +6,13 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/fatih/color"
 	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/pterm/pterm"
 )
 
 // StateList displays all resources in the Terraform state
 func StateList(dir string) error {
-	tf, err := GetTerraform(dir)
+	tf, _ := GetTerraform(dir)
 	spinner, err := pterm.DefaultSpinner.Start("Reading state...")
 	if err != nil {
 		return err
@@ -26,8 +25,7 @@ func StateList(dir string) error {
 	}
 
 	if state == nil || state.Values == nil || state.Values.RootModule == nil {
-		fmt.Print(color.GreenString("INFO "))
-		spinner.Success("State read successfully")
+		pterm.Info.Println("State read successfully")
 		fmt.Println("No resources found in state.")
 		return nil
 	}
@@ -69,7 +67,7 @@ func getAllResources(module *tfjson.StateModule) []string {
 // ErrorHandler handles CLI errors
 func ErrorHandler(err error) {
 	if err != nil {
-		errMsg := color.RedString("Error: ")
+		errMsg := pterm.Red("Error: ")
 		fmt.Printf("%s%v\n", errMsg, err)
 	}
 }

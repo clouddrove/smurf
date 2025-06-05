@@ -7,7 +7,6 @@ import (
 
 	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/helm"
-	"github.com/fatih/color"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 )
@@ -46,7 +45,8 @@ var installCmd = &cobra.Command{
 			}
 
 			if releaseName == "" || chartPath == "" {
-				return errors.New(color.RedString("both RELEASE and CHART must be provided either as arguments or in the config"))
+				pterm.Error.Printfln("both RELEASE and CHART must be provided either as arguments or in the config")
+				return errors.New("both RELEASE and CHART must be provided either as arguments or in the config")
 			}
 
 			if configs.Namespace == "" && data.Selm.Namespace != "" {
@@ -55,7 +55,8 @@ var installCmd = &cobra.Command{
 		}
 
 		if releaseName == "" || chartPath == "" {
-			return errors.New(color.RedString("RELEASE and CHART must be provided"))
+			pterm.Error.Printfln("RELEASE and CHART must be provided")
+			return errors.New("RELEASE and CHART must be provided")
 		}
 
 		timeoutDuration := time.Duration(configs.Timeout) * time.Second
@@ -67,7 +68,7 @@ var installCmd = &cobra.Command{
 		pterm.Info.Println("Starting Helm install...")
 		err := helm.HelmInstall(releaseName, chartPath, configs.Namespace, configs.File, timeoutDuration, configs.Atomic, configs.Debug, configs.Set, configs.SetLiteral, RepoURL, Version)
 		if err != nil {
-			return errors.New(color.RedString("Helm install failed: %v", err))
+			return err
 		}
 		pterm.Success.Println("Helm chart installed successfully.")
 		return nil

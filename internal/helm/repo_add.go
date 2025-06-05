@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/fatih/color"
 	"github.com/pterm/pterm"
 	helmCLI "helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/getter"
@@ -24,6 +23,7 @@ func Repo_Add(args []string, username, password, certFile, keyFile, caFile strin
 
 	// Create repository config directory if it doesn't exist
 	if err := os.MkdirAll(filepath.Dir(settings.RepositoryConfig), 0755); err != nil {
+		pterm.Error.Printfln("Failed to create repository config directory: %v", err)
 		return fmt.Errorf("failed to create repository config directory: %v", err)
 	}
 
@@ -34,13 +34,14 @@ func Repo_Add(args []string, username, password, certFile, keyFile, caFile strin
 	} else {
 		f, err = repo.LoadFile(settings.RepositoryConfig)
 		if err != nil {
+			pterm.Error.Printfln("failed to load repository file: %v", err)
 			return fmt.Errorf("failed to load repository file: %v", err)
 		}
 	}
 
 	// Check if repository already exists
 	if f.Has(repoName) {
-		spinner.Warning(fmt.Sprintf("Repository %s already exists", color.YellowString(repoName)))
+		spinner.Warning(fmt.Sprintf("repository name (%s) already exists, please specify a different name", repoName))
 		return fmt.Errorf("repository name (%s) already exists, please specify a different name", repoName)
 	}
 
@@ -58,7 +59,7 @@ func Repo_Add(args []string, username, password, certFile, keyFile, caFile strin
 	// Create chart repository
 	r, err := repo.NewChartRepository(entry, getter.All(settings))
 	if err != nil {
-		spinner.Fail(color.RedString("Failed to create chart repository"))
+		spinner.Fail("Failed to create chart repository: %v", err)
 		return fmt.Errorf("failed to create chart repository: %v", err)
 	}
 
@@ -67,7 +68,7 @@ func Repo_Add(args []string, username, password, certFile, keyFile, caFile strin
 	// Download repository index
 	start := time.Now()
 	if _, err := r.DownloadIndexFile(); err != nil {
-		spinner.Fail(color.RedString("Failed to get repository index"))
+		spinner.Fail("looks like %q is not a valid chart repository or the URL cannot be reached: %v", repoURL, err)
 		return fmt.Errorf("looks like %q is not a valid chart repository or the URL cannot be reached: %v", repoURL, err)
 	}
 
@@ -75,11 +76,11 @@ func Repo_Add(args []string, username, password, certFile, keyFile, caFile strin
 	f.Add(entry)
 
 	if err := f.WriteFile(settings.RepositoryConfig, 0644); err != nil {
-		spinner.Fail(color.RedString("Failed to write repository config"))
+		spinner.Fail("Failed to write repository config")
 		return fmt.Errorf("failed to write repository config: %v", err)
 	}
 
-	spinner.Success(fmt.Sprintf("Successfully added repo %s", color.GreenString(repoName)))
-	pterm.Info.Printf("Repository has been added to your repositories file. (%v)\n", elapsed)
+	spinner.Success(fmt.Sprintf("Successfully added repo %s", repoName))
+	pterm.Success.Printf("Repository has been added to your repositories file. (%v)\n", elapsed)
 	return nil
 }

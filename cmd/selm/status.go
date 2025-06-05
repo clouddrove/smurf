@@ -2,12 +2,11 @@ package selm
 
 import (
 	"errors"
-	"fmt"
 	"path/filepath"
 
 	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/helm"
-	"github.com/fatih/color"
+	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 )
 
@@ -29,7 +28,7 @@ var statusCmd = &cobra.Command{
 		if releaseName == "" {
 			data, err := configs.LoadConfig(configs.FileName)
 			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
+				return err
 			}
 
 			releaseName = data.Selm.ReleaseName
@@ -38,7 +37,8 @@ var statusCmd = &cobra.Command{
 			}
 
 			if releaseName == "" {
-				return errors.New(color.RedString("NAME must be provided either as an argument or in the config"))
+				pterm.Error.Printfln("NAME must be provided either as an argument or in the config")
+				return errors.New(pterm.Error.Sprintfln("NAME must be provided either as an argument or in the config"))
 			}
 
 			if configs.Namespace == "" && data.Selm.Namespace != "" {
@@ -52,7 +52,7 @@ var statusCmd = &cobra.Command{
 
 		err := helm.HelmStatus(releaseName, configs.Namespace)
 		if err != nil {
-			return errors.New(color.RedString("Helm status failed: %v", err))
+			return err
 		}
 		return nil
 	},

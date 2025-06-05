@@ -7,7 +7,6 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/fatih/color"
 	"github.com/hashicorp/terraform-exec/tfexec"
 	"github.com/pterm/pterm"
 )
@@ -57,16 +56,16 @@ func (w *CustomColorWriter) Write(p []byte) (n int, err error) {
 		if len(trimmedLine) > 0 {
 			switch trimmedLine[0] {
 			case '+':
-				coloredLine = color.GreenString(line)
+				coloredLine = pterm.Green(line)
 			case '-':
-				coloredLine = color.RedString(line)
+				coloredLine = pterm.Red(line)
 			case '~':
-				coloredLine = color.CyanString(line)
+				coloredLine = pterm.Cyan(line)
 			default:
-				coloredLine = color.YellowString(line)
+				coloredLine = pterm.Yellow(line)
 			}
 		} else {
-			coloredLine = color.YellowString(line)
+			coloredLine = pterm.Yellow(line)
 		}
 
 		fmt.Fprintln(w.Writer, coloredLine)

@@ -2,7 +2,6 @@ package sdkr
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/docker"
@@ -25,19 +24,19 @@ var removeCmd = &cobra.Command{
 		} else {
 			data, err := configs.LoadConfig(configs.FileName)
 			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
+				return err
 			}
 
 			if data.Sdkr.ImageName == "" {
+				pterm.Error.Printfln("image name (with optional tag) must be provided either as an argument or in the config")
 				return errors.New("image name (with optional tag) must be provided either as an argument or in the config")
 			}
 			imageRef = data.Sdkr.ImageName
 		}
 
-		pterm.Info.Printf("Removing Docker image %q...\n", imageRef)
+		pterm.Info.Printfln("Removing Docker image %v...\n", imageRef)
 		err := docker.RemoveImage(imageRef)
 		if err != nil {
-			pterm.Error.Println("Failed to remove Docker image:", err)
 			return err
 		}
 		pterm.Success.Println("Image removal completed successfully.")

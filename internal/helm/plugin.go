@@ -1,9 +1,10 @@
 package helm
 
 import (
-	"fmt"
 	"os/exec"
 	"strings"
+
+	"github.com/pterm/pterm"
 )
 
 // HelmPluginInstall installs one or more Helm plugins
@@ -12,6 +13,7 @@ func HelmPluginInstall(plugins string) error {
 	for _, plugin := range pluginList {
 		plugin = strings.TrimSpace(plugin)
 		if plugin == "" {
+			pterm.Warning.Printfln("Helm plugin empty")
 			continue
 		}
 
@@ -19,24 +21,24 @@ func HelmPluginInstall(plugins string) error {
 		checkCmd := exec.Command("helm", "plugin", "list")
 		output, err := checkCmd.CombinedOutput()
 		if err != nil {
-			fmt.Printf("Failed to check existing Helm plugins: %v\n", err)
+			pterm.Warning.Printfln("Failed to check existing Helm plugins: %v\n", err)
 			continue
 		}
 
 		if strings.Contains(string(output), plugin) {
-			fmt.Printf("Helm plugin already installed: %s\n", plugin)
+			pterm.Warning.Printfln("Helm plugin already installed: %s\n", plugin)
 			continue
 		}
 
 		// Install plugin if not found
-		fmt.Printf("Installing Helm plugin: %s\n", plugin)
+		pterm.Info.Printfln("Installing Helm plugin: %s\n", plugin)
 		cmd := exec.Command("helm", "plugin", "install", plugin)
 		installOutput, err := cmd.CombinedOutput()
 		if err != nil {
-			fmt.Printf("Failed to install Helm plugin: %s\nError: %v\nOutput: %s\n", plugin, err, installOutput)
+			pterm.Warning.Printfln("Failed to install Helm plugin: %s\nError: %v\nOutput: %s\n", plugin, err, installOutput)
 			continue
 		}
-		fmt.Printf("Helm plugin installed successfully: %s\n", plugin)
+		pterm.Success.Printfln("Helm plugin installed successfully: %s\n", plugin)
 	}
 	return nil
 }

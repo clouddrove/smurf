@@ -40,7 +40,7 @@ var provisionEcrCmd = &cobra.Command{
 
 		localImageName, localTag, parseErr := configs.ParseImage(imageRef)
 		if parseErr != nil {
-			return fmt.Errorf("invalid image format: %w", parseErr)
+			return fmt.Errorf("invalid image format: %v", parseErr)
 		}
 
 		if localTag == "" {
@@ -90,7 +90,7 @@ var provisionEcrCmd = &cobra.Command{
 		pterm.Info.Println("Starting ECR build...")
 		if err := docker.Build(localImageName, localTag, buildOpts); err != nil {
 			pterm.Error.Println("Build failed:", err)
-			return err
+			return fmt.Errorf("build failed: %v", err)
 		}
 		pterm.Success.Println("Build completed successfully.")
 
@@ -107,10 +107,11 @@ var provisionEcrCmd = &cobra.Command{
 
 		accountID, ecrRegionName, ecrRepositoryName, ecrImageTag, parseErr := configs.ParseEcrImageRef(imageRef)
 		if parseErr != nil {
-			return fmt.Errorf("invalid image format: %w", parseErr)
+			return parseErr
 		}
 
 		if accountID == "" || ecrRegionName == "" || ecrRepositoryName == "" || ecrImageTag == "" {
+			pterm.Error.Println("invalid image reference: missing account ID, region, or repository name")
 			return errors.New("invalid image reference: missing account ID, region, or repository name")
 		}
 		ecrImage := fmt.Sprintf("%s.dkr.ecr.%s.amazonaws.com/%s:%s",
@@ -126,7 +127,6 @@ var provisionEcrCmd = &cobra.Command{
 		if configs.DeleteAfterPush {
 			pterm.Info.Printf("Deleting local image %s...\n", fullEcrImage)
 			if err := docker.RemoveImage(fullEcrImage); err != nil {
-				pterm.Error.Println("Failed to delete local image:", err)
 				return err
 			}
 			pterm.Success.Println("Successfully deleted local image:", fullEcrImage)

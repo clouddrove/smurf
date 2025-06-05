@@ -2,13 +2,11 @@ package selm
 
 import (
 	"errors"
-	"fmt"
 	"path/filepath"
 	"time"
 
 	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/helm"
-	"github.com/fatih/color"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 )
@@ -40,7 +38,7 @@ var upgradeCmd = &cobra.Command{
 		if releaseName == "" || chartPath == "" {
 			data, err := configs.LoadConfig(configs.FileName)
 			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
+				return err
 			}
 
 			if releaseName == "" {
@@ -54,7 +52,7 @@ var upgradeCmd = &cobra.Command{
 			}
 
 			if releaseName == "" || chartPath == "" {
-				return errors.New(color.RedString("RELEASE and CHART must be provided either as arguments or in the config"))
+				return errors.New("RELEASE and CHART must be provided either as arguments or in the config")
 			}
 
 			if configs.Namespace == "default" && data.Selm.Namespace != "" {
@@ -63,7 +61,8 @@ var upgradeCmd = &cobra.Command{
 		}
 
 		if releaseName == "" || chartPath == "" {
-			return errors.New(color.RedString("RELEASE and CHART must be provided"))
+			pterm.Error.Printfln("RELEASE and CHART must be provided")
+			return errors.New("RELEASE and CHART must be provided")
 		}
 
 		timeoutDuration := time.Duration(configs.Timeout) * time.Second
@@ -71,11 +70,11 @@ var upgradeCmd = &cobra.Command{
 		if installIfNotPresent {
 			exists, err := helm.HelmReleaseExists(releaseName, configs.Namespace)
 			if err != nil {
-				return fmt.Errorf("failed to check if Helm release exists: %w", err)
+				return err
 			}
 			if !exists {
 				if err := helm.HelmInstall(releaseName, chartPath, configs.Namespace, configs.File, timeoutDuration, configs.Atomic, configs.Debug, configs.Set, []string{}, RepoURL, Version); err != nil {
-					return errors.New(color.RedString("Helm install failed: %v", err))
+					return err
 				}
 			}
 		}
@@ -99,8 +98,9 @@ var upgradeCmd = &cobra.Command{
 			Version,
 		)
 		if err != nil {
-			return errors.New(color.RedString("Helm upgrade failed: %v", err))
+			return err
 		}
+
 		pterm.Success.Println("Helm chart upgraded successfully.")
 		return nil
 	},

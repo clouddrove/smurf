@@ -1,6 +1,9 @@
 package helm
 
-import "helm.sh/helm/v3/pkg/action"
+import (
+	"github.com/pterm/pterm"
+	"helm.sh/helm/v3/pkg/action"
+)
 
 // HelmReleaseExists checks if a Helm release with the given name exists in the specified namespace.
 // It initializes Helm's action configuration, runs the Helm list command, and returns true if a release
@@ -25,5 +28,6 @@ func HelmReleaseExists(releaseName, namespace string) (bool, error) {
 		}
 	}
 
+	pterm.Success.Printfln("Helm realese exists...")
 	return false, nil
 }

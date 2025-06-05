@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/fatih/color"
 	"github.com/hashicorp/terraform-exec/tfexec"
 	"github.com/pterm/pterm"
 )
@@ -75,10 +74,10 @@ func (cf *CustomFormatter) findTerraformFiles(root string, recursive bool) ([]st
 func (cf *CustomFormatter) formatError(err FormatError) string {
 	var sb strings.Builder
 
-	errorSymbol := color.New(color.FgRed).Sprint("│")
-	errorPrefix := color.New(color.FgRed).Sprint("Error: ")
-	locationColor := color.New(color.FgWhite).Sprint(err.Location)
-	lineNumColor := color.New(color.FgWhite).Sprint(fmt.Sprintf("line %d", err.LineNumber))
+	errorSymbol := pterm.Red("│")
+	errorPrefix := pterm.Red("Error: ")
+	locationColor := pterm.White(err.Location)
+	lineNumColor := pterm.White(fmt.Sprintf("line %d", err.LineNumber))
 
 	sb.WriteString("╷\n")
 	sb.WriteString(fmt.Sprintf("%s %s%s\n", errorSymbol, errorPrefix, err.Description))

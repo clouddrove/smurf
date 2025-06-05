@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 )
 
@@ -13,17 +14,17 @@ func HelmPluginList() error {
 	cmd := exec.Command("helm", "plugin", "list")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
+		pterm.Error.Printfln("failed to list Helm plugins: %v", err)
 		return fmt.Errorf("failed to list Helm plugins: %v", err)
 	}
 
 	pluginList := strings.TrimSpace(string(output))
-
 	if pluginList == "" || pluginList == "NAME    VERSION DESCRIPTION" {
-		fmt.Println("No Helm plugins are currently installed.")
+		pterm.Info.Printfln("No Helm plugins are currently installed.")
 		return nil
 	}
 
-	fmt.Println(pluginList)
+	pterm.Success.Println(pluginList)
 	return nil
 }
 
@@ -36,9 +37,10 @@ var pluginListCmd = &cobra.Command{
 		fmt.Println("Listing Helm plugins...")
 		err := HelmPluginList()
 		if err != nil {
-			return fmt.Errorf("failed to list Helm plugins: %v", err)
+			return err
 		}
-		fmt.Println("Helm plugins listed successfully.")
+
+		pterm.Success.Printfln("Helm plugins listed successfully.")
 		return nil
 	},
 }

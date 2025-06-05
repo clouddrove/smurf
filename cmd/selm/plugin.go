@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/clouddrove/smurf/internal/helm"
-	"github.com/fatih/color"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 )
@@ -19,13 +18,15 @@ var pluginInstallCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		pluginNames := strings.Join(args, ",")
 		if pluginNames == "" {
-			return errors.New(color.RedString("At least one PLUGIN name must be provided"))
+			pterm.Error.Printfln("At least one PLUGIN name must be provided")
+			return errors.New("at least one PLUGIN name must be provided")
 		}
 
 		pterm.Info.Println(fmt.Sprintf("Installing Helm plugins: %s", pluginNames))
 		err := helm.HelmPluginInstall(pluginNames)
 		if err != nil {
-			return errors.New(color.RedString("Helm plugin install failed: %v", err))
+			pterm.Error.Printfln("Helm plugin install failed: %v", err)
+			return fmt.Errorf("helm plugin install failed: %w", err)
 		}
 		pterm.Success.Println("Helm plugins installed successfully.")
 		return nil
