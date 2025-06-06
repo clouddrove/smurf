@@ -3,7 +3,6 @@ package helm
 import (
 	"fmt"
 
-	"github.com/fatih/color"
 	"github.com/pterm/pterm"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/release"
@@ -18,7 +17,7 @@ func HelmList(namespace string) ([]*release.Release, error) {
 
 	actionConfig := new(action.Configuration)
 	if err := actionConfig.Init(settings.RESTClientGetter(), namespace, "secrets", nil); err != nil {
-		color.Red("Failed to initialize action configuration: %v \n", err)
+		pterm.Error.Printfln("Failed to initialize action configuration: %v \n", err)
 		return nil, err
 	}
 
@@ -27,15 +26,15 @@ func HelmList(namespace string) ([]*release.Release, error) {
 
 	releases, err := client.Run()
 	if err != nil {
-		color.Red("Failed to list releases: %v \n", err)
+		pterm.Error.Printfln("Failed to list releases: %v \n", err)
 		return nil, err
 	}
 
 	fmt.Println()
-	color.Cyan("%-17s %-10s %-8s %-20s %-7s %-30s \n", "NAME", "NAMESPACE", "REVISION", "UPDATED", "STATUS", "CHART")
+	pterm.FgCyan.Printfln("%-17s %-10s %-8s %-20s %-7s %-30s \n", "NAME", "NAMESPACE", "REVISION", "UPDATED", "STATUS", "CHART")
 	for _, rel := range releases {
 		updatedStr := rel.Info.LastDeployed.Local().Format("2006-01-02 15:04:05")
-		color.Yellow("%-17s %-10s %-8d %-20s %-7s %-30s \n",
+		pterm.FgYellow.Printfln("%-17s %-10s %-8d %-20s %-7s %-30s \n",
 			rel.Name, rel.Namespace, rel.Version, updatedStr, rel.Info.Status.String(), rel.Chart.Metadata.Name+"-"+rel.Chart.Metadata.Version)
 	}
 

@@ -16,7 +16,8 @@ func RemoveImage(imageTag string) error {
 	ctx := context.Background()
 	cli, err := client.NewClientWithOpts(client.WithAPIVersionNegotiation())
 	if err != nil {
-		return fmt.Errorf("failed to create Docker client: %w", err)
+		pterm.Error.Printf("failed to create Docker client : %v", err)
+		return fmt.Errorf("failed to create Docker client : %v", err)
 	}
 
 	pterm.Info.Println("Removing local Docker image:", imageTag)
@@ -24,8 +25,8 @@ func RemoveImage(imageTag string) error {
 
 	_, err = cli.ImageRemove(ctx, imageTag, image.RemoveOptions{Force: true})
 	if err != nil {
-		spinner.Fail("Failed to remove local Docker image:", imageTag)
-		return fmt.Errorf("failed to remove local Docker image: %w", err)
+		spinner.Fail("Failed to remove local Docker image:", imageTag, "error :", err)
+		return fmt.Errorf("failed to remove local Docker image : %v", err)
 	}
 
 	spinner.Success("Successfully removed local Docker image:", imageTag)

@@ -1,12 +1,12 @@
 package helm
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/fatih/color"
 	"github.com/pterm/pterm"
 	helmCLI "helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/getter"
@@ -24,7 +24,7 @@ func Repo_Update(args []string) error {
 
 	defer func() {
 		if r := recover(); r != nil {
-			spinner.Fail(color.RedString("Unexpected error occurred: %v", r))
+			spinner.Fail("Unexpected error occurred: %v", r)
 		}
 	}()
 
@@ -32,10 +32,10 @@ func Repo_Update(args []string) error {
 	f, err := repo.LoadFile(settings.RepositoryConfig)
 	if err != nil {
 		if os.IsNotExist(err) {
-			spinner.Fail(color.RedString("No repositories found. You must add one first."))
+			spinner.Fail("No repositories found. You must add one first : ", err)
 			return err
 		}
-		spinner.Fail(color.RedString("Failed to load repository config"))
+		spinner.Fail("Failed to load repository config: ", err)
 		return fmt.Errorf("failed to load repository config: %v", err)
 	}
 
@@ -50,21 +50,19 @@ func Repo_Update(args []string) error {
 
 		r, err := repo.NewChartRepository(cfg, getter.All(settings))
 		if err != nil {
-			spinner.Warning(fmt.Sprintf("Failed to create chart repository for %s: %v",
-				color.YellowString(cfg.Name), err))
+			spinner.Warning(fmt.Sprintf("Failed to create chart repository for %s: %v", cfg.Name, err))
 			continue
 		}
 		repos = append(repos, r)
 	}
-
 	// Validate repositories
 	if len(repos) == 0 {
 		if updateAll {
-			spinner.Fail(color.RedString("No repositories found. You must add one first."))
-			return fmt.Errorf("no repositories found")
+			spinner.Fail("No repositories found. You must add one first.")
+			return errors.New("no repositories found")
 		}
-		spinner.Fail(color.RedString("No repositories found matching the provided names"))
-		return fmt.Errorf("no repositories found matching the provided names")
+		spinner.Fail("No repositories found matching the provided names")
+		return errors.New("no repositories found matching the provided names")
 	}
 
 	// Prepare progress tracking
@@ -79,42 +77,36 @@ func Repo_Update(args []string) error {
 
 	// Update repositories with enhanced logging
 	for _, r := range repos {
-		repoName := color.CyanString(r.Config.Name)
+		repoName := r.Config.Name
 		spinner.UpdateText(pterm.Yellow(fmt.Sprintf("Fetching latest index for %s...", repoName)))
 
 		if _, err := r.DownloadIndexFile(); err != nil {
 			failedRepos = append(failedRepos, r.Config.Name)
-			spinner.Warning(fmt.Sprintf("Failed to update repository %s: %v",
-				color.YellowString(r.Config.Name), err))
+			spinner.Warning(fmt.Sprintf("Failed to update repository %s: %v", r.Config.Name, err))
 			continue
 		}
 
 		successRepos = append(successRepos, r.Config.Name)
 
 		// Detailed success message for each repository
-		pterm.Success.Println(fmt.Sprintf("Successfully got an update from the %s chart repository",
-			color.GreenString(r.Config.Name)))
+		pterm.Success.Println(fmt.Sprintf("Successfully got an update from the %s chart repository", r.Config.Name))
 	}
 
 	// Final summary
 	elapsed := time.Since(start).Truncate(time.Millisecond)
-	spinner.Success(pterm.Green("Repository update completed successfully"))
+	spinner.Success("Repository update completed successfully")
 
 	// Print detailed summary
 	pterm.Info.Println("\nUpdate Summary:")
 	pterm.Info.Printf("• Total Repositories: %d\n", totalRepos)
-	pterm.Info.Printf("• Successfully Updated: %s\n",
-		color.GreenString("%d", len(successRepos)))
+	pterm.Info.Printf("• Successfully Updated: %v\n", len(successRepos))
 
 	if len(failedRepos) > 0 {
-		pterm.Warning.Printf("• Failed Repositories: %s\n",
-			color.YellowString(strings.Join(failedRepos, ", ")))
+		pterm.Warning.Printf("• Failed Repositories: %s\n", strings.Join(failedRepos, ", "))
 	}
 
-	pterm.Info.Printf("• Total Time: %v\n", color.CyanString(elapsed.String()))
-
+	pterm.Info.Printf("• Total Time: %v\n", elapsed.String())
 	return nil
-
 }
 
 // Helper function to check if a repository name is in the list

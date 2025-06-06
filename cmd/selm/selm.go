@@ -1,9 +1,8 @@
 package selm
 
 import (
-	"fmt"
-
 	"github.com/clouddrove/smurf/cmd"
+	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 )
 
@@ -13,7 +12,7 @@ var selmCmd = &cobra.Command{
 	Short: "Subcommand for Helm-related actions",
 	Long:  `selm is a subcommand that groups various Helm-related actions under a single command.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("Use 'smurf selm [command]' to run Helm-related actions")
+		pterm.FgBlue.Printfln("Use 'smurf selm [command]' to run Helm-related actions")
 	},
 	Example: `smurf selm --help`,
 }

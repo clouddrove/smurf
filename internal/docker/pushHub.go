@@ -11,7 +11,6 @@ import (
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/registry"
 	"github.com/docker/docker/client"
-	"github.com/fatih/color"
 	"github.com/pterm/pterm"
 )
 
@@ -26,12 +25,12 @@ func PushImage(opts PushOptions) error {
 
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
-		spinner.Fail("Failed to initialize Docker client")
-		return fmt.Errorf("docker client init failed: %w", err)
+		spinner.Fail("Failed to initialize Docker client\n")
+		return fmt.Errorf("failed to initialize Docker client : %v", err)
 	}
 	defer cli.Close()
 
-	spinner.UpdateText("Preparing authentication...")
+	spinner.UpdateText("Preparing authentication...\n")
 
 	authConfig := registry.AuthConfig{
 		Username: os.Getenv("DOCKER_USERNAME"),
@@ -40,8 +39,8 @@ func PushImage(opts PushOptions) error {
 
 	encodedJSON, err := json.Marshal(authConfig)
 	if err != nil {
-		spinner.Fail("Authentication preparation failed")
-		return fmt.Errorf("auth encoding failed: %w", err)
+		spinner.Fail("Authentication preparation failed: ", err)
+		return fmt.Errorf("authentication preparation failed : %v", err)
 	}
 
 	authStr := base64.URLEncoding.EncodeToString(encodedJSON)
@@ -52,8 +51,8 @@ func PushImage(opts PushOptions) error {
 		RegistryAuth: authStr,
 	})
 	if err != nil {
-		spinner.Fail(fmt.Sprintf("Failed to push image %s", opts.ImageName))
-		return fmt.Errorf("push failed: %w", err)
+		spinner.Fail(fmt.Sprintf("Failed to push image %s, error : %v", opts.ImageName, err))
+		return fmt.Errorf("failed to push image : %v", err)
 	}
 	defer pushResp.Close()
 
@@ -68,7 +67,7 @@ func PushImage(opts PushOptions) error {
 
 		if msg.Error != "" {
 			spinner.Fail(msg.Error)
-			return fmt.Errorf("push error: %s", msg.Error)
+			return fmt.Errorf("failed to push image : %v", msg.Error)
 		}
 
 		if msg.Status != "" {
@@ -87,7 +86,7 @@ func PushImage(opts PushOptions) error {
 	}
 
 	progressBar.Stop()
-	spinner.Success(color.GreenString("Successfully pushed image %s", opts.ImageName))
+	spinner.Success("Successfully pushed image ", opts.ImageName)
 
 	return nil
 }

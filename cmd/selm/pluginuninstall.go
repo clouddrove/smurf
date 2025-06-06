@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 )
 
@@ -18,23 +19,25 @@ func HelmPluginUninstall(plugins []string) error {
 			continue
 		}
 
-		fmt.Printf("Uninstalling Helm plugin: %s...\n", plugin)
+		pterm.Info.Printfln("Uninstalling Helm plugin: %s...\n", plugin)
 
 		cmd := exec.Command("helm", "plugin", "uninstall", plugin)
 		output, err := cmd.CombinedOutput()
 		if err != nil {
-			fmt.Printf("❌ Failed to uninstall Helm plugin '%s': %v\n%s\n", plugin, err, string(output))
+			pterm.Warning.Printfln("❌ Failed to uninstall Helm plugin '%s': %v\n%s\n", plugin, err, string(output))
 			failed = append(failed, plugin)
 			continue
 		}
 
-		fmt.Printf("✅ Helm plugin '%s' uninstalled successfully.\n", plugin)
+		pterm.Success.Printfln("✅ Helm plugin '%s' uninstalled successfully.\n", plugin)
 	}
 
 	if len(failed) > 0 {
+		pterm.Error.Printfln("Some plugins failed to uninstall: %v", failed)
 		return fmt.Errorf("some plugins failed to uninstall: %v", failed)
 	}
 
+	pterm.Success.Printfln("Helm plugin uninstall...")
 	return nil
 }
 

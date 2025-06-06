@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 
-	"github.com/fatih/color"
 	"github.com/hashicorp/terraform-exec/tfexec"
 	"github.com/pterm/pterm"
 )
@@ -42,7 +41,7 @@ func DetectDrift(dir string) error {
 	if len(plan.ResourceChanges) > 0 {
 		pterm.Warning.Println("Drift detected:")
 		for _, change := range plan.ResourceChanges {
-			pterm.Println(color.YellowString("- %s: %s", change.Address, change.Change.Actions))
+			pterm.Println(pterm.Yellow("- %s: %s", change.Address, change.Change.Actions))
 		}
 	} else {
 		pterm.Success.Println("No drift detected.")

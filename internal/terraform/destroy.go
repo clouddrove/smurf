@@ -7,7 +7,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/fatih/color"
 	"github.com/hashicorp/terraform-exec/tfexec"
 	"github.com/pterm/pterm"
 )
@@ -107,7 +106,7 @@ func Destroy(approve bool, lock bool, dir string) error {
 
 	pterm.Success.Println(
 		"\nDestroy complete! Resources: " +
-			color.RedString("%d destroyed", destroyed),
+			pterm.Red("%d destroyed", destroyed),
 	)
 
 	return nil
@@ -126,9 +125,9 @@ func (l *DestroyLogger) Write(p []byte) (n int, err error) {
 
 	if l.isDestroy {
 		if strings.Contains(msg, "Destroying...") {
-			msg = color.RedString(msg)
+			msg = pterm.Red(msg)
 		} else if strings.Contains(msg, "Destruction complete") {
-			msg = color.GreenString(msg)
+			msg = pterm.Green(msg)
 		}
 	}
 
@@ -136,9 +135,9 @@ func (l *DestroyLogger) Write(p []byte) (n int, err error) {
 	case strings.Contains(msg, "Terraform will perform the following actions"):
 		pterm.Info.Println(msg)
 	case strings.Contains(msg, "Plan:"):
-		color.Yellow(msg)
+		pterm.Yellow(msg)
 	case strings.Contains(msg, "Error:"):
-		color.Red(msg)
+		pterm.Red(msg)
 	default:
 		if _, err := l.CustomColorWriter.Writer.Write([]byte(msg)); err != nil {
 			return 0, err

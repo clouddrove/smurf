@@ -32,6 +32,7 @@ var pushGcrCmd = &cobra.Command{
 				return err
 			}
 			if data.Sdkr.ImageName == "" {
+				pterm.Error.Printfln("image name (with optional tag) must be provided either as an argument or in the config")
 				return errors.New("image name (with optional tag) must be provided either as an argument or in the config")
 			}
 			imageRef = data.Sdkr.ImageName
@@ -52,14 +53,14 @@ var pushGcrCmd = &cobra.Command{
 
 			if envVars["GOOGLE_APPLICATION_CREDENTIALS"] == "" {
 				pterm.Error.Println("Google Application Credentials is required")
-				return errors.New("missing required Google Application Credentials")
+				return errors.New("Google Application Credentials is required")
 			}
 		}
 
 		// Don't parse the image name here, let PushImageToGCR handle it
 		if configs.ProjectID == "" {
 			pterm.Error.Println("GCP project ID is required.")
-			return errors.New("missing required GCP project ID")
+			return errors.New("GCP project ID is required.")
 		}
 
 		pterm.Info.Println("Pushing image to Google Container Registry...")

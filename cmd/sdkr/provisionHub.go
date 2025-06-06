@@ -34,9 +34,10 @@ Set DOCKER_USERNAME and DOCKER_PASSWORD environment variables for Docker Hub aut
 		} else {
 			data, err := configs.LoadConfig(configs.FileName)
 			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
+				return err
 			}
 			if data.Sdkr.ImageName == "" {
+				pterm.Error.Printfln("image name (with optional tag) must be provided either as an argument or in the config")
 				return errors.New("image name (with optional tag) must be provided either as an argument or in the config")
 			}
 			imageRef = data.Sdkr.ImageName
@@ -45,7 +46,7 @@ Set DOCKER_USERNAME and DOCKER_PASSWORD environment variables for Docker Hub aut
 		if os.Getenv("DOCKER_USERNAME") == "" && os.Getenv("DOCKER_PASSWORD") == "" {
 			data, err := configs.LoadConfig(configs.FileName)
 			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
+				return err
 			}
 
 			envVars := map[string]string{
@@ -53,7 +54,6 @@ Set DOCKER_USERNAME and DOCKER_PASSWORD environment variables for Docker Hub aut
 				"DOCKER_PASSWORD": data.Sdkr.DockerPassword,
 			}
 			if err := configs.ExportEnvironmentVariables(envVars); err != nil {
-				pterm.Error.Println("Error exporting Docker Hub credentials:", err)
 				return err
 			}
 		}
@@ -65,9 +65,11 @@ Set DOCKER_USERNAME and DOCKER_PASSWORD environment variables for Docker Hub aut
 
 		localImageName, localTag, parseErr := configs.ParseImage(imageRef)
 		if parseErr != nil {
-			return fmt.Errorf("invalid image format: %w", parseErr)
+			pterm.Error.Printfln("invalid image format: %v", parseErr)
+			return fmt.Errorf("invalid image format: %v", parseErr)
 		}
 		if localImageName == "" {
+			pterm.Error.Printfln("invalid image reference")
 			return errors.New("invalid image reference")
 		}
 		if localTag == "" {
@@ -87,7 +89,8 @@ Set DOCKER_USERNAME and DOCKER_PASSWORD environment variables for Docker Hub aut
 		if configs.ContextDir == "" {
 			wd, err := os.Getwd()
 			if err != nil {
-				return fmt.Errorf("failed to get current working directory: %w", err)
+				pterm.Error.Printfln("Failed to get current working directory: %v", err)
+				return fmt.Errorf("failed to get current working directory: %v", err)
 			}
 			configs.ContextDir = wd
 		}
@@ -110,7 +113,6 @@ Set DOCKER_USERNAME and DOCKER_PASSWORD environment variables for Docker Hub aut
 
 		pterm.Info.Println("Starting build...")
 		if err := docker.Build(localImageName, localTag, buildOpts); err != nil {
-			pterm.Error.Println("Build failed:", err)
 			return err
 		}
 		pterm.Success.Println("Build completed successfully.")
@@ -118,13 +120,7 @@ Set DOCKER_USERNAME and DOCKER_PASSWORD environment variables for Docker Hub aut
 		pterm.Info.Println("Starting scan with Trivy...")
 		scanErr := docker.Trivy(fullImageName)
 		if scanErr != nil {
-			pterm.Error.Println("Scan failed:", scanErr)
-		} else {
-			pterm.Success.Println("Scan completed successfully.")
-		}
-
-		if scanErr != nil {
-			return fmt.Errorf("Docker Hub provisioning failed due to previous errors")
+			return scanErr
 		}
 
 		if !configs.ConfirmAfterPush {

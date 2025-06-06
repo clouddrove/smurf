@@ -28,7 +28,8 @@ var pushAcrCmd = &cobra.Command{
 				return err
 			}
 			if data.Sdkr.ImageName == "" {
-				return errors.New("image name (with optional tag) must be provided either as an argument or in the config")
+				pterm.Error.Printfln("image name (with optional tag) must be provided either as an argument or in the config")
+				return errors.New(pterm.Error.Sprintfln("image name (with optional tag) must be provided either as an argument or in the config"))
 			}
 			imageRef = data.Sdkr.ImageName
 
@@ -45,7 +46,8 @@ var pushAcrCmd = &cobra.Command{
 
 		repoName, tag, parseErr := configs.ParseImage(imageRef)
 		if parseErr != nil {
-			return fmt.Errorf("invalid image format: %w", parseErr)
+			pterm.Error.Printfln("invalid image format: %v", parseErr)
+			return fmt.Errorf("invalid image format: %v", parseErr)
 		}
 		if repoName == "" {
 			return errors.New("invalid image reference")
@@ -71,7 +73,6 @@ var pushAcrCmd = &cobra.Command{
 		if configs.DeleteAfterPush {
 			pterm.Info.Printf("Deleting local image %s...\n", repoName)
 			if err := docker.RemoveImage(repoName); err != nil {
-				pterm.Error.Println("Failed to delete local image:", err)
 				return err
 			}
 			pterm.Success.Println("Successfully deleted local image:", repoName)

@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fatih/color"
+	"github.com/pterm/pterm"
 	"helm.sh/helm/v3/pkg/action"
 )
 
@@ -17,14 +17,14 @@ import (
 func HelmProvision(releaseName, chartPath, namespace string) error {
 	actionConfig := new(action.Configuration)
 	if err := actionConfig.Init(settings.RESTClientGetter(), namespace, os.Getenv("HELM_DRIVER"), nil); err != nil {
-		color.Red("Failed to initialize Helm action configuration: %v \n", err)
+		pterm.Error.Printfln("Failed to initialize Helm action configuration: %v \n", err)
 		return err
 	}
 
 	client := action.NewList(actionConfig)
 	results, err := client.Run()
 	if err != nil {
-		color.Red("Failed to list releases: %v \n", err)
+		pterm.Error.Printfln("Failed to list releases: %v \n", err)
 		return err
 	}
 
@@ -82,20 +82,21 @@ func HelmProvision(releaseName, chartPath, namespace string) error {
 
 	if installErr != nil || upgradeErr != nil || lintErr != nil || templateErr != nil {
 		if installErr != nil {
-			color.Red("Install failed: %v \n", installErr)
+			pterm.Error.Printfln("Install failed: %v \n", installErr)
 		}
 		if upgradeErr != nil {
-			color.Red("Upgrade failed: %v \n", upgradeErr)
+			pterm.Error.Printfln("Upgrade failed: %v \n", upgradeErr)
 		}
 		if lintErr != nil {
-			color.Red("Lint failed: %v \n", lintErr)
+			pterm.Error.Printfln("Lint failed: %v \n", lintErr)
 		}
 		if templateErr != nil {
-			color.Red("Template rendering failed: %v \n", templateErr)
+			pterm.Error.Printfln("Template rendering failed: %v \n", templateErr)
 		}
+		pterm.Error.Printfln("provisioning failed")
 		return fmt.Errorf("provisioning failed")
 	}
 
-	color.Green("Provisioning completed successfully. \n")
+	pterm.Success.Printfln("Provisioning completed successfully. \n")
 	return nil
 }
