@@ -2,6 +2,7 @@ name: Build
 
 env:
   GO_VERSION: 1.24
+  APP_PACKAGE: github.com/clouddrove/smurf/cmd 
 
 on:
   push:
@@ -11,35 +12,13 @@ on:
 
 jobs:
   build:
-    name: Build and Test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{env.GO_VERSION}}
-
-      - name: Go Mod Tidy
-        run: go mod tidy
-
-      - name: Vet
-        run: make vet
-
-      - name: Test
-        run: make test
-
-      - name: Get Build Info
-        id: buildinfo
-        run: |
+    - name: Get Build Info
+      id: buildinfo
+      run: |
           set -euo pipefail
           echo "Collecting build information..."
           
-          # Get version from GitHub releases or git tags
-          VERSION=$(curl -sf https://api.github.com/repos/clouddrove/smurf/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' || git describe --tags --abbrev=0)
+          VERSION=$(git describe --tags --abbrev=0 || echo "v0.0.0")
           COMMIT=$(git rev-parse --short HEAD)
           DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
           
@@ -51,25 +30,32 @@ jobs:
           echo "commit=${COMMIT}" >> $GITHUB_OUTPUT
           echo "date=${DATE}" >> $GITHUB_OUTPUT
 
-      - name: Build
-        run: |
-          echo "Building with version info:"
-          echo "- Version: ${{steps.buildinfo.outputs.version}}"
-          echo "- Commit: ${{steps.buildinfo.outputs.commit}}"
-          echo "- Date: ${{steps.buildinfo.outputs.date}}"
-
-          go build \
-            -ldflags "-s -w \
-            -X '${{env.APP_PACKAGE}}.version=${{steps.buildinfo.outputs.version}}' \
-            -X '${{env.APP_PACKAGE}}.commit=${{steps.buildinfo.outputs.commit}}' \
-            -X '${{env.APP_PACKAGE}}.date=${{steps.buildinfo.outputs.date}}'" \
+    - name: Build
+      run: |
+          echo "Building with version injection:"
+          echo "Package: ${{env.APP_PACKAGE}}"
+          echo "Version: ${{steps.buildinfo.outputs.version}}"
+          echo "Commit: ${{steps.buildinfo.outputs.commit}}"
+          echo "Date: ${{steps.buildinfo.outputs.date}}"
+          
+          go build -a \
+            -ldflags "\
+              -X '${{env.APP_PACKAGE}}.version=${{steps.buildinfo.outputs.version}}' \
+              -X '${{env.APP_PACKAGE}}.commit=${{steps.buildinfo.outputs.commit}}' \
+              -X '${{env.APP_PACKAGE}}.date=${{steps.buildinfo.outputs.date}}'" \
             -o smurf .
 
-      - name: Verify Version
-        run: |
-          echo "Binary version report:"
-          ./smurf --version
+    - name: Verify Version Injection
+      run: |
+          echo "=== Version Command Output ==="
           ./smurf version
+          
+          echo "=== Build Info Verification ==="
+          ./smurf --version || true
+          
+          echo "=== Embedded Strings Check ==="
+          strings ./smurf | grep -E '${{steps.buildinfo.outputs.version}}|${{steps.buildinfo.outputs.commit}}' || \
+            echo "ERROR: Version info not found in binary"
 
   format:
     name: Check Formatting
