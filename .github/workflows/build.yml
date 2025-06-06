@@ -57,12 +57,12 @@ jobs:
           echo "- Version: ${{steps.buildinfo.outputs.version}}"
           echo "- Commit: ${{steps.buildinfo.outputs.commit}}"
           echo "- Date: ${{steps.buildinfo.outputs.date}}"
-          
+
           go build \
-            -ldflags "\
-              -X '${{env.APP_PACKAGE}}.version=${{steps.buildinfo.outputs.version}}' \
-              -X '${{env.APP_PACKAGE}}.commit=${{steps.buildinfo.outputs.commit}}' \
-              -X '${{env.APP_PACKAGE}}.date=${{steps.buildinfo.outputs.date}}'" \
+            -ldflags "-s -w \
+            -X '${{env.APP_PACKAGE}}.version=${{steps.buildinfo.outputs.version}}' \
+            -X '${{env.APP_PACKAGE}}.commit=${{steps.buildinfo.outputs.commit}}' \
+            -X '${{env.APP_PACKAGE}}.date=${{steps.buildinfo.outputs.date}}'" \
             -o smurf .
 
       - name: Verify Version
