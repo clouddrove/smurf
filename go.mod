@@ -3,7 +3,7 @@ module github.com/clouddrove/smurf
 go 1.24.0
 
 require (
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.10.0
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.10.1
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerregistry/armcontainerregistry v1.2.0
 	github.com/aws/aws-sdk-go v1.55.7
 	github.com/docker/docker v28.2.2+incompatible
