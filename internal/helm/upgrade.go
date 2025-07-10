@@ -27,6 +27,7 @@ func HelmUpgrade(releaseName, chartRef, namespace string, setValues []string, va
 	logOperation(debug, "Starting Helm upgrade for release %s in namespace %s", releaseName, namespace)
 
 	// Handle namespace creation separately since Upgrade doesn't have CreateNamespace
+	// Handle namespace creation first
 	if createNamespace {
 		if err := ensureNamespace(namespace, true); err != nil {
 			logDetailedError("namespace creation", err, namespace, releaseName)
@@ -34,9 +35,18 @@ func HelmUpgrade(releaseName, chartRef, namespace string, setValues []string, va
 		}
 	}
 
+	// Initialize action config once with proper namespace
+	actionConfig, err := initActionConfig(namespace, debug)
+	if err != nil {
+		return fmt.Errorf("failed to initialize helm: %w", err)
+	}
+
+	// Verify the release exists in the target namespace
+	if err := verifyReleaseExists(actionConfig, releaseName, namespace); err != nil {
+		return fmt.Errorf("release verification failed: %w", err)
+	}
+
 	settings := cli.New()
-	settings.SetNamespace(namespace)
-	actionConfig := new(action.Configuration)
 
 	logFn := func(format string, v ...interface{}) {
 		if debug {
@@ -56,7 +66,7 @@ func HelmUpgrade(releaseName, chartRef, namespace string, setValues []string, va
 		return err
 	}
 
-	actionConfig, err := initActionConfig(namespace, debug)
+	actionConfig, err = initActionConfig(namespace, debug)
 	if err != nil {
 		return fmt.Errorf("failed to initialize helm: %w", err)
 	}
@@ -101,12 +111,14 @@ func HelmUpgrade(releaseName, chartRef, namespace string, setValues []string, va
 	return nil
 }
 
-// Initialize Helm action configuration
 func initActionConfig(namespace string, debug bool) (*action.Configuration, error) {
+	settings := cli.New()
+	settings.SetNamespace(namespace) // Explicitly set namespace
+
 	actionConfig := new(action.Configuration)
 	err := actionConfig.Init(
 		settings.RESTClientGetter(),
-		namespace,
+		namespace, // Pass namespace here
 		os.Getenv("HELM_DRIVER"),
 		func(format string, v ...interface{}) {
 			if debug {
@@ -115,6 +127,26 @@ func initActionConfig(namespace string, debug bool) (*action.Configuration, erro
 		},
 	)
 	return actionConfig, err
+}
+
+func verifyReleaseExists(actionConfig *action.Configuration, releaseName, namespace string) error {
+	listAction := action.NewList(actionConfig)
+	listAction.AllNamespaces = false
+	listAction.All = true
+	listAction.SetStateMask()
+
+	releases, err := listAction.Run()
+	if err != nil {
+		return fmt.Errorf("failed to list releases: %w", err)
+	}
+
+	for _, r := range releases {
+		if r.Name == releaseName && r.Namespace == namespace {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("release %s not found in namespace %s", releaseName, namespace)
 }
 
 // Load chart from path or repo
