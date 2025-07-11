@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -581,47 +582,7 @@ func describeFailedResources(namespace, releaseName string) {
 	pterm.FgCyan.Println("-----------------------------------------------")
 }
 
-// resourceRemoved checks if the specified resource has been removed from the Kubernetes API.
-// It returns true if the resource is not found, indicating that it has been removed.
-// This function is used to determine if a resource has been successfully deleted.
-func resourceRemoved(clientset *kubernetes.Clientset, namespace string, r Resource) bool {
-	switch r.Kind {
-	case "Deployment":
-		_, err := clientset.AppsV1().Deployments(namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
-		return isNotFound(err)
-	case "Pod":
-		_, err := clientset.CoreV1().Pods(namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
-		return isNotFound(err)
-	case "Service":
-		_, err := clientset.CoreV1().Services(namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
-		return isNotFound(err)
-	case "ServiceAccount":
-		_, err := clientset.CoreV1().ServiceAccounts(namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
-		return isNotFound(err)
-	case "ReplicaSet":
-		_, err := clientset.AppsV1().ReplicaSets(namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
-		return isNotFound(err)
-	case "StatefulSet":
-		_, err := clientset.AppsV1().StatefulSets(namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
-		return isNotFound(err)
-	case "DaemonSet":
-		_, err := clientset.AppsV1().DaemonSets(namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
-		return isNotFound(err)
-	case "ConfigMap":
-		_, err := clientset.CoreV1().ConfigMaps(namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
-		return isNotFound(err)
-	case "Secret":
-		_, err := clientset.CoreV1().Secrets(namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
-		return isNotFound(err)
-	case "PersistentVolumeClaim":
-		_, err := clientset.CoreV1().PersistentVolumeClaims(namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
-		return isNotFound(err)
-	default:
-		return true
-	}
-}
-
-// isNotFound checks if the error is a "not found" error.
+// Helper functions
 func isNotFound(err error) bool {
-	return err != nil && strings.Contains(strings.ToLower(err.Error()), "not found")
+	return err != nil && (errors.Is(err, os.ErrNotExist) || strings.Contains(err.Error(), "not found"))
 }
