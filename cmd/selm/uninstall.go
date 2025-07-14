@@ -15,7 +15,7 @@ var uninstallCmd = &cobra.Command{
 	Use:   "uninstall [NAME]",
 	Short: "Uninstall a Helm release and all its resources",
 	Long: `This command uninstalls a Helm release and ensures all associated Kubernetes resources
-are properly deleted. It provides options for force deletion and timeout configuration.`,
+are properly deleted. It automatically handles cleanup of remaining resources.`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var releaseName string
@@ -50,7 +50,6 @@ are properly deleted. It provides options for force deletion and timeout configu
 		}
 
 		// Get flags
-		forceDelete, _ := cmd.Flags().GetBool("force")
 		timeout, _ := cmd.Flags().GetDuration("timeout")
 		disableHooks, _ := cmd.Flags().GetBool("no-hooks")
 		cascade, _ := cmd.Flags().GetString("cascade")
@@ -59,7 +58,6 @@ are properly deleted. It provides options for force deletion and timeout configu
 		opts := helm.UninstallOptions{
 			ReleaseName:  releaseName,
 			Namespace:    configs.Namespace,
-			Force:        forceDelete,
 			Timeout:      timeout,
 			DisableHooks: disableHooks,
 			Cascade:      cascade,
@@ -73,19 +71,18 @@ are properly deleted. It provides options for force deletion and timeout configu
 	},
 	Example: `
 smurf selm uninstall my-release
-# In this example, it will uninstall 'my-release' from the 'default' namespace
+# Uninstalls 'my-release' from the 'default' namespace
 
 smurf selm uninstall my-release -n my-namespace
-# In this example, it will uninstall 'my-release' from the 'my-namespace' namespace
+# Uninstalls 'my-release' from the 'my-namespace' namespace
 
 smurf selm uninstall
-# In this example, it will read NAME from the config file and uninstall from the specified namespace or 'default' if not set
+# Reads NAME from the config file and uninstalls from the specified namespace or 'default' if not set
 `,
 }
 
 func init() {
 	uninstallCmd.Flags().StringVarP(&configs.Namespace, "namespace", "n", "", "Namespace of the release")
-	uninstallCmd.Flags().Bool("force", false, "Force deletion of resources if Helm uninstall fails")
 	uninstallCmd.Flags().Duration("timeout", 10*time.Minute, "Time to wait for deletion")
 	uninstallCmd.Flags().Bool("no-hooks", false, "Prevent hooks from running during uninstall")
 	uninstallCmd.Flags().String("cascade", "background", "Delete cascading policy (background, foreground, orphan)")

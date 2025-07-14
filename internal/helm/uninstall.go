@@ -35,21 +35,10 @@ func HelmUninstall(opts UninstallOptions) error {
 		return fmt.Errorf("failed to initialize Helm: %w", err)
 	}
 
-	// Verify release exists
-	if err := verifyReleaseExists(actionConfig, opts.ReleaseName, opts.Namespace); err != nil {
-		if !opts.Force {
-			return err
-		}
-		pterm.Warning.Printfln("Release verification failed, continuing with force deletion")
-	}
-
 	// Perform Helm uninstall
 	resp, err := performUninstall(actionConfig, opts)
 	if err != nil {
-		if !opts.Force {
-			return fmt.Errorf("helm uninstall failed: %w", err)
-		}
-		pterm.Warning.Printfln("Helm uninstall failed, attempting force cleanup")
+		pterm.Warning.Printfln("Initial uninstall attempt failed, attempting cleanup")
 	}
 
 	// Verify and cleanup remaining resources
@@ -61,34 +50,123 @@ func HelmUninstall(opts UninstallOptions) error {
 	return nil
 }
 
-func initializeActionConfig(actionConfig *action.Configuration, namespace string) error {
-	// Set up Helm environment
-	if settings.KubeConfig == "" {
-		settings.KubeConfig = filepath.Join(homeDir(), ".kube", "config")
-	}
-	if settings.KubeContext == "" {
-		settings.KubeContext = os.Getenv("KUBECONTEXT")
+func verifyAndCleanupResources(opts UninstallOptions, resp *release.UninstallReleaseResponse) error {
+	clientset, err := getKubeClient()
+	if err != nil {
+		return fmt.Errorf("failed to get Kubernetes client: %w", err)
 	}
 
-	return actionConfig.Init(
-		settings.RESTClientGetter(),
-		namespace,
-		os.Getenv("HELM_DRIVER"),
-		func(format string, v ...interface{}) {
-			pterm.Debug.Printfln(format, v...)
-		},
-	)
+	remainingResources, err := checkRemainingResources(clientset, opts.Namespace, opts.ReleaseName)
+	if err != nil {
+		return fmt.Errorf("failed to check remaining resources: %w", err)
+	}
+
+	if len(remainingResources) > 0 {
+		pterm.Info.Printfln("Found %d remaining resources, cleaning up...", len(remainingResources))
+		if err := deleteResources(clientset, remainingResources, opts.Cascade); err != nil {
+			return fmt.Errorf("resource deletion failed: %w", err)
+		}
+	}
+
+	return nil
 }
 
-func verifyReleaseExist(actionConfig *action.Configuration, releaseName string) error {
-	statusAction := action.NewStatus(actionConfig)
-	_, err := statusAction.Run(releaseName)
-	if err != nil {
-		return fmt.Errorf("release '%s' not found or inaccessible: %w", releaseName, err)
+// deleteResources handles deletion of remaining resources with proper cascade policy
+func deleteResources(clientset *kubernetes.Clientset, resources []Resource, cascade string) error {
+	var propagationPolicy metav1.DeletionPropagation
+	switch cascade {
+	case "foreground":
+		propagationPolicy = metav1.DeletePropagationForeground
+	case "orphan":
+		propagationPolicy = metav1.DeletePropagationOrphan
+	default:
+		propagationPolicy = metav1.DeletePropagationBackground
+	}
+
+	for _, r := range resources {
+		switch r.Kind {
+		case "Deployment":
+			if err := deleteDeployment(clientset, r, propagationPolicy); err != nil {
+				return err
+			}
+		case "Service":
+			if err := deleteService(clientset, r, propagationPolicy); err != nil {
+				return err
+			}
+		// Add cases for other resource types
+		default:
+			pterm.Warning.Printfln("Skipping deletion of unsupported resource type: %s/%s", r.Kind, r.Name)
+		}
 	}
 	return nil
 }
 
+// deleteDeployment handles deployment deletion with proper cleanup
+func deleteDeployment(clientset *kubernetes.Clientset, r Resource, propagationPolicy metav1.DeletionPropagation) error {
+	// Remove finalizers first if they exist
+	dep, err := clientset.AppsV1().Deployments(r.Namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
+	if err != nil {
+		if isNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to get deployment %s: %w", r.Name, err)
+	}
+
+	if len(dep.Finalizers) > 0 {
+		pterm.Debug.Printfln("Removing finalizers from deployment %s", r.Name)
+		dep.Finalizers = []string{}
+		if _, err := clientset.AppsV1().Deployments(r.Namespace).Update(
+			context.Background(), dep, metav1.UpdateOptions{},
+		); err != nil {
+			return fmt.Errorf("failed to remove finalizers: %w", err)
+		}
+	}
+
+	// Delete with specified propagation policy
+	if err := clientset.AppsV1().Deployments(r.Namespace).Delete(
+		context.Background(), r.Name, metav1.DeleteOptions{
+			PropagationPolicy: &propagationPolicy,
+		},
+	); err != nil && !isNotFound(err) {
+		return fmt.Errorf("failed to delete deployment %s: %w", r.Name, err)
+	}
+
+	pterm.Info.Printfln("Deleted deployment %s", r.Name)
+	return nil
+}
+
+// deleteService handles service deletion
+func deleteService(clientset *kubernetes.Clientset, r Resource, propagationPolicy metav1.DeletionPropagation) error {
+	// Services typically don't have finalizers, but we'll check
+	svc, err := clientset.CoreV1().Services(r.Namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
+	if err != nil {
+		if isNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to get service %s: %w", r.Name, err)
+	}
+
+	if len(svc.Finalizers) > 0 {
+		pterm.Debug.Printfln("Removing finalizers from service %s", r.Name)
+		svc.Finalizers = []string{}
+		if _, err := clientset.CoreV1().Services(r.Namespace).Update(
+			context.Background(), svc, metav1.UpdateOptions{},
+		); err != nil {
+			return fmt.Errorf("failed to remove finalizers: %w", err)
+		}
+	}
+
+	if err := clientset.CoreV1().Services(r.Namespace).Delete(
+		context.Background(), r.Name, metav1.DeleteOptions{
+			PropagationPolicy: &propagationPolicy,
+		},
+	); err != nil && !isNotFound(err) {
+		return fmt.Errorf("failed to delete service %s: %w", r.Name, err)
+	}
+
+	pterm.Info.Printfln("Deleted service %s", r.Name)
+	return nil
+}
 func performUninstall(actionConfig *action.Configuration, opts UninstallOptions) (*release.UninstallReleaseResponse, error) {
 	client := action.NewUninstall(actionConfig)
 	client.Wait = true
@@ -111,31 +189,25 @@ func performUninstall(actionConfig *action.Configuration, opts UninstallOptions)
 	return client.Run(opts.ReleaseName)
 }
 
-func verifyAndCleanupResources(opts UninstallOptions, resp *release.UninstallReleaseResponse) error {
-	clientset, err := getKubeClient()
-	if err != nil {
-		return fmt.Errorf("failed to get Kubernetes client: %w", err)
+func initializeActionConfig(actionConfig *action.Configuration, namespace string) error {
+	// Set up Helm environment
+	if settings.KubeConfig == "" {
+		settings.KubeConfig = filepath.Join(homeDir(), ".kube", "config")
+	}
+	if settings.KubeContext == "" {
+		settings.KubeContext = os.Getenv("KUBECONTEXT")
 	}
 
-	remainingResources, err := checkRemainingResources(clientset, opts.Namespace, opts.ReleaseName)
-	if err != nil {
-		return fmt.Errorf("failed to check remaining resources: %w", err)
-	}
-
-	if len(remainingResources) > 0 {
-		pterm.Warning.Printfln("%d resources still exist after uninstall", len(remainingResources))
-
-		if opts.Force {
-			if err := forceDeleteResources(clientset, remainingResources, opts.Cascade); err != nil {
-				return fmt.Errorf("force deletion failed: %w", err)
-			}
-		} else {
-			pterm.Warning.Printfln("Use --force flag to attempt removal of remaining resources")
-		}
-	}
-
-	return nil
+	return actionConfig.Init(
+		settings.RESTClientGetter(),
+		namespace,
+		os.Getenv("HELM_DRIVER"),
+		func(format string, v ...interface{}) {
+			pterm.Debug.Printfln(format, v...)
+		},
+	)
 }
+
 func checkRemainingResources(clientset *kubernetes.Clientset, namespace, releaseName string) ([]Resource, error) {
 	var remaining []Resource
 
@@ -172,101 +244,6 @@ func checkRemainingResources(clientset *kubernetes.Clientset, namespace, release
 	// Add checks for other resource types (ConfigMaps, Secrets, etc.) similarly
 
 	return remaining, nil
-}
-
-func forceDeleteResources(clientset *kubernetes.Clientset, resources []Resource, cascade string) error {
-	// Convert cascade string to proper DeletionPropagation type
-	var propagationPolicy metav1.DeletionPropagation
-	switch cascade {
-	case "foreground":
-		propagationPolicy = metav1.DeletePropagationForeground
-	case "orphan":
-		propagationPolicy = metav1.DeletePropagationOrphan
-	default:
-		propagationPolicy = metav1.DeletePropagationBackground
-	}
-
-	for _, r := range resources {
-		switch r.Kind {
-		case "Deployment":
-			if err := forceDeleteDeployment(clientset, r, propagationPolicy); err != nil {
-				return err
-			}
-		case "Service":
-			if err := forceDeleteService(clientset, r, propagationPolicy); err != nil {
-				return err
-			}
-		// Add cases for other resource types
-		default:
-			pterm.Warning.Printfln("Skipping force deletion of unsupported resource type: %s/%s", r.Kind, r.Name)
-		}
-	}
-	return nil
-}
-
-func forceDeleteDeployment(clientset *kubernetes.Clientset, r Resource, propagationPolicy metav1.DeletionPropagation) error {
-	// Remove finalizers first
-	dep, err := clientset.AppsV1().Deployments(r.Namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
-	if err != nil {
-		if isNotFound(err) {
-			return nil
-		}
-		return fmt.Errorf("failed to get deployment %s: %w", r.Name, err)
-	}
-
-	if len(dep.Finalizers) > 0 {
-		pterm.Debug.Printfln("Removing finalizers from deployment %s", r.Name)
-		dep.Finalizers = []string{}
-		if _, err := clientset.AppsV1().Deployments(r.Namespace).Update(
-			context.Background(), dep, metav1.UpdateOptions{},
-		); err != nil {
-			return fmt.Errorf("failed to remove finalizers: %w", err)
-		}
-	}
-
-	// Delete with specified propagation policy
-	if err := clientset.AppsV1().Deployments(r.Namespace).Delete(
-		context.Background(), r.Name, metav1.DeleteOptions{
-			PropagationPolicy: &propagationPolicy,
-		},
-	); err != nil && !isNotFound(err) {
-		return fmt.Errorf("failed to delete deployment %s: %w", r.Name, err)
-	}
-
-	pterm.Success.Printfln("Force deleted deployment %s", r.Name)
-	return nil
-}
-
-func forceDeleteService(clientset *kubernetes.Clientset, r Resource, propagationPolicy metav1.DeletionPropagation) error {
-	// Services typically don't have finalizers, but we'll check
-	svc, err := clientset.CoreV1().Services(r.Namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
-	if err != nil {
-		if isNotFound(err) {
-			return nil
-		}
-		return fmt.Errorf("failed to get service %s: %w", r.Name, err)
-	}
-
-	if len(svc.Finalizers) > 0 {
-		pterm.Debug.Printfln("Removing finalizers from service %s", r.Name)
-		svc.Finalizers = []string{}
-		if _, err := clientset.CoreV1().Services(r.Namespace).Update(
-			context.Background(), svc, metav1.UpdateOptions{},
-		); err != nil {
-			return fmt.Errorf("failed to remove finalizers: %w", err)
-		}
-	}
-
-	if err := clientset.CoreV1().Services(r.Namespace).Delete(
-		context.Background(), r.Name, metav1.DeleteOptions{
-			PropagationPolicy: &propagationPolicy,
-		},
-	); err != nil && !isNotFound(err) {
-		return fmt.Errorf("failed to delete service %s: %w", r.Name, err)
-	}
-
-	pterm.Success.Printfln("Force deleted service %s", r.Name)
-	return nil
 }
 
 func homeDir() string {
