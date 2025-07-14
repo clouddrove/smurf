@@ -14,8 +14,9 @@ var (
 
 // Resource represents a Kubernetes resource.
 type Resource struct {
-	Kind string
-	Name string
+	Kind      string
+	Name      string
+	Namespace string
 }
 
 // RollbackOptions holds the options for rolling back a Helm release.
