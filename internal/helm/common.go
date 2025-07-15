@@ -71,8 +71,7 @@ func logDetailedError(operation string, err error, namespace, releaseName string
 // debugLog prints a debug log message to the console.
 // This function is used for debugging purposes to print additional information during execution
 func debugLog(format string, v ...interface{}) {
-	fmt.Printf(format, v...)
-	fmt.Println()
+	pterm.Debug.Printf(format, v...)
 }
 
 // logOperation prints consistent operation logs with timing
