@@ -61,6 +61,7 @@ func printNoReleasesFound(namespace string) {
 	}
 }
 
+// List with JSON output
 func printJSON(releases []*release.Release) error {
 	data, err := json.MarshalIndent(convertToElements(releases), "", "  ")
 	if err != nil {
@@ -70,6 +71,7 @@ func printJSON(releases []*release.Release) error {
 	return nil
 }
 
+// List with YAML output
 func printYAML(releases []*release.Release) error {
 	data, err := yaml.Marshal(convertToElements(releases))
 	if err != nil {
@@ -79,6 +81,7 @@ func printYAML(releases []*release.Release) error {
 	return nil
 }
 
+// List table
 func printTable(releases []*release.Release) {
 	table := pterm.TableData{{
 		"NAME", "NAMESPACE", "REVISION", "UPDATED", "STATUS",
@@ -120,6 +123,7 @@ func convertToElements(releases []*release.Release) []map[string]interface{} {
 	return elements
 }
 
+// time format
 func formatTime(t helmtime.Time) string {
 	return t.Format("2006-01-02 15:04:05")
 }

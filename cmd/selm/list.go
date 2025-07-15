@@ -40,7 +40,7 @@ Defaults to showing releases in the default namespace unless specified.`,
   # List across all namespaces
   smurf selm list -A
 
-  # List with JSON output
+  # List with JSON output 
   smurf selm list -n kube-system -o json
 
   # List with YAML output (short flags)
