@@ -38,7 +38,7 @@ func HelmLint(chartPath string, fileValues []string) error {
 			fmt.Println(msg)
 			fmt.Println()
 		}
-		spinner.Fail("Linting issues found \n")
+		spinner.Info("Linting issues found \n")
 	} else {
 		pterm.FgGreen.Printfln("No linting issues found in the chart %s \n", chartPath)
 		spinner.Success("Linting completed successfully \n")
