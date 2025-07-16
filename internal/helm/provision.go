@@ -97,7 +97,6 @@ func HelmProvision(releaseName, chartPath, namespace string) error {
 			"",
 		)
 	}
-
 	wg.Wait()
 
 	// Check all errors
