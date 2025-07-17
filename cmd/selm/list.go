@@ -6,26 +6,57 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// listCmd is a subcommand that retrieves and displays all Helm releases
-// in the default namespace. The results are printed in a simple list format.
+var (
+	allNamespaces bool
+	outputFormat  string
+	namespace     string
+)
+
 var listCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List all Helm releases.",
+	Use:     "list",
+	Aliases: []string{"ls"},
+	Short:   "List Helm releases",
+	Long: `List Helm releases across namespaces with various output formats.
+Defaults to showing releases in the default namespace unless specified.`,
+	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		releases, err := helm.HelmList("default")
-		if err != nil {
-			return err
+		if allNamespaces {
+			namespace = "" // Empty namespace means all namespaces
 		}
-		for _, release := range releases {
-			pterm.FgGreen.Printfln("%v\n", release.Name)
+		if cmd.Flags().Changed("namespace") && allNamespaces {
+			pterm.Warning.Println("--namespace is ignored when --all-namespaces is specified")
 		}
-		return nil
+
+		_, err := helm.ListReleases(namespace, outputFormat)
+		return err
 	},
 	Example: `
-	smurf selm list
-	`,
+  # List in current namespace (default)
+  smurf selm list
+
+  # List in specific namespace
+  smurf selm list -n mynamespace
+
+  # List across all namespaces
+  smurf selm list -A
+
+  # List with JSON output 
+  smurf selm list -n kube-system -o json
+
+  # List with YAML output (short flags)
+  smurf selm ls -A -o yaml
+`,
 }
 
 func init() {
+	listCmd.Flags().BoolVarP(&allNamespaces, "all-namespaces", "A", false, "list across all namespaces")
+	listCmd.Flags().StringVarP(&namespace, "namespace", "n", "default", "namespace scope for listing")
+	listCmd.Flags().StringVarP(&outputFormat, "output", "o", "table", "output format (table|json|yaml)")
+
+	// Register completion functions
+	listCmd.RegisterFlagCompletionFunc("output", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		return []string{"table", "json", "yaml"}, cobra.ShellCompDirectiveDefault
+	})
+
 	selmCmd.AddCommand(listCmd)
 }
