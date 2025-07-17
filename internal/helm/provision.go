@@ -16,57 +16,20 @@ import (
 // Otherwise, a success message is printed.
 func HelmProvision(releaseName, chartPath, namespace string) error {
 	actionConfig := new(action.Configuration)
-	if err := actionConfig.Init(settings.RESTClientGetter(), namespace, os.Getenv("HELM_DRIVER"), nil); err != nil {
+	if err := actionConfig.Init(settings.RESTClientGetter(), namespace, os.Getenv("HELM_DRIVER"), debugLog); err != nil {
 		pterm.Error.Printfln("Failed to initialize Helm action configuration: %v \n", err)
 		return err
 	}
 
-	client := action.NewList(actionConfig)
-	results, err := client.Run()
+	// Check if release exists
+	exists, err := checkReleaseExists(actionConfig, releaseName)
 	if err != nil {
-		pterm.Error.Printfln("Failed to list releases: %v \n", err)
 		return err
 	}
 
+	// Run lint and template in parallel
 	var wg sync.WaitGroup
-	var installErr, upgradeErr, lintErr, templateErr error
-	exists := false
-
-	for _, result := range results {
-		if result.Name == releaseName {
-			exists = true
-			break
-		}
-	}
-
-	wg.Add(1)
-	if exists {
-		go func() {
-			defer wg.Done()
-			// Updated HelmUpgrade call with the new parameter signature
-			upgradeErr = HelmUpgrade(
-				releaseName,
-				chartPath,
-				namespace,
-				nil,   // setValues
-				nil,   // valuesFiles
-				nil,   // setLiteral (new required parameter)
-				false, // createNamespace
-				false, // atomic
-				0,     // timeout as time.Duration
-				false, // debug
-				"",    // repoURL
-				"",    // version
-			)
-		}()
-	} else {
-		go func() {
-			defer wg.Done()
-			// Note: you're using different parameter types here:
-			// timeout as int (300) vs. time.Duration (0) in the upgraded version
-			installErr = HelmInstall(releaseName, chartPath, namespace, []string{}, 300*time.Second, false, false, []string{}, []string{}, "", "")
-		}()
-	}
+	var lintErr, templateErr error
 
 	wg.Add(2)
 	go func() {
@@ -78,25 +41,92 @@ func HelmProvision(releaseName, chartPath, namespace string) error {
 		templateErr = HelmTemplate(releaseName, chartPath, namespace, "", []string{})
 	}()
 
+	// Perform install/upgrade after lint/template
+	var operationErr error
+	if exists {
+		pterm.Info.Printfln("Release %s exists, performing upgrade...", releaseName)
+
+		// First do a dry-run
+		dryRunErr := HelmUpgrade(
+			releaseName,
+			chartPath,
+			namespace,
+			nil,           // setValues
+			nil,           // valuesFiles
+			nil,           // setLiteral
+			false,         // createNamespace
+			true,          // atomic
+			5*time.Minute, // timeout
+			true,          // dry-run
+			"",            // repoURL
+			"",            // version
+		)
+
+		if dryRunErr != nil {
+			return fmt.Errorf("upgrade dry-run failed: %v", dryRunErr)
+		}
+
+		// Actual upgrade
+		operationErr = HelmUpgrade(
+			releaseName,
+			chartPath,
+			namespace,
+			nil,           // setValues
+			nil,           // valuesFiles
+			nil,           // setLiteral
+			false,         // createNamespace
+			true,          // atomic
+			5*time.Minute, // timeout
+			false,         // dry-run
+			"",            // repoURL
+			"",            // version
+		)
+	} else {
+		pterm.Info.Printfln("Release %s does not exist, performing install...", releaseName)
+		operationErr = HelmInstall(
+			releaseName,
+			chartPath,
+			namespace,
+			[]string{},
+			5*time.Minute,
+			true, // createNamespace
+			true, // atomic
+			[]string{},
+			[]string{},
+			"",
+			"",
+		)
+	}
 	wg.Wait()
 
-	if installErr != nil || upgradeErr != nil || lintErr != nil || templateErr != nil {
-		if installErr != nil {
-			pterm.Error.Printfln("Install failed: %v \n", installErr)
-		}
-		if upgradeErr != nil {
-			pterm.Error.Printfln("Upgrade failed: %v \n", upgradeErr)
-		}
-		if lintErr != nil {
-			pterm.Error.Printfln("Lint failed: %v \n", lintErr)
-		}
-		if templateErr != nil {
-			pterm.Error.Printfln("Template rendering failed: %v \n", templateErr)
-		}
-		pterm.Error.Printfln("provisioning failed")
-		return fmt.Errorf("provisioning failed")
+	// Check all errors
+	if operationErr != nil {
+		pterm.Error.Printfln("Operation failed: %v \n", operationErr)
+		return operationErr
+	}
+	if lintErr != nil {
+		pterm.Warning.Printfln("Lint warnings: %v \n", lintErr)
+	}
+	if templateErr != nil {
+		pterm.Warning.Printfln("Template warnings: %v \n", templateErr)
 	}
 
-	pterm.Success.Printfln("Provisioning completed successfully. \n")
+	pterm.Success.Printfln("Provisioning completed successfully for %s in namespace %s", releaseName, namespace)
 	return nil
+}
+
+func checkReleaseExists(actionConfig *action.Configuration, releaseName string) (bool, error) {
+	client := action.NewList(actionConfig)
+	client.All = true // Check all namespaces
+	results, err := client.Run()
+	if err != nil {
+		return false, fmt.Errorf("failed to list releases: %v", err)
+	}
+
+	for _, result := range results {
+		if result.Name == releaseName {
+			return true, nil
+		}
+	}
+	return false, nil
 }

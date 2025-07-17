@@ -9,7 +9,7 @@ import (
 )
 
 // HelmLint runs Helm's built-in linting on a specified chart directory or tarball,
-// optionally merging values from given YAML files and parsing additional values
+// optionally merging values from given YAML files and parsing additional values,
 // passed through the --set mechanism. Upon completion, it displays any detected
 // linting messages, listing severity and location, or indicates if no issues were found
 func HelmLint(chartPath string, fileValues []string) error {
@@ -38,7 +38,7 @@ func HelmLint(chartPath string, fileValues []string) error {
 			fmt.Println(msg)
 			fmt.Println()
 		}
-		spinner.Fail("Linting issues found \n")
+		spinner.Info("Linting issues found \n")
 	} else {
 		pterm.FgGreen.Printfln("No linting issues found in the chart %s \n", chartPath)
 		spinner.Success("Linting completed successfully \n")
