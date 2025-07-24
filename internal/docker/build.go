@@ -19,25 +19,46 @@ import (
 	"github.com/pterm/pterm"
 )
 
-// Build creates and tags a Docker image using the specified build context and options.
-// It displays a spinner and progress bar for user feedback, and inspects the final image
-// to provide details like size, platform, and creation time upon successful completion.
+func warnIfContextLarge(contextDir string) {
+	var total int64
+	err := filepath.Walk(contextDir, func(_ string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			total += info.Size()
+		}
+		return nil
+	})
+	if err != nil {
+		pterm.Warning.Println("Failed to calculate context size: ", err)
+		return
+	}
+
+	sizeMB := float64(total) / (1024 * 1024)
+	pterm.Info.Printf("📦 Build context size: %.2f MB\n", sizeMB)
+	if sizeMB > 100 {
+		pterm.Warning.Println("⚠️ Build context is large. Consider using .dockerignore to exclude unnecessary files.")
+	}
+}
+
 func Build(imageName, tag string, opts BuildOptions) error {
+	start := time.Now()
 	spinner, _ := pterm.DefaultSpinner.Start("Initializing build...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), opts.Timeout)
 	defer cancel()
 
-	cli, err := client.NewClientWithOpts(
-		client.FromEnv,
-		client.WithAPIVersionNegotiation(),
-	)
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		spinner.Fail()
 		pterm.Error.Println("docker client init failed: ", err)
 		return fmt.Errorf("docker client init failed: %v", err)
 	}
 	defer cli.Close()
+
+	// Show context size warning
+	warnIfContextLarge(opts.ContextDir)
 
 	buildCtx, err := createTarball(opts.ContextDir, []string{".git", "node_modules"})
 	if err != nil {
@@ -46,7 +67,6 @@ func Build(imageName, tag string, opts BuildOptions) error {
 	}
 	defer buildCtx.Close()
 
-	// Get relative path to Dockerfile within context
 	relDockerfilePath, err := filepath.Rel(opts.ContextDir, opts.DockerfilePath)
 	if err != nil {
 		pterm.Error.Println("invalid dockerfile path: ", err)
@@ -59,18 +79,7 @@ func Build(imageName, tag string, opts BuildOptions) error {
 		buildArgsPtr[k] = &value
 	}
 
-	// Validate platform format if specified
-	platform := opts.Platform
-	if platform != "" {
-		parts := strings.Split(platform, "/")
-		if len(parts) != 2 {
-			pterm.Error.Println("invalid platform format. Expected os/arch, got: ", opts.Platform)
-			return fmt.Errorf("invalid platform format. Expected os/arch, got: %s", opts.Platform)
-		}
-	}
-
 	fullImageName := fmt.Sprintf("%s:%s", imageName, tag)
-	// In the Build function, modify the buildOptions
 	buildOptions := types.ImageBuildOptions{
 		Tags:        []string{fullImageName},
 		Dockerfile:  relDockerfilePath,
@@ -78,36 +87,20 @@ func Build(imageName, tag string, opts BuildOptions) error {
 		Remove:      true,
 		BuildArgs:   buildArgsPtr,
 		Target:      opts.Target,
-		Platform:    platform,
+		Platform:    opts.Platform,
 		Version:     types.BuilderV1,
 		BuildID:     fmt.Sprintf("build-%d", time.Now().Unix()),
 		PullParent:  true,
 		NetworkMode: "default",
 	}
 
-	// Add this before the ImageBuild call
 	if opts.BuildKit {
-		// Enable BuildKit
 		os.Setenv("DOCKER_BUILDKIT", "1")
-	}
-
-	if opts.BuildKit {
 		buildOptions.Version = types.BuilderBuildKit
-	}
 
-	// Build function modification
-
-	// Modify this part in your docker.Build function
-	if opts.BuildKit {
 		spinner.UpdateText("Running build with BuildKit enabled...\n")
 
-		// Construct docker command arguments
-		args := []string{"build"}
-
-		// Add the tag
-		args = append(args, "--tag", fullImageName)
-
-		// Add other build options
+		args := []string{"build", "--tag", fullImageName}
 		if opts.NoCache {
 			args = append(args, "--no-cache")
 		}
@@ -120,20 +113,14 @@ func Build(imageName, tag string, opts BuildOptions) error {
 		if opts.Target != "" {
 			args = append(args, "--target", opts.Target)
 		}
-		if platform != "" {
-			args = append(args, "--platform", platform)
+		if opts.Platform != "" {
+			args = append(args, "--platform", opts.Platform)
 		}
-
-		// Add the context directory as the last argument
 		args = append(args, opts.ContextDir)
 
-		// Create and configure the command
 		cmd := exec.Command("docker", args...)
-
-		// Set environment with BuildKit enabled
 		cmd.Env = append(os.Environ(), "DOCKER_BUILDKIT=1")
 
-		// Create pipes for stdout and stderr
 		stdoutPipe, err := cmd.StdoutPipe()
 		if err != nil {
 			pterm.Error.Println("failed to create stdout pipe: ", err)
@@ -145,7 +132,6 @@ func Build(imageName, tag string, opts BuildOptions) error {
 			return fmt.Errorf("failed to create stderr pipe: %v", err)
 		}
 
-		// Start the command
 		if err := cmd.Start(); err != nil {
 			pterm.Error.Println("failed to start build: ", err)
 			return fmt.Errorf("failed to start build: %v", err)
@@ -154,7 +140,6 @@ func Build(imageName, tag string, opts BuildOptions) error {
 		spinner.Success()
 		progressBar, _ := pterm.DefaultProgressbar.WithTotal(100).WithTitle("Building").Start()
 
-		// Process stdout
 		go func() {
 			scanner := bufio.NewScanner(stdoutPipe)
 			for scanner.Scan() {
@@ -162,25 +147,18 @@ func Build(imageName, tag string, opts BuildOptions) error {
 				if strings.HasPrefix(line, "Step ") {
 					pterm.Info.Println(line)
 					progressBar.Add(5)
-				} else {
-					trimmed := strings.TrimSpace(line)
-					if trimmed != "" {
-						pterm.Debug.Println(trimmed)
-					}
+				} else if trimmed := strings.TrimSpace(line); trimmed != "" {
+					pterm.Debug.Println(trimmed)
 				}
 			}
 		}()
-
-		// Process stderr
 		go func() {
 			scanner := bufio.NewScanner(stderrPipe)
 			for scanner.Scan() {
-				line := scanner.Text()
-				pterm.Debug.Println(line)
+				pterm.Debug.Println(scanner.Text())
 			}
 		}()
 
-		// Wait for the command to complete
 		if err := cmd.Wait(); err != nil {
 			progressBar.Stop()
 			pterm.Error.Println("BuildKit build failed: ", err)
@@ -188,7 +166,6 @@ func Build(imageName, tag string, opts BuildOptions) error {
 		}
 
 		progressBar.Add(100 - progressBar.Current)
-
 		time.Sleep(2 * time.Second)
 
 		inspect, err := cli.ImageInspect(ctx, fullImageName)
@@ -208,10 +185,11 @@ func Build(imageName, tag string, opts BuildOptions) error {
 		)
 
 		fmt.Println(panel)
+		pterm.Info.Printf("⏱️  Total Build Duration: %s\n", time.Since(start).Round(time.Second))
 		return nil
 	}
 
-	// The rest of your original Build function continues below for non-BuildKit builds
+	// Classic (non-BuildKit) path
 	resp, err := cli.ImageBuild(ctx, buildCtx, buildOptions)
 	if err != nil {
 		spinner.Fail()
@@ -245,14 +223,10 @@ func Build(imageName, tag string, opts BuildOptions) error {
 			if strings.HasPrefix(msg.Stream, "Step ") {
 				pterm.Info.Println(msg.Stream)
 				progressBar.Add(5)
-			} else {
-				trimmed := strings.TrimSpace(msg.Stream)
-				if trimmed != "" {
-					pterm.Debug.Println(trimmed)
-				}
+			} else if trimmed := strings.TrimSpace(msg.Stream); trimmed != "" {
+				pterm.Debug.Println(trimmed)
 			}
 		}
-
 		if msg.Status != "" {
 			pterm.Debug.Println(msg.Status)
 			progressBar.Add(1)
@@ -266,7 +240,6 @@ func Build(imageName, tag string, opts BuildOptions) error {
 	}
 
 	progressBar.Add(100 - progressBar.Current)
-
 	time.Sleep(2 * time.Second)
 
 	inspect, err := cli.ImageInspect(ctx, fullImageName)
