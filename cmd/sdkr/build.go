@@ -36,6 +36,7 @@ var buildCmd = &cobra.Command{
 
 		if imageName == "" {
 			data, err := configs.LoadConfig(configs.FileName)
+			fmt.Println("*****", data, "*****")
 			if err != nil {
 				return err
 			}
