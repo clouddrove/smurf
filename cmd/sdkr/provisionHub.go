@@ -1,7 +1,6 @@
 package sdkr
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"os"
@@ -123,14 +122,16 @@ Set DOCKER_USERNAME and DOCKER_PASSWORD environment variables for Docker Hub aut
 			return scanErr
 		}
 
-		if !configs.ConfirmAfterPush {
-			pterm.Info.Println("Press Enter to continue...")
-			_, _ = bufio.NewReader(os.Stdin).ReadBytes('\n')
-		}
+		/*
+			if !configs.ConfirmAfterPush {
+				pterm.Info.Println("Press Enter to continue...")
+				_, _ = bufio.NewReader(os.Stdin).ReadBytes('\n')
+			}*/
 
 		pterm.Info.Printf("Pushing image %s...\n", fullImageName)
 		pushOpts := docker.PushOptions{
 			ImageName: fullImageName,
+			Timeout:   1000000000000,
 		}
 		if err := docker.PushImage(pushOpts); err != nil {
 			pterm.Error.Println("Push failed:", err)
