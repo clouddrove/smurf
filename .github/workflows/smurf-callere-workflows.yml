@@ -1,0 +1,21 @@
+name: Dockerhub testing
+permissions:
+ 
+  id-token: write
+  contents: read
+  
+on:
+  workflow_dispatch:
+
+jobs:
+  docker:
+    uses: ./.github/workflows/smurf-workflow.yml
+    with:
+      provider: DOCKERHUB
+      IMAGE_NAME: 'anketclouddrove/smurf-test'
+      IMAGE_TAG: ${{ github.sha }}
+      dockerfile_path: './workflows/Dockerfile-1gb'  
+      enable_buildkit: false
+    secrets:
+       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+       DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
