@@ -115,26 +115,47 @@ jobs:
       # DOCKERHUB SECTION
       ######################
 
-      # - name: Login to Docker Hub
-      #   if: ${{ inputs.provider == 'DOCKERHUB' }}
-      #   uses: clouddrove/smurf@beta-v1.1.5
-      #   with:
-      #     username: ${{ secrets.DOCKERHUB_USERNAME }}
-      #     password: ${{ secrets.DOCKERHUB_PASSWORD }}
+      # Export Docker credentials as ENV vars for CLI compatibility
+      - name: Export Docker credentials
+        if: ${{ inputs.provider == 'DOCKERHUB' }}
+        run: |
+          echo "DOCKER_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}" >> $GITHUB_ENV
+          echo "DOCKER_PASSWORD=${{ secrets.DOCKERHUB_PASSWORD }}" >> $GITHUB_ENV
 
-      # - name: Build Docker image for DockerHub
-      #   if: ${{ inputs.provider == 'DOCKERHUB' }}
-      #   uses: clouddrove/smurf@beta-v1.1.5
+      - name: Login to Docker Hub
+        if: ${{ inputs.provider == 'DOCKERHUB' }}
+        uses: clouddrove/smurf@docker/push
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+      # - name: Build using Smurf
+      #   uses: clouddrove/smurf@docker/push
+      #   with:
+      #     provider: ${{ inputs.provider }}
+      #     tool: sdkr
+      #     path: .
+      #     command: >-
+      #       build ${{ inputs.IMAGE_NAME }}:${{ inputs.IMAGE_TAG }}
+      #       --file ${{ inputs.dockerfile_path }}
+      #       --context .
+    
+      # - name: Provision image using Smurf
+      #   uses: clouddrove/smurf@docker/push
       #   with:
       #     tool: sdkr
+      #     path: .
       #     command: >-
-      #       build ${{ inputs.images }}:${{ inputs.IMAGE_TAG }}
-      #       -f ${{ inputs.dockerfile_path }}
+      #       provision-hub ${{ inputs.image_name }}:${{ inputs.image_tag }} --file ${{ inputs.dockerfile_path }} 
+            
 
-      # - name: Push Docker image to DockerHub
-      #   if: ${{ inputs.provider == 'DOCKERHUB' }}
-      #   run: |
-      #     docker push ${{ inputs.images }}:${{ inputs.IMAGE_TAG }}
+      - name: Push Docker image to DockerHub
+        if: ${{ inputs.provider == 'DOCKERHUB' }}
+        uses: clouddrove/smurf@master
+        with:
+          tool: sdkr
+          command: >-
+             push hub ${{ inputs.IMAGE_NAME }}:${{ inputs.IMAGE_TAG }}
 
       ######################
       # AWS ECR SECTION
@@ -193,24 +214,24 @@ jobs:
       ######################
       # GCP SECTION
       ######################
-      - name: Authenticate to GCP
-        if: ${{ inputs.provider == 'gcp' }}
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY || '' }}
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER || '' }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT || '' }}
+      # - name: Authenticate to GCP
+      #   if: ${{ inputs.provider == 'gcp' }}
+      #   uses: google-github-actions/auth@v2
+      #   with:
+      #     credentials_json: ${{ secrets.GCP_SA_KEY || '' }}
+      #     workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER || '' }}
+      #     service_account: ${{ secrets.GCP_SERVICE_ACCOUNT || '' }}
 
-      - name: Configure Docker to use GCR
-        if: ${{ inputs.provider == 'gcp' }}
-        run: |
-          gcloud auth configure-docker ${{ inputs.gcp_registry_host }}
+      # - name: Configure Docker to use GCR
+      #   if: ${{ inputs.provider == 'gcp' }}
+      #   run: |
+      #     gcloud auth configure-docker ${{ inputs.gcp_registry_host }}
 
       # - name: Build Docker image for GCR
       #   if: ${{ inputs.provider == 'gcp' }}
       #   env:
       #     DOCKER_BUILDKIT: ${{ inputs.enable_buildkit && '1' || '0' }}
-      #   uses: clouddrove/smurf@v1.1.5-beta
+      #   uses: clouddrove/smurf@beta-v1.1.5
       #   with:
       #     tool: sdkr
       #     command: >-
@@ -227,17 +248,17 @@ jobs:
       #       push gcp ${{ inputs.gcp_registry_host }}/${{ secrets.GCP_PROJECT_ID }}/${{ inputs.GCP_REPOSITORY }}/${{ inputs.IMAGE_NAME }}:${{ inputs.IMAGE_TAG }}
       #       --project-id ${{ secrets.GCP_PROJECT_ID }} 
 
-      - name: Build and Push Docker Image to GCR using Smurf
-        if: ${{ inputs.provider == 'gcp' }}
-        env:
-          DOCKER_BUILDKIT: ${{ inputs.enable_buildkit && '1' || '0' }}
-        uses: clouddrove/smurf@v1.1.5-beta
-        with:
-          tool: sdkr
-          command: >-
-            provision-gcr ${{ inputs.gcp_registry_host }}/${{ secrets.GCP_PROJECT_ID }}/${{ inputs.GCP_REPOSITORY }}/${{ inputs.IMAGE_NAME }}:${{ inputs.IMAGE_TAG }}
-            --file ${{ inputs.dockerfile_path }}
-            --project-id ${{ secrets.GCP_PROJECT_ID }}
+      # - name: Build and Push Docker Image to GCR using Smurf
+      #   if: ${{ inputs.provider == 'gcp' }}
+      #   env:
+      #     DOCKER_BUILDKIT: ${{ inputs.enable_buildkit && '1' || '0' }}
+      #   uses: clouddrove/smurf@beta-v1.1.5
+      #   with:
+      #     tool: sdkr
+      #     command: >-
+      #       provision-gcr ${{ inputs.gcp_registry_host }}/${{ secrets.GCP_PROJECT_ID }}/${{ inputs.GCP_REPOSITORY }}/${{ inputs.IMAGE_NAME }}:${{ inputs.IMAGE_TAG }}
+      #       --file ${{ inputs.dockerfile_path }}
+      #       --project-id ${{ secrets.GCP_PROJECT_ID }}
 
 
       ######################
