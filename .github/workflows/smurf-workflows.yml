@@ -1,0 +1,286 @@
+---
+name: Smurf docker build push
+
+on:
+  workflow_call:
+    inputs:
+      provider:
+        required: false
+        type: string
+      aws_region:
+        required: false
+        type: string
+      ECR_REPOSITORY:
+        required: false
+        type: string
+      GCP_REPOSITORY:
+        required: false
+        type: string
+      IMAGE_NAME:
+        required: false
+        type: string
+      IMAGE_TAG:
+        required: false
+        type: string
+      WORKING_DIRECTORY:
+        required: false
+        type: string
+      assume_role_arn:
+        required: false
+        type: string
+      dockerfile_path:
+        required: false
+        type: string
+        default: Dockerfile
+      gcp_registry_host:
+        required: false      
+        type: string
+      enable_buildkit:
+        required: false
+        type: boolean
+        default: false
+      enable_docker_scan:
+        required: false
+        type: boolean
+        default: false
+      azure_registry_name:
+        required: false
+        type: string
+      azure_resource_group:
+        required: false
+        type: string
+      
+
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: false
+        description: 'AWS Access Key ID to install AWS CLI.'
+      BUILD_ROLE:
+        required: false
+        description: 'AWS OIDC role for aws authentication.'
+      AWS_SECRET_ACCESS_KEY:
+        required: false
+        description: 'AWS Secret access key to install AWS CLI'
+      AWS_SESSION_TOKEN:
+        required: false
+        description: 'AWS Session Token to install AWS CLI'
+      DOCKERHUB_USERNAME:
+        description: 'dockerhub username'
+        required: false
+      DOCKERHUB_PASSWORD:
+        description: 'dockerhub password'
+        required: false
+      GCP_PROJECT_ID:                   
+        description: 'GCP Project ID'
+        required: false
+      GCP_SA_KEY:
+        description: 'GCP service account key in JSON format for authentication.'
+        required: false
+      GCP_WORKLOAD_IDENTITY_PROVIDER:
+        description: 'GCP Workload Identity Provider used for federated authentication.'
+        required: false
+      GCP_SERVICE_ACCOUNT:
+        description: 'Email of the GCP service account to impersonate during authentication.'
+        required: false
+      AZURE_SUBSCRIPTION_ID:        
+        required: false
+      AZURE_CLIENT_ID:
+        required: false
+        description: 'Azure Service Principal Client ID.'
+      AZURE_TENANT_ID:
+        required: false
+        description: 'Azure Tenant ID.'
+      AZURE_CLIENT_SECRET:
+        required: false
+
+     
+
+jobs:
+  build-image:
+    name: Build Images
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout git repo
+        uses: actions/checkout@v4
+
+      # - name: Checkout Smurf from custom branch
+      #   uses: actions/checkout@v4
+      #   with:
+      #     repository: clouddrove/smurf
+      #     ref: beta-v1.1.5  # ✅ Replace with any dev/test branch
+      #     path: ./.github/actions/smurf
+
+      ######################
+      # DOCKERHUB SECTION
+      ######################
+
+      # - name: Login to Docker Hub
+      #   if: ${{ inputs.provider == 'DOCKERHUB' }}
+      #   uses: clouddrove/smurf@beta-v1.1.5
+      #   with:
+      #     username: ${{ secrets.DOCKERHUB_USERNAME }}
+      #     password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+      # - name: Build Docker image for DockerHub
+      #   if: ${{ inputs.provider == 'DOCKERHUB' }}
+      #   uses: clouddrove/smurf@beta-v1.1.5
+      #   with:
+      #     tool: sdkr
+      #     command: >-
+      #       build ${{ inputs.images }}:${{ inputs.IMAGE_TAG }}
+      #       -f ${{ inputs.dockerfile_path }}
+
+      # - name: Push Docker image to DockerHub
+      #   if: ${{ inputs.provider == 'DOCKERHUB' }}
+      #   run: |
+      #     docker push ${{ inputs.images }}:${{ inputs.IMAGE_TAG }}
+
+      ######################
+      # AWS ECR SECTION
+      ######################
+
+      # - name: Configure AWS credentials
+      #   if: ${{ inputs.provider == 'aws' }}
+      #   uses: aws-actions/configure-aws-credentials@v4
+      #   with:
+      #     aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      #     aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      #     aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+      #     role-to-assume: ${{ secrets.BUILD_ROLE }}
+      #     aws-region: ${{ inputs.aws_region }}
+      #     role-duration-seconds: 900
+      #     role-skip-session-tagging: true
+
+      # - name: Verify awscli
+      #   if: ${{ inputs.provider == 'aws' }}
+      #   run: aws sts get-caller-identity
+
+      # - name: Login to Amazon ECR
+      #   if: ${{ inputs.provider == 'aws' }}
+      #   id: login-ecr
+      #   uses: aws-actions/amazon-ecr-login@v2
+
+      # - name: Build Docker image for ECR
+      #   if: ${{ inputs.provider == 'aws' }}
+      #   env:
+      #     DOCKER_BUILDKIT: ${{ inputs.enable_buildkit && '1' || '0' }}
+      #   uses: clouddrove/smurf@beta-v1.1.5
+      #   with:
+      #     tool: sdkr
+      #     command: >-
+      #       build ${{ steps.login-ecr.outputs.registry }}/${{ inputs.ECR_REPOSITORY }}:${{ inputs.IMAGE_TAG }}
+      #       -f ${{ inputs.dockerfile_path }}
+
+      # - name: Scan AWS ECR image for vulnerabilities (pre-push)
+      #   if: ${{ inputs.provider == 'aws' && inputs.enable_docker_scan }}
+      #   uses: clouddrove/smurf@beta-v1.1.5
+      #   with:
+      #    tool: sdkr
+      #    command: >-
+      #      scan ${{ steps.login-ecr.outputs.registry }}/${{ inputs.ECR_REPOSITORY }}:${{ inputs.IMAGE_TAG }}
+
+      # - name: Push Docker image to ECR
+      #   if: ${{ inputs.provider == 'aws' }}
+      #   uses: clouddrove/smurf@beta-v1.1.5
+      #   with:
+      #     tool: sdkr
+      #     command: >-
+      #       push aws ${{ steps.login-ecr.outputs.registry }}/${{ inputs.ECR_REPOSITORY }}:${{ inputs.IMAGE_TAG }}
+
+
+  
+      ######################
+      # GCP SECTION
+      ######################
+      - name: Authenticate to GCP
+        if: ${{ inputs.provider == 'gcp' }}
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY || '' }}
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER || '' }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT || '' }}
+
+      - name: Configure Docker to use GCR
+        if: ${{ inputs.provider == 'gcp' }}
+        run: |
+          gcloud auth configure-docker ${{ inputs.gcp_registry_host }}
+
+      # - name: Build Docker image for GCR
+      #   if: ${{ inputs.provider == 'gcp' }}
+      #   env:
+      #     DOCKER_BUILDKIT: ${{ inputs.enable_buildkit && '1' || '0' }}
+      #   uses: clouddrove/smurf@v1.1.5-beta
+      #   with:
+      #     tool: sdkr
+      #     command: >-
+      #       build ${{ inputs.gcp_registry_host }}/${{ secrets.GCP_PROJECT_ID }}/${{ inputs.GCP_REPOSITORY }}/${{ inputs.IMAGE_NAME }}:${{ inputs.IMAGE_TAG }}
+      #       -f ${{ inputs.dockerfile_path }}
+            
+
+      # - name: Push Docker image to GCR
+      #   if: ${{ inputs.provider == 'gcp' }}
+      #   uses: clouddrove/smurf@beta-v1.1.5
+      #   with:
+      #     tool: sdkr
+      #     command: >-
+      #       push gcp ${{ inputs.gcp_registry_host }}/${{ secrets.GCP_PROJECT_ID }}/${{ inputs.GCP_REPOSITORY }}/${{ inputs.IMAGE_NAME }}:${{ inputs.IMAGE_TAG }}
+      #       --project-id ${{ secrets.GCP_PROJECT_ID }} 
+
+      - name: Build and Push Docker Image to GCR using Smurf
+        if: ${{ inputs.provider == 'gcp' }}
+        env:
+          DOCKER_BUILDKIT: ${{ inputs.enable_buildkit && '1' || '0' }}
+        uses: clouddrove/smurf@v1.1.5-beta
+        with:
+          tool: sdkr
+          command: >-
+            provision-gcr ${{ inputs.gcp_registry_host }}/${{ secrets.GCP_PROJECT_ID }}/${{ inputs.GCP_REPOSITORY }}/${{ inputs.IMAGE_NAME }}:${{ inputs.IMAGE_TAG }}
+            --file ${{ inputs.dockerfile_path }}
+            --project-id ${{ secrets.GCP_PROJECT_ID }}
+
+
+      ######################
+      # AZURE ACR SECTION
+      ######################
+
+      #- name: Azure Login
+      #   if: ${{ inputs.provider == 'azure' }}
+      #   uses: azure/login@v1
+      #   with:
+      #     client-id: ${{ secrets.AZURE_CLIENT_ID }}
+      #     tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+      #     subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # - name: Azure ACR Login
+      #   if: ${{ inputs.provider == 'azure' }}
+      #   run: |
+      #     az acr login --name ${{ inputs.azure_registry_name }}
+
+      # - name: Build Docker image for Azure ACR
+      #   if: ${{ inputs.provider == 'azure' }}
+      #   env:
+      #     DOCKER_BUILDKIT: ${{ inputs.enable_buildkit && '1' || '0' }}
+      #   uses: clouddrove/smurf@beta-v1.1.5
+      #   with:
+      #     tool: sdkr
+      #     command: >-
+      #       build ${{ inputs.azure_registry_name }}.azurecr.io/${{ inputs.IMAGE_NAME }}:${{ inputs.IMAGE_TAG }}
+      #       -f ${{ inputs.dockerfile_path }}
+
+      # - name: Push Docker image to Azure ACR
+      #   if: ${{ inputs.provider == 'azure' }}
+      #   env:
+      #     AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      #     AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      #     AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      #   uses: clouddrove/smurf@beta-v1.1.5
+      #   with:
+      #    tool: sdkr
+      #    command: >-
+      #       push az ${{ inputs.azure_registry_name }}.azurecr.io/${{ inputs.IMAGE_NAME }}:${{ inputs.IMAGE_TAG }}
+      #       -s ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      #       -r ${{ inputs.azure_resource_group }}
+      #       --registry-name ${{ inputs.azure_registry_name }}
+  
+...
