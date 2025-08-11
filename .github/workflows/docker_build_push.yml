@@ -1,0 +1,31 @@
+name: docker-build-push-ghcr
+
+on:
+  Push:
+    branches:
+      - feat/logs
+
+    secrets:
+      GHCR_PAT:
+        required: true
+
+jobs:
+  docker-build-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🔐 Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_PAT }}
+
+      - name: 🐳 Build & Push Docker Image
+        run: |
+          IMAGE_URI=ghcr.io/${{ github.repository_owner }}/smurf:beta
+          docker build -t $IMAGE_URI -f .
+          docker push $IMAGE_URI
