@@ -1,7 +1,7 @@
 name: docker-build-push-ghcr
 
 on:
-  Push:
+  push:
     branches:
       - feat/logs
 
@@ -22,7 +22,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GHCR_PAT }}
+          password: ${{ secrets.GHITHUB }}
 
       - name: 🐳 Build & Push Docker Image
         run: |
