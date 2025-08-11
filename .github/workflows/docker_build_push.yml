@@ -23,5 +23,5 @@ jobs:
       - name: 🐳 Build & Push Docker Image
         run: |
           IMAGE_URI=ghcr.io/${{ github.repository_owner }}/smurf:beta
-          docker build -t $IMAGE_URI -f .
+          docker build -t $IMAGE_URI .
           docker push $IMAGE_URI
