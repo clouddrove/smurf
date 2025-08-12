@@ -1,8 +1,10 @@
 name: Docker test build and push
+
 on:
   push:
     branches:
       - feat/logs
+
 jobs:
   docker-build:
     runs-on: ubuntu-latest
@@ -19,13 +21,13 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build Image
-        run: make image IMAGE=ghcr.io/${{env.REPO}}:${{ github.ref_name }}
+        run: make image IMAGE=ghcr.io/${{ env.REPO }}:${{ github.ref_name }}
 
       - name: Tag latest
-        run: docker tag ghcr.io/${{env.REPO}}:${{ github.ref_name }} ghcr.io/${{env.REPO}}:latest
+        run: docker tag ghcr.io/${{ env.REPO }}:${{ github.ref_name }} ghcr.io/${{ env.REPO }}:latest
 
       - name: Push
-        run: docker push ghcr.io/${{env.REPO}}:${{ github.ref_name }}
+        run: docker push ghcr.io/${{ env.REPO }}:${{ github.ref_name }}
 
       - name: Push Latest
-        run: docker push ghcr.io/${{env.REPO}}:latest
+        run: docker push ghcr.io/${{ env.REPO }}:latest
