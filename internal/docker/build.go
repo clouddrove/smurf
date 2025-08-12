@@ -2,11 +2,13 @@ package docker
 
 import (
 	"archive/tar"
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -14,156 +16,199 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/jsonmessage"
-	"github.com/pterm/pterm"
 )
 
-func warnIfContextLarge(contextDir string) {
-	var total int64
-	_ = filepath.Walk(contextDir, func(_ string, info os.FileInfo, err error) error {
-		if err != nil {
-			return nil
-		}
-		if !info.IsDir() {
-			total += info.Size()
-		}
-		return nil
-	})
-	sizeMB := float64(total) / (1024 * 1024)
-	pterm.Info.Printf("📦 Build context size: %.2f MB\n", sizeMB)
-	if sizeMB > 100 {
-		pterm.Warning.Println("⚠️ Build context is large. Consider using .dockerignore to exclude unnecessary files.")
-	}
+// Color functions
+func green(msg string) string  { return "\033[32m" + msg + "\033[0m" }
+func red(msg string) string    { return "\033[31m" + msg + "\033[0m" }
+func cyan(msg string) string   { return "\033[36m" + msg + "\033[0m" }
+func yellow(msg string) string { return "\033[33m" + msg + "\033[0m" }
+
+// logStep prints step info
+func logStep(num, total int, msg string) {
+	fmt.Printf("%s %s\n", cyan(fmt.Sprintf("[%d/%d]", num, total)), msg)
+}
+func logSuccess(msg string) {
+	fmt.Println(green("✅ " + msg))
+}
+func logError(msg string) {
+	fmt.Println(red("❌ " + msg))
+}
+func logInfo(msg string) {
+	fmt.Println(cyan("ℹ " + msg))
 }
 
-// Build builds a Docker image with identical output in local & CI
+// Build builds a Docker image
 func Build(imageName, tag string, opts BuildOptions) error {
-	// Make pterm CI-friendly if running in GitHub Actions
-	if os.Getenv("CI") == "true" {
-		pterm.DisableStyling()
-	}
+	totalSteps := 5
+	step := 1
 
-	start := time.Now()
-	spinner, _ := pterm.DefaultSpinner.Start("Initializing build...")
-
+	logStep(step, totalSteps, "Initializing build...")
 	ctx, cancel := context.WithTimeout(context.Background(), opts.Timeout)
 	defer cancel()
 
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	cli, err := client.NewClientWithOpts(
+		client.FromEnv,
+		client.WithAPIVersionNegotiation(),
+	)
 	if err != nil {
-		spinner.Fail()
-		return fmt.Errorf("docker client init failed: %v", err)
+		logError(fmt.Sprintf("docker client init failed: %v", err))
+		return err
 	}
 	defer cli.Close()
+	logSuccess("Docker client initialized")
+	step++
 
-	// Context size warning
-	warnIfContextLarge(opts.ContextDir)
-
-	// Prepare build context
+	logStep(step, totalSteps, "Creating build context...")
 	buildCtx, err := createTarball(opts.ContextDir, []string{".git", "node_modules"})
 	if err != nil {
-		spinner.Fail()
-		return fmt.Errorf("context creation failed: %v", err)
+		logError(fmt.Sprintf("context creation failed: %v", err))
+		return err
 	}
 	defer buildCtx.Close()
+	logSuccess("Build context created")
+	step++
 
 	relDockerfilePath, err := filepath.Rel(opts.ContextDir, opts.DockerfilePath)
 	if err != nil {
-		spinner.Fail()
-		return fmt.Errorf("invalid dockerfile path: %v", err)
+		logError(fmt.Sprintf("invalid dockerfile path: %v", err))
+		return err
 	}
 
-	buildArgsPtr := map[string]*string{}
+	buildArgsPtr := make(map[string]*string)
 	for k, v := range opts.BuildArgs {
-		val := v
-		buildArgsPtr[k] = &val
+		value := v
+		buildArgsPtr[k] = &value
+	}
+
+	platform := opts.Platform
+	if platform != "" {
+		parts := strings.Split(platform, "/")
+		if len(parts) != 2 {
+			logError(fmt.Sprintf("invalid platform format. Expected os/arch, got: %s", opts.Platform))
+			return fmt.Errorf("invalid platform format. Expected os/arch, got: %s", opts.Platform)
+		}
 	}
 
 	fullImageName := fmt.Sprintf("%s:%s", imageName, tag)
-
 	buildOptions := types.ImageBuildOptions{
-		Tags:       []string{fullImageName},
-		Dockerfile: relDockerfilePath,
-		NoCache:    opts.NoCache,
-		Remove:     true,
-		BuildArgs:  buildArgsPtr,
-		Target:     opts.Target,
-		Platform:   opts.Platform,
-		BuildID:    fmt.Sprintf("build-%d", time.Now().Unix()),
-		PullParent: true,
+		Tags:        []string{fullImageName},
+		Dockerfile:  relDockerfilePath,
+		NoCache:     opts.NoCache,
+		Remove:      true,
+		BuildArgs:   buildArgsPtr,
+		Target:      opts.Target,
+		Platform:    platform,
+		Version:     types.BuilderV1,
+		BuildID:     fmt.Sprintf("build-%d", time.Now().Unix()),
+		PullParent:  true,
+		NetworkMode: "default",
 	}
 
-	// Enable BuildKit if requested
 	if opts.BuildKit {
 		os.Setenv("DOCKER_BUILDKIT", "1")
+		buildOptions.Version = types.BuilderBuildKit
 	}
 
-	spinner.Success()
+	logStep(step, totalSteps, "Running Docker build...")
+	if opts.BuildKit {
+		args := []string{"build", "--tag", fullImageName}
+		if opts.NoCache {
+			args = append(args, "--no-cache")
+		}
+		if relDockerfilePath != "" {
+			args = append(args, "--file", relDockerfilePath)
+		}
+		for k, v := range opts.BuildArgs {
+			args = append(args, "--build-arg", fmt.Sprintf("%s=%s", k, v))
+		}
+		if opts.Target != "" {
+			args = append(args, "--target", opts.Target)
+		}
+		if platform != "" {
+			args = append(args, "--platform", platform)
+		}
+		args = append(args, opts.ContextDir)
 
-	// Start progress bar
-	progressBar, _ := pterm.DefaultProgressbar.WithTotal(100).WithTitle("Building").Start()
+		cmd := exec.Command("docker", args...)
+		cmd.Env = append(os.Environ(), "DOCKER_BUILDKIT=1")
 
-	// Use Docker API for both BuildKit & classic builds
-	resp, err := cli.ImageBuild(ctx, buildCtx, buildOptions)
-	if err != nil {
-		progressBar.Stop()
-		return fmt.Errorf("build failed: %v", err)
-	}
-	defer resp.Body.Close()
+		stdoutPipe, _ := cmd.StdoutPipe()
+		stderrPipe, _ := cmd.StderrPipe()
 
-	// Process Docker build messages
-	decoder := json.NewDecoder(resp.Body)
-	for {
-		var msg jsonmessage.JSONMessage
-		if err := decoder.Decode(&msg); err != nil {
-			if err == io.EOF {
-				break
+		if err := cmd.Start(); err != nil {
+			logError(fmt.Sprintf("failed to start build: %v", err))
+			return err
+		}
+
+		go func() {
+			scanner := bufio.NewScanner(stdoutPipe)
+			for scanner.Scan() {
+				fmt.Println(scanner.Text())
 			}
-			progressBar.Stop()
-			return fmt.Errorf("decode build output failed: %v", err)
+		}()
+		go func() {
+			scanner := bufio.NewScanner(stderrPipe)
+			for scanner.Scan() {
+				fmt.Println(scanner.Text())
+			}
+		}()
+
+		if err := cmd.Wait(); err != nil {
+			logError(fmt.Sprintf("BuildKit build failed: %v", err))
+			return err
 		}
 
-		if msg.Error != nil {
-			progressBar.Stop()
-			return fmt.Errorf("build error: %v", msg.Error)
+		logSuccess("Docker build completed successfully")
+	} else {
+		resp, err := cli.ImageBuild(ctx, buildCtx, buildOptions)
+		if err != nil {
+			logError(fmt.Sprintf("build failed: %v", err))
+			return err
 		}
+		defer resp.Body.Close()
 
-		if msg.Stream != "" {
-			if strings.HasPrefix(msg.Stream, "Step ") {
-				pterm.Info.Print(msg.Stream)
-				progressBar.Add(5)
-			} else if trimmed := strings.TrimSpace(msg.Stream); trimmed != "" {
-				pterm.Debug.Println(trimmed)
+		decoder := json.NewDecoder(resp.Body)
+		for {
+			var msg jsonmessage.JSONMessage
+			if err := decoder.Decode(&msg); err != nil {
+				if err == io.EOF {
+					break
+				}
+				return err
+			}
+			if msg.Error != nil {
+				logError(fmt.Sprintf("build error: %v", msg.Error))
+				return err
+			}
+			if msg.Stream != "" {
+				fmt.Print(msg.Stream)
 			}
 		}
-		if msg.Status != "" {
-			progressBar.Add(1)
-		}
+
+		logSuccess("Docker build completed successfully")
 	}
+	step++
 
-	progressBar.Add(100 - progressBar.Current)
-
-	// Inspect built image
+	logStep(step, totalSteps, "Inspecting image...")
 	inspect, err := cli.ImageInspect(ctx, fullImageName)
 	if err != nil {
-		return fmt.Errorf("failed to get image info: %v", err)
+		logError(fmt.Sprintf("failed to get image info: %v", err))
+		return err
 	}
 
-	panel := pterm.DefaultBox.WithTitle("Build Complete").Sprintf(` %s %s %s %s %s %s %s `,
-		pterm.FgCyan.Sprintf("✓ Image Built Successfully"),
-		pterm.FgCyan.Sprintf("Image: %s", fullImageName),
-		pterm.FgCyan.Sprintf("ID: %s", inspect.ID[:12]),
-		pterm.FgCyan.Sprintf("Size: %.2f MB", float64(inspect.Size)/1024/1024),
-		pterm.FgCyan.Sprintf("Platform: %s/%s", inspect.Os, inspect.Architecture),
-		pterm.FgCyan.Sprintf("Created: %s", inspect.Created[:19]),
-		pterm.FgCyan.Sprintf("Layers: %d", len(inspect.RootFS.Layers)),
-	)
-
-	fmt.Println(panel)
-	pterm.Info.Printf("⏱️  Total Build Duration: %s\n", time.Since(start).Round(time.Second))
+	fmt.Printf("\n%s\n", green("=== Build Summary ==="))
+	fmt.Printf("%s %s\n", cyan("Image:"), fullImageName)
+	fmt.Printf("%s %s\n", cyan("ID:"), inspect.ID[:12])
+	fmt.Printf("%s %.2f MB\n", cyan("Size:"), float64(inspect.Size)/1024/1024)
+	fmt.Printf("%s %s/%s\n", cyan("Platform:"), inspect.Os, inspect.Architecture)
+	fmt.Printf("%s %s\n", cyan("Created:"), inspect.Created[:19])
+	fmt.Printf("%s %d\n", cyan("Layers:"), len(inspect.RootFS.Layers))
+	logSuccess("Image inspection complete")
 	return nil
 }
 
-// createTarball now logs skips as debug instead of errors
+// createTarball remains unchanged
 func createTarball(srcDir string, excludePatterns []string) (io.ReadCloser, error) {
 	pr, pw := io.Pipe()
 	tw := tar.NewWriter(pw)
@@ -177,16 +222,16 @@ func createTarball(srcDir string, excludePatterns []string) (io.ReadCloser, erro
 				return err
 			}
 
-			relPath, _ := filepath.Rel(srcDir, file)
+			relPath, err := filepath.Rel(srcDir, file)
+			if err != nil {
+				return err
+			}
 
-			// Skip excluded patterns
 			for _, pattern := range excludePatterns {
 				if strings.HasPrefix(relPath, pattern) {
 					if fi.IsDir() {
-						pterm.Debug.Println("Skipping directory:", relPath)
 						return filepath.SkipDir
 					}
-					pterm.Debug.Println("Skipping file:", relPath)
 					return nil
 				}
 			}
@@ -211,12 +256,15 @@ func createTarball(srcDir string, excludePatterns []string) (io.ReadCloser, erro
 					return err
 				}
 				defer f.Close()
+
 				if _, err := io.Copy(tw, f); err != nil {
 					return err
 				}
 			}
+
 			return nil
 		})
 	}()
+
 	return pr, nil
 }
