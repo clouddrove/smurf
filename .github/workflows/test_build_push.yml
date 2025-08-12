@@ -2,9 +2,9 @@ name: Docker test build and push
 
 on:
   push:
-    branches:
-      - feat/logs
-
+env:
+  GO_VERSION: 1.24
+  REPO: ${{ github.repository }}
 jobs:
   docker-build:
     runs-on: ubuntu-latest
