@@ -1,7 +1,8 @@
-name: Release
+name: Docker test build and push
 on:
   push:
-    tags: [ v* ]
+    branches:
+      - feat/logs
 env:
   GO_VERSION: 1.24
   REPO: ${{ github.repository }}
@@ -56,50 +57,50 @@ jobs:
         retention-days: 1
         if-no-files-found: error
 
-  release:
-    runs-on: ubuntu-latest
-    needs:
-      - build
-    steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
+  # release:
+  #   runs-on: ubuntu-latest
+  #   needs:
+  #     - build
+  #   steps:
+  #   - uses: actions/checkout@v4
+  #     with:
+  #       fetch-depth: 0
 
-    - name: Download Artifacts
-      uses: actions/download-artifact@v4
-      with:
-        path: artifacts
-        pattern: artifacts-*
-        merge-multiple: true
+  #   - name: Download Artifacts
+  #     uses: actions/download-artifact@v4
+  #     with:
+  #       path: artifacts
+  #       pattern: artifacts-*
+  #       merge-multiple: true
 
-    - name: Install ChangeLog generator
-      run: |
-        wget https://github.com/git-chglog/git-chglog/releases/download/v0.15.1/git-chglog_0.15.1_linux_amd64.tar.gz
-        tar xzf git-chglog*.tar.gz git-chglog
-    - name: "Get Last Release"
-      id: last_release
-      uses: InsonusK/get-latest-release@v1.1.0
-      with:
-        myToken: ${{ github.token }}
-        exclude_types: "draft|prerelease"
+  #   - name: Install ChangeLog generator
+  #     run: |
+  #       wget https://github.com/git-chglog/git-chglog/releases/download/v0.15.1/git-chglog_0.15.1_linux_amd64.tar.gz
+  #       tar xzf git-chglog*.tar.gz git-chglog
+  #   - name: "Get Last Release"
+  #     id: last_release
+  #     uses: InsonusK/get-latest-release@v1.1.0
+  #     with:
+  #       myToken: ${{ github.token }}
+  #       exclude_types: "draft|prerelease"
 
-    - name: Generate Changelog for ${{ github.ref_name }}
-      id: generate-changelog
-      run: PATH="${PATH}:." make CHANGELOG.md
+  #   - name: Generate Changelog for ${{ github.ref_name }}
+  #     id: generate-changelog
+  #     run: PATH="${PATH}:." make CHANGELOG.md
 
-    - name: Generate checksum
-      run: |
-        cd artifacts
-        for file in *; do shasum -a 256 "$file" >> checksum.txt; done
+  #   - name: Generate checksum
+  #     run: |
+  #       cd artifacts
+  #       for file in *; do shasum -a 256 "$file" >> checksum.txt; done
     
-    - name: Create Release
-      id: create_release
-      uses: softprops/action-gh-release@v2
-      with:
-        files: |
-          ./artifacts/*
-        body_path: ./CHANGELOG.md
-        draft: false
+  #   - name: Create Release
+  #     id: create_release
+  #     uses: softprops/action-gh-release@v2
+  #     with:
+  #       files: |
+  #         ./artifacts/*
+  #       body_path: ./CHANGELOG.md
+  #       draft: false
 
   docker-build:
     runs-on: ubuntu-latest
