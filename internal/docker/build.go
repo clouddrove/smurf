@@ -90,7 +90,7 @@ func printBuildSummary(inspect types.ImageInspect, fullImageName string) {
 }
 
 func Build(imageName, tag string, opts BuildOptions) error {
-	tracker := newStepTracker(5)
+	tracker := newStepTracker(3)
 
 	tracker.logStep("Initializing build...")
 	ctx, cancel := context.WithTimeout(context.Background(), opts.Timeout)
@@ -279,14 +279,14 @@ func Build(imageName, tag string, opts BuildOptions) error {
 		tracker.completeStep(true, "Docker build completed successfully")
 	}
 
-	tracker.logStep("Inspecting image...")
+	// tracker.logStep("Inspecting image...")
 	inspect, _, err := cli.ImageInspectWithRaw(ctx, fullImageName)
 	if err != nil {
 		tracker.completeStep(false, fmt.Sprintf("Failed to inspect image: %v", err))
 		return fmt.Errorf("%v", err.Error())
 	}
 
-	tracker.completeStep(true, "Image inspection complete")
+	// tracker.completeStep(true, "Image inspection complete")
 	printBuildSummary(inspect, fullImageName)
 	fmt.Printf("\n%s\n", green("Build Completed Successfuly..."))
 	return nil
