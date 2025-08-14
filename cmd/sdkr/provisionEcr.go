@@ -87,12 +87,9 @@ var provisionEcrCmd = &cobra.Command{
 			Timeout:        time.Duration(configs.BuildTimeout) * time.Second,
 		}
 
-		pterm.Info.Println("Starting ECR build...")
 		if err := docker.Build(localImageName, localTag, buildOpts); err != nil {
-			pterm.Error.Println("Build failed:", err)
 			return fmt.Errorf("build failed: %v", err)
 		}
-		pterm.Success.Println("Build completed successfully.")
 
 		pushImage := imageRef
 		if pushImage == "" {
@@ -111,7 +108,6 @@ var provisionEcrCmd = &cobra.Command{
 		}
 
 		if accountID == "" || ecrRegionName == "" || ecrRepositoryName == "" || ecrImageTag == "" {
-			pterm.Error.Println("invalid image reference: missing account ID, region, or repository name")
 			return errors.New("invalid image reference: missing account ID, region, or repository name")
 		}
 		ecrImage := fmt.Sprintf("%s.dkr.ecr.%s.amazonaws.com/%s:%s",
@@ -119,7 +115,6 @@ var provisionEcrCmd = &cobra.Command{
 		)
 		pterm.Info.Printf("Pushing image %s to ECR...\n", pushImage)
 		if err := docker.PushImageToECR(ecrImage, ecrRegionName, ecrRepositoryName); err != nil {
-			pterm.Error.Println("Push to ECR failed:", err)
 			return err
 		}
 		pterm.Success.Println("Push to ECR completed successfully.")
