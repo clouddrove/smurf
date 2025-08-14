@@ -288,7 +288,6 @@ func Build(imageName, tag string, opts BuildOptions) error {
 
 	// tracker.completeStep(true, "Image inspection complete")
 	printBuildSummary(inspect, fullImageName)
-	fmt.Printf("\n%s\n", green("Build Completed Successfuly..."))
 	return nil
 }
 

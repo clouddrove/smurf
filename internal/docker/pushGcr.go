@@ -11,15 +11,23 @@ import (
 	"github.com/docker/docker/api/types/registry"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/jsonmessage"
-	"github.com/pterm/pterm"
 	"golang.org/x/oauth2/google"
 )
 
-// / PushImageToGCR pushes the specified Docker image to the specified Google Container Registry.
-// It authenticates with Google Cloud, retrieves the registry details and credentials, tags the image,
-// and pushes it to the registry. It displays a spinner with progress updates and prints the
-// push response messages. Upon successful completion, it prints a success message with a link
-// to the pushed image in the GCR.
+// Color codes
+const (
+	colorReset  = "\033[0m"
+	colorRed    = "\033[31m"
+	colorGreen  = "\033[32m"
+	colorYellow = "\033[33m"
+	colorBlue   = "\033[34m"
+	colorPurple = "\033[35m"
+	colorCyan   = "\033[36m"
+	colorWhite  = "\033[37m"
+)
+
+// PushImageToGCR pushes the specified Docker image to Google Container Registry
+// with enhanced colorful logging that works in both terminals and GitHub Actions.
 func PushImageToGCR(projectID, imageNameWithTag string) error {
 	ctx := context.Background()
 
@@ -31,59 +39,58 @@ func PushImageToGCR(projectID, imageNameWithTag string) error {
 		imageTag = parts[1]
 	}
 
-	spinner, _ := pterm.DefaultSpinner.Start("Authenticating with Google Cloud...")
+	printStep("Authenticating with Google Cloud...")
 	creds, err := google.FindDefaultCredentials(ctx, "https://www.googleapis.com/auth/cloud-platform")
 	if err != nil {
-		spinner.Fail("Failed to authenticate with Google Cloud\n")
+		printError("Failed to authenticate with Google Cloud")
 		return fmt.Errorf("failed to authenticate with Google Cloud: %v", err)
 	}
-	spinner.Success("Authenticated with Google Cloud\n")
+	printSuccess("Authenticated with Google Cloud")
 
-	spinner, _ = pterm.DefaultSpinner.Start("Obtaining access token...")
+	printStep("Obtaining access token...")
 	tokenSource := creds.TokenSource
 	token, err := tokenSource.Token()
 	if err != nil {
-		spinner.Fail("Failed to obtain access token\n")
+		printError("Failed to obtain access token")
 		return fmt.Errorf("failed to obtain access token: %v", err)
 	}
-	spinner.Success("Access token obtained\n")
+	printSuccess("Access token obtained")
 
-	spinner, _ = pterm.DefaultSpinner.Start("Creating Docker client...")
+	printStep("Creating Docker client...")
 	dockerClient, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
-		spinner.Fail("Failed to create Docker client\n")
+		printError("Failed to create Docker client")
 		return fmt.Errorf("failed to create Docker client: %v", err)
 	}
-	spinner.Success("Docker client created\n")
+	printSuccess("Docker client created")
 
-	spinner, _ = pterm.DefaultSpinner.Start("Tagging the image...")
+	printStep("Tagging the image...")
 	var registryHost string
 
 	// Check if the image name already includes a registry
 	if strings.Contains(imageName, "gcr.io") || strings.Contains(imageName, "docker.pkg.dev") {
-		// Use the image name as is, since it already includes a registry
+		// Use the image name as is
 		registryHost = ""
 	} else {
 		registryHost = fmt.Sprintf("gcr.io/%s/", projectID)
 	}
 
-	// Construct the proper tagged image with registry and tag
+	// Construct the proper tagged image
 	sourceImage := fmt.Sprintf("%s:%s", imageName, imageTag)
 	taggedImage := fmt.Sprintf("%s%s:%s", registryHost, imageName, imageTag)
 
-	// If the image already has a full registry path, don't prepend registryHost
 	if registryHost == "" {
 		taggedImage = sourceImage
 	}
 
 	err = dockerClient.ImageTag(ctx, sourceImage, taggedImage)
 	if err != nil {
-		spinner.Fail("Failed to tag the image\n")
+		printError("Failed to tag the image")
 		return fmt.Errorf("failed to tag the image: %v", err)
 	}
-	spinner.Success("Image tagged\n")
+	printSuccess(fmt.Sprintf("Image tagged as: %s%s%s", colorCyan, taggedImage, colorReset))
 
-	spinner, _ = pterm.DefaultSpinner.Start("Pushing the image to GCR...")
+	printStep("Pushing the image to GCR...")
 	authConfig := registry.AuthConfig{
 		Username:      "oauth2accesstoken",
 		Password:      token.AccessToken,
@@ -91,7 +98,7 @@ func PushImageToGCR(projectID, imageNameWithTag string) error {
 	}
 	encodedAuth, err := encodeAuthToBase64(authConfig)
 	if err != nil {
-		spinner.Fail("Failed to encode authentication credentials\n")
+		printError("Failed to encode authentication credentials")
 		return fmt.Errorf("failed to encode authentication credentials: %v", err)
 	}
 
@@ -101,36 +108,32 @@ func PushImageToGCR(projectID, imageNameWithTag string) error {
 
 	pushResponse, err := dockerClient.ImagePush(ctx, taggedImage, pushOptions)
 	if err != nil {
-		spinner.Fail("Failed to push the image\n")
+		printError("Failed to push the image")
 		return fmt.Errorf("failed to push the image: %v", err)
 	}
 	defer pushResponse.Close()
 
+	// Enhanced push progress with colors
+	var lastStatus string
 	dec := json.NewDecoder(pushResponse)
-	progressBar, _ := pterm.DefaultProgressbar.WithTotal(100).WithTitle("Pushing to GCR").Start()
 	for {
 		var event jsonmessage.JSONMessage
 		if err := dec.Decode(&event); err != nil {
 			if err == io.EOF {
 				break
 			}
-			spinner.Fail("Failed to read push response\n")
+			printError("Failed to read push response")
 			return fmt.Errorf("failed to read push response: %v", err)
 		}
 		if event.Error != nil {
-			spinner.Fail("Failed to push the image\n")
+			printError("Failed to push the image")
 			return fmt.Errorf("failed to push the image: %v", err)
 		}
-		if event.Progress != nil && event.Progress.Total > 0 {
-			progress := int(float64(event.Progress.Current) / float64(event.Progress.Total) * 100)
-			if progress > 100 {
-				progress = 100
-			}
-			progressBar.Add(progress - progressBar.Current)
+		if event.Status != "" && event.Status != lastStatus {
+			printProgress(event.Status)
+			lastStatus = event.Status
 		}
 	}
-	progressBar.Stop()
-	spinner.Success("Image pushed to GCR\n")
 
 	// Construct the proper console link
 	registryType := "gcr"
@@ -141,7 +144,24 @@ func PushImageToGCR(projectID, imageNameWithTag string) error {
 	link := fmt.Sprintf("https://console.cloud.google.com/%s/images/%s/%s?project=%s",
 		registryType, projectID, imageName, projectID)
 
-	pterm.Success.Printfln("Image pushed to GCR: %s\n", link)
-	pterm.Success.Printfln("Successfully pushed image '%s' to GCR\n", taggedImage)
+	printSuccess(fmt.Sprintf("Image successfully pushed to GCR: %s%s%s", colorCyan, link, colorReset))
+	fmt.Printf("::set-output name=image_url::%s\n", link) // GitHub Actions output
 	return nil
+}
+
+// Helper functions for colored output
+func printStep(message string) {
+	fmt.Printf("%s==>%s %s%s%s\n", colorBlue, colorReset, colorWhite, message, colorReset)
+}
+
+func printSuccess(message string) {
+	fmt.Printf("%s✓%s %s%s%s\n", colorGreen, colorReset, colorGreen, message, colorReset)
+}
+
+func printError(message string) {
+	fmt.Printf("%s✗%s %s%s%s\n", colorRed, colorReset, colorRed, message, colorReset)
+}
+
+func printProgress(message string) {
+	fmt.Printf("%s>%s %s%s%s\n", colorYellow, colorReset, colorYellow, message, colorReset)
 }
