@@ -125,12 +125,10 @@ Set the GOOGLE_APPLICATION_CREDENTIALS environment variable to the path of your 
 		if err := docker.Build(localImageName, localTag, buildOpts); err != nil {
 			return err
 		}
-		pterm.Success.Println("Build completed successfully.")
 
 		pushImage := fullGcrImage
 
 		if !configs.ConfirmAfterPush {
-			pterm.Info.Println("Press Enter to continue...")
 			_, _ = bufio.NewReader(os.Stdin).ReadBytes('\n')
 		}
 
@@ -138,8 +136,6 @@ Set the GOOGLE_APPLICATION_CREDENTIALS environment variable to the path of your 
 		if err := docker.PushImageToGCR(configs.ProjectID, localImageName+":"+localTag); err != nil {
 			return err
 		}
-		pterm.Success.Println("Push to GCR completed successfully.")
-
 		if configs.DeleteAfterPush {
 			pterm.Info.Printf("Deleting local image %s...\n", fullGcrImage)
 			if err := docker.RemoveImage(fullGcrImage); err != nil {
