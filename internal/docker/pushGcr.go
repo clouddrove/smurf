@@ -16,40 +16,76 @@ import (
 	"golang.org/x/oauth2/google"
 )
 
-type MinimalLogger struct {
+// Color codes
+const (
+	colorReset  = "\033[0m"
+	colorRed    = "\033[31m"
+	colorGreen  = "\033[32m"
+	colorYellow = "\033[33m"
+	colorBlue   = "\033[34m"
+	colorCyan   = "\033[36m"
+)
+
+type ColorfulLogger struct {
 	startTime time.Time
 }
 
-func NewMinimalLogger() *MinimalLogger {
-	return &MinimalLogger{startTime: time.Now()}
+func NewColorfulLogger() *ColorfulLogger {
+	return &ColorfulLogger{startTime: time.Now()}
 }
 
-func (l *MinimalLogger) log(message string) {
-	fmt.Printf("[%s] %s\n", time.Since(l.startTime).Round(time.Millisecond), message)
+func (l *ColorfulLogger) logStep(message string) {
+	fmt.Printf("%s[%s] %s %s%s%s\n",
+		colorBlue,
+		time.Since(l.startTime).Round(time.Millisecond),
+		"→",
+		colorCyan,
+		message,
+		colorReset)
+}
+
+func (l *ColorfulLogger) logSuccess(message string) {
+	fmt.Printf("%s[%s] %s %s%s%s\n",
+		colorGreen,
+		time.Since(l.startTime).Round(time.Millisecond),
+		"✓",
+		colorGreen,
+		message,
+		colorReset)
+}
+
+func (l *ColorfulLogger) logLayerPushed(layerID string) {
+	fmt.Printf("%s[%s] %s %s%s pushed%s\n",
+		colorYellow,
+		time.Since(l.startTime).Round(time.Millisecond),
+		"⬆",
+		colorCyan,
+		layerID[:12]+"...",
+		colorReset)
 }
 
 func PushImageToGCR(projectID, imageNameWithTag string) error {
-	logger := NewMinimalLogger()
+	logger := NewColorfulLogger()
 	ctx := context.Background()
 
-	logger.log("Starting image push to GCR")
+	logger.logStep("Starting image push to GCR")
 
 	// Authentication
 	creds, err := google.FindDefaultCredentials(ctx, "https://www.googleapis.com/auth/cloud-platform")
 	if err != nil {
-		return fmt.Errorf("authentication failed: %v", err)
+		return fmt.Errorf("%sauthentication failed%s: %v", colorRed, colorReset, err)
 	}
-	logger.log("Authenticated with Google Cloud")
+	logger.logSuccess("Authenticated with Google Cloud")
 
 	token, err := creds.TokenSource.Token()
 	if err != nil {
-		return fmt.Errorf("token acquisition failed: %v", err)
+		return fmt.Errorf("%stoken acquisition failed%s: %v", colorRed, colorReset, err)
 	}
 
 	// Docker client
 	dockerClient, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
-		return fmt.Errorf("docker client creation failed: %v", err)
+		return fmt.Errorf("%sdocker client creation failed%s: %v", colorRed, colorReset, err)
 	}
 
 	// Image tagging
@@ -65,9 +101,9 @@ func PushImageToGCR(projectID, imageNameWithTag string) error {
 	}
 
 	if err := dockerClient.ImageTag(ctx, imageNameWithTag, taggedImage); err != nil {
-		return fmt.Errorf("image tagging failed: %v", err)
+		return fmt.Errorf("%simage tagging failed%s: %v", colorRed, colorReset, err)
 	}
-	logger.log(fmt.Sprintf("Tagged image: %s", taggedImage))
+	logger.logSuccess(fmt.Sprintf("Tagged image: %s%s%s", colorCyan, taggedImage, colorReset))
 
 	// Image push
 	authConfig := registry.AuthConfig{
@@ -77,18 +113,18 @@ func PushImageToGCR(projectID, imageNameWithTag string) error {
 	}
 	encodedAuth, err := encodeAuthToBase64(authConfig)
 	if err != nil {
-		return fmt.Errorf("auth encoding failed: %v", err)
+		return fmt.Errorf("%sauth encoding failed%s: %v", colorRed, colorReset, err)
 	}
 
 	pushResponse, err := dockerClient.ImagePush(ctx, taggedImage, image.PushOptions{
 		RegistryAuth: encodedAuth,
 	})
 	if err != nil {
-		return fmt.Errorf("push failed: %v", err)
+		return fmt.Errorf("%spush failed%s: %v", colorRed, colorReset, err)
 	}
 	defer pushResponse.Close()
 
-	logger.log("Starting image push")
+	logger.logStep("Starting image push")
 	dec := json.NewDecoder(pushResponse)
 	for {
 		var event jsonmessage.JSONMessage
@@ -96,15 +132,15 @@ func PushImageToGCR(projectID, imageNameWithTag string) error {
 			if err == io.EOF {
 				break
 			}
-			return fmt.Errorf("push response failed: %v", err)
+			return fmt.Errorf("%spush response failed%s: %v", colorRed, colorReset, err)
 		}
 		if event.Error != nil {
-			return fmt.Errorf("push failed: %v", event.Error)
+			return fmt.Errorf("%spush failed%s: %v", colorRed, colorReset, event.Error)
 		}
 
 		// Only log when a layer is fully pushed
-		if event.Status == "Pushed" {
-			logger.log(fmt.Sprintf("Layer %s pushed", event.ID[:12]+"..."))
+		if event.Status == "Pushed" && event.ID != "" {
+			logger.logLayerPushed(event.ID)
 		}
 	}
 
@@ -124,9 +160,9 @@ func PushImageToGCR(projectID, imageNameWithTag string) error {
 		}
 	}
 
-	logger.log("Image pushed successfully")
-	logger.log(fmt.Sprintf("View in console: %s", link))
-	logger.log(fmt.Sprintf("Image reference: %s", taggedImage))
+	logger.logSuccess("Image pushed successfully")
+	logger.logSuccess(fmt.Sprintf("View in console: %s%s%s", colorCyan, link, colorReset))
+	logger.logSuccess(fmt.Sprintf("Image reference: %s%s%s", colorCyan, taggedImage, colorReset))
 
 	return nil
 }
