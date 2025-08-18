@@ -1094,92 +1094,101 @@ func getExternalIP(svc *corev1.Service) string {
 func printResourcesFromReleaseUP(rel *release.Release) {
 	resources, err := parseResourcesFromManifest(rel.Manifest)
 	if err != nil {
-		pterm.Error.Println("Error parsing manifest:", err)
+		pterm.Error.Println("✖ Error parsing manifest:", err)
 		return
 	}
 
 	if len(resources) == 0 {
-		pterm.Println("No Kubernetes resources were created by this release.")
+		pterm.Println("ℹ No Kubernetes resources were created by this release")
 		return
 	}
 
-	// Print resources section
-	pterm.Println("\nRELEASE RESOURCES")
-	pterm.Println("────────────────")
+	// Print resources section header
+	pterm.Println("┌───────────────────────┐")
+	pterm.Println("│     RELEASE RESOURCES │")
+	pterm.Println("└───────────────────────┘")
+	pterm.Println("✔ Kubernetes client connected\n")
 
 	clientset, getClientErr := getKubeClient()
 	if getClientErr != nil {
-		pterm.Error.Println("Error getting kube client:", getClientErr)
-		pterm.Println("\nResources in release:")
+		pterm.Error.Println("✖ Error getting kube client:", getClientErr)
+
+		// Fallback table
+		pterm.Println("\n┌───────────────────────────────┐")
+		pterm.Println("│ Resources in this release     │")
+		pterm.Println("├───────────────┬───────────────┤")
+		pterm.Println("│ Kind          │ Name          │")
+		pterm.Println("├───────────────┼───────────────┤")
 		for _, r := range resources {
-			pterm.Println("-", r.Kind+"/"+r.Name)
+			pterm.Printf("│ %-13s │ %-13s │\n", r.Kind, r.Name)
 		}
+		pterm.Println("└───────────────┴───────────────┘")
 		return
 	}
 
-	pterm.Println("Kubernetes client connected successfully\n")
-
-	// Print each resource with clean vertical layout
+	// Print each resource in table format
 	for _, r := range resources {
-		pterm.Println(r.Kind + "/" + r.Name)
-		pterm.Println("────────────────")
+		pterm.Println("\n┌──────────────────────────────────────┐")
+		pterm.Printf("│ %-20s %-15s │\n", r.Kind+":", r.Name)
+		pterm.Println("├───────────────────┬──────────────────┤")
 
 		switch r.Kind {
 		case "ServiceAccount":
 			sa, err := clientset.CoreV1().ServiceAccounts(rel.Namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
 			if err != nil {
-				pterm.Error.Println("Failed to get details:", err)
+				pterm.Error.Println("✖ Failed to get details:", err)
 				continue
 			}
 
-			pterm.Println("Namespace:   ", rel.Namespace)
-			pterm.Println("Created:     ", sa.CreationTimestamp.Format("2006-01-02 15:04:05"))
-			pterm.Println("Secrets:     ", len(sa.Secrets))
-			pterm.Println()
+			printTableRow("Namespace", rel.Namespace)
+			printTableRow("Created", sa.CreationTimestamp.Format("2006-01-02 15:04:05"))
+			printTableRow("Secrets", fmt.Sprint(len(sa.Secrets)))
 
 		case "Service":
 			svc, err := clientset.CoreV1().Services(rel.Namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
 			if err != nil {
-				pterm.Error.Println("Failed to get details:", err)
+				pterm.Error.Println("✖ Failed to get details:", err)
 				continue
 			}
 
-			pterm.Println("Namespace:   ", rel.Namespace)
-			pterm.Println("Type:        ", string(svc.Spec.Type))
-			pterm.Println("Cluster IP:  ", svc.Spec.ClusterIP)
-			pterm.Println("External IP: ", getExternalIP(svc))
-			pterm.Println("Created:     ", svc.CreationTimestamp.Format("2006-01-02 15:04:05"))
+			printTableRow("Namespace", rel.Namespace)
+			printTableRow("Type", string(svc.Spec.Type))
+			printTableRow("Cluster IP", svc.Spec.ClusterIP)
+			printTableRow("External IP", getExternalIP(svc))
+			printTableRow("Created", svc.CreationTimestamp.Format("2006-01-02 15:04:05"))
 
 			if len(svc.Spec.Ports) > 0 {
-				pterm.Println("\nPorts:")
-				for _, p := range svc.Spec.Ports {
-					portInfo := fmt.Sprintf("- %d/%s → %s", p.Port, p.Protocol, p.TargetPort.String())
+				pterm.Println("├───────────────────┼──────────────────┤")
+				pterm.Println("│ Ports             │                  │")
+				for i, p := range svc.Spec.Ports {
+					if i > 0 {
+						pterm.Println("│                   │                  │")
+					}
+					portInfo := fmt.Sprintf("%d/%s → %s", p.Port, p.Protocol, p.TargetPort.String())
 					if p.NodePort > 0 {
 						portInfo += fmt.Sprintf(" (NodePort: %d)", p.NodePort)
 					}
-					pterm.Println(portInfo)
+					pterm.Printf("│                   │ %-16s │\n", portInfo)
 				}
 			}
-			pterm.Println()
 
 		case "Deployment":
 			dep, err := clientset.AppsV1().Deployments(rel.Namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
 			if err != nil {
-				pterm.Error.Println("Failed to get details:", err)
+				pterm.Error.Println("✖ Failed to get details:", err)
 				continue
 			}
 
-			pterm.Println("Namespace:   ", rel.Namespace)
-			pterm.Println("Created:     ", dep.CreationTimestamp.Format("2006-01-02 15:04:05"))
-			pterm.Println("Replicas:    ", fmt.Sprintf("%d desired | %d current | %d ready",
+			printTableRow("Namespace", rel.Namespace)
+			printTableRow("Created", dep.CreationTimestamp.Format("2006-01-02 15:04:05"))
+			printTableRow("Replicas", fmt.Sprintf("%d desired | %d current | %d ready",
 				*dep.Spec.Replicas, dep.Status.Replicas, dep.Status.ReadyReplicas))
-			pterm.Println("Strategy:    ", string(dep.Spec.Strategy.Type))
-			pterm.Println()
+			printTableRow("Strategy", string(dep.Spec.Strategy.Type))
 
 		case "Pod":
 			pod, err := clientset.CoreV1().Pods(rel.Namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
 			if err != nil {
-				pterm.Error.Println("Failed to get details:", err)
+				pterm.Error.Println("✖ Failed to get details:", err)
 				continue
 			}
 
@@ -1191,52 +1200,77 @@ func printResourcesFromReleaseUP(rel *release.Release) {
 				}
 			}
 
-			pterm.Println("Namespace:   ", pod.Namespace)
-			pterm.Println("Status:      ", string(pod.Status.Phase))
-			pterm.Println("Ready:       ", fmt.Sprintf("%v", ready))
-			pterm.Println("Node:        ", pod.Spec.NodeName)
-			pterm.Println("IP:          ", pod.Status.PodIP)
-			pterm.Println("Created:     ", pod.CreationTimestamp.Format("2006-01-02 15:04:05"))
+			statusSymbol := "●"
+			if pod.Status.Phase == corev1.PodRunning {
+				statusSymbol = "✔"
+			} else if pod.Status.Phase == corev1.PodFailed {
+				statusSymbol = "✖"
+			}
+
+			printTableRow("Namespace", pod.Namespace)
+			printTableRow("Status", fmt.Sprintf("%s %s", statusSymbol, string(pod.Status.Phase)))
+			printTableRow("Ready", fmt.Sprintf("%v", ready))
+			printTableRow("Node", pod.Spec.NodeName)
+			printTableRow("IP", pod.Status.PodIP)
+			printTableRow("Created", pod.CreationTimestamp.Format("2006-01-02 15:04:05"))
 
 			if len(pod.Status.ContainerStatuses) > 0 {
-				pterm.Println("\nContainers:")
+				pterm.Println("├───────────────────┼──────────────────┤")
+				pterm.Println("│ Containers        │                  │")
 				for _, cs := range pod.Status.ContainerStatuses {
-					pterm.Println("-", cs.Name)
-					pterm.Println("  Image:    ", cs.Image)
-					pterm.Println("  State:    ", getContainerState(cs))
-					pterm.Println("  Ready:    ", cs.Ready)
-					pterm.Println("  Restarts: ", cs.RestartCount)
+					pterm.Println("├───────────────────┼──────────────────┤")
+					pterm.Printf("│ %-17s │ %-16s │\n", "  Name:", cs.Name)
+					printTableRow("  Image", cs.Image)
+
+					stateSymbol := "●"
+					stateText := getContainerState(cs)
+					if strings.Contains(stateText, "Running") {
+						stateSymbol = "✔"
+					} else if strings.Contains(stateText, "Waiting") || strings.Contains(stateText, "Terminated") {
+						stateSymbol = "⚠"
+					}
+
+					printTableRow("  State", fmt.Sprintf("%s %s", stateSymbol, stateText))
+					printTableRow("  Ready", fmt.Sprintf("%v", cs.Ready))
+
+					restartSymbol := "↻"
+					if cs.RestartCount > 0 {
+						restartSymbol = fmt.Sprintf("⚠ (%d)", cs.RestartCount)
+					}
+					printTableRow("  Restarts", restartSymbol)
 				}
 			}
-			pterm.Println()
 
 		default:
-			pterm.Println("Namespace:   ", rel.Namespace)
-			pterm.Println("No detailed view available for", r.Kind, "resources")
-			pterm.Println()
+			printTableRow("Namespace", rel.Namespace)
+			printTableRow("Details", fmt.Sprintf("No detailed view for %s", r.Kind))
 		}
+
+		pterm.Println("└───────────────────┴──────────────────┘")
 	}
 
-	// Print associated pods
-	pterm.Println("ASSOCIATED PODS")
-	pterm.Println("──────────────")
+	// Print associated pods section
+	pterm.Println("\n┌───────────────────────┐")
+	pterm.Println("│     ASSOCIATED PODS   │")
+	pterm.Println("└───────────────────────┘")
 
 	podList, err := clientset.CoreV1().Pods(rel.Namespace).List(context.Background(), metav1.ListOptions{
 		LabelSelector: fmt.Sprintf("app.kubernetes.io/instance=%s", rel.Name),
 	})
 	if err != nil {
-		pterm.Error.Println("Error listing pods:", err)
+		pterm.Error.Println("✖ Error listing pods:", err)
 		return
 	}
 
 	if len(podList.Items) == 0 {
-		pterm.Println("No pods found for this release")
+		pterm.Println("ℹ No pods found for this release")
 		return
 	}
 
 	for _, pod := range podList.Items {
-		pterm.Println(pod.Name)
-		pterm.Println("────────────────")
+		pterm.Println("\n┌──────────────────────────────────────┐")
+		pterm.Printf("│ Pod: %-30s │\n", pod.Name)
+		pterm.Println("├───────────────────┬──────────────────┤")
 
 		ready := false
 		for _, cond := range pod.Status.Conditions {
@@ -1246,21 +1280,44 @@ func printResourcesFromReleaseUP(rel *release.Release) {
 			}
 		}
 
-		pterm.Println("Namespace:   ", pod.Namespace)
-		pterm.Println("Status:      ", string(pod.Status.Phase))
-		pterm.Println("Ready:       ", fmt.Sprintf("%v", ready))
-		pterm.Println("Node:        ", pod.Spec.NodeName)
-		pterm.Println("IP:          ", pod.Status.PodIP)
-		pterm.Println("Created:     ", pod.CreationTimestamp.Format("2006-01-02 15:04:05"))
+		statusSymbol := "●"
+		if pod.Status.Phase == corev1.PodRunning {
+			statusSymbol = "✔"
+		} else if pod.Status.Phase == corev1.PodFailed {
+			statusSymbol = "✖"
+		}
+
+		printTableRow("Namespace", pod.Namespace)
+		printTableRow("Status", fmt.Sprintf("%s %s", statusSymbol, string(pod.Status.Phase)))
+		printTableRow("Ready", fmt.Sprintf("%v", ready))
+		printTableRow("Node", pod.Spec.NodeName)
+		printTableRow("IP", pod.Status.PodIP)
+		printTableRow("Created", pod.CreationTimestamp.Format("2006-01-02 15:04:05"))
 
 		if len(pod.Status.ContainerStatuses) > 0 {
-			pterm.Println("\nContainers:")
+			pterm.Println("├───────────────────┼──────────────────┤")
+			pterm.Println("│ Containers        │                  │")
 			for _, cs := range pod.Status.ContainerStatuses {
-				pterm.Println("-", cs.Name)
-				pterm.Println("  Image:    ", cs.Image)
-				pterm.Println("  State:    ", getContainerState(cs))
-				pterm.Println("  Ready:    ", cs.Ready)
-				pterm.Println("  Restarts: ", cs.RestartCount)
+				pterm.Println("├───────────────────┼──────────────────┤")
+				pterm.Printf("│ %-17s │ %-16s │\n", "  Name:", cs.Name)
+				printTableRow("  Image", cs.Image)
+
+				stateSymbol := "●"
+				stateText := getContainerState(cs)
+				if strings.Contains(stateText, "Running") {
+					stateSymbol = "✔"
+				} else if strings.Contains(stateText, "Waiting") || strings.Contains(stateText, "Terminated") {
+					stateSymbol = "⚠"
+				}
+
+				printTableRow("  State", fmt.Sprintf("%s %s", stateSymbol, stateText))
+				printTableRow("  Ready", fmt.Sprintf("%v", cs.Ready))
+
+				restartSymbol := "↻"
+				if cs.RestartCount > 0 {
+					restartSymbol = fmt.Sprintf("⚠ (%d)", cs.RestartCount)
+				}
+				printTableRow("  Restarts", restartSymbol)
 			}
 		}
 
@@ -1269,14 +1326,26 @@ func printResourcesFromReleaseUP(rel *release.Release) {
 			FieldSelector: fmt.Sprintf("involvedObject.name=%s", pod.Name),
 		})
 		if err == nil && len(evts.Items) > 0 {
-			pterm.Println("\nRecent Events:")
-			for _, evt := range evts.Items {
-				pterm.Println("-", evt.LastTimestamp.Format("15:04:05"),
-					string(evt.Type)+":", evt.Message)
+			pterm.Println("├───────────────────┼──────────────────┤")
+			pterm.Println("│ Recent Events     │                  │")
+			for i, evt := range evts.Items {
+				if i > 2 { // Show only last 3 events
+					break
+				}
+				pterm.Println("├───────────────────┼──────────────────┤")
+				pterm.Printf("│ %-17s │ %-16s │\n",
+					evt.LastTimestamp.Format("15:04:05"),
+					fmt.Sprintf("%s: %s", evt.Reason, shortenMessage(evt.Message, 16)))
 			}
 		}
-		pterm.Println()
+
+		pterm.Println("└───────────────────┴──────────────────┘")
 	}
+}
+
+// Helper function to print table rows
+func printTableRow(key, value string) {
+	pterm.Printf("│ %-17s │ %-16s │\n", key+":", value)
 }
 
 func getContainerState(cs corev1.ContainerStatus) string {
@@ -1288,7 +1357,14 @@ func getContainerState(cs corev1.ContainerStatus) string {
 	}
 	if cs.State.Running != nil {
 		return fmt.Sprintf("Running (since %s)",
-			cs.State.Running.StartedAt.Format("2006-01-02 15:04:05"))
+			cs.State.Running.StartedAt.Format("15:04:05"))
 	}
 	return "Unknown"
+}
+
+func shortenMessage(msg string, max int) string {
+	if len(msg) <= max {
+		return msg
+	}
+	return msg[:max-3] + "..."
 }
