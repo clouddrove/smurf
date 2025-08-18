@@ -78,7 +78,7 @@ func HelmInstall(
 	}
 
 	printReleaseInfo(rel, debug)
-	printResourcesFromReleaseUP(rel)
+	printResourcesFromRelease(rel)
 
 	err = monitorResources(rel, namespace, client.Timeout)
 	if err != nil {

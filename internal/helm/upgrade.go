@@ -24,8 +24,6 @@ import (
 // Detailed error logging is performed if any step fails.
 func HelmUpgrade(releaseName, chartRef, namespace string, setValues []string, valuesFiles []string, setLiteral []string, createNamespace, atomic bool, timeout time.Duration, debug bool, repoURL string, version string) error {
 	startTime := time.Now()
-	logOperation(debug, "Starting Helm upgrade for release %s in namespace %s", releaseName, namespace)
-
 	// Handle namespace creation separately since Upgrade doesn't have CreateNamespace
 	// Handle namespace creation first
 	if createNamespace {
@@ -107,7 +105,7 @@ func HelmUpgrade(releaseName, chartRef, namespace string, setValues []string, va
 
 	pterm.Success.Printf("Release %q successfully upgraded in %s\n", rel.Name, time.Since(startTime))
 	printReleaseInfo(rel, debug)
-	printResourcesFromReleaseUP(rel)
+	printResourcesFromRelease(rel)
 	return nil
 }
 
@@ -151,21 +149,18 @@ func verifyReleaseExists(actionConfig *action.Configuration, releaseName, namesp
 
 // Load chart from path or repo
 func loadChart(chartRef string, debug bool) (*chart.Chart, error) {
-	logOperation(debug, "Resolving chart path: %s", chartRef)
 	absPath, err := filepath.Abs(chartRef)
 	if err != nil {
 		logOperation(debug, "Path resolution failed: %v", err)
 		return nil, fmt.Errorf("failed to resolve chart path: %w", err)
 	}
-	logOperation(debug, "Absolute chart path: %s", absPath)
 
 	chart, err := loader.Load(absPath)
 	if err != nil {
 		logOperation(debug, "Chart loading failed: %v", err)
 		return nil, err
 	}
-	logOperation(debug, "Chart metadata loaded - Name: %s, Version: %s",
-		chart.Metadata.Name, chart.Metadata.Version)
+
 	return chart, nil
 }
 
@@ -175,15 +170,13 @@ func loadChart(chartRef string, debug bool) (*chart.Chart, error) {
 // loadAndMergeValuesWithSets loads values from the specified files and merges them with the set values.
 // It properly handles relative paths for nested values files.
 func loadAndMergeValuesWithSets(valuesFiles, setValues, setLiteralValues []string, debug bool) (map[string]interface{}, error) {
-	logOperation(debug, "Starting values files processing")
 	resolvedFiles, err := resolveValuesPaths(valuesFiles, debug)
 	if err != nil {
 		return nil, err
 	}
 
 	vals := make(map[string]interface{})
-	for i, f := range resolvedFiles {
-		logOperation(debug, "Processing values file %d/%d: %s", i+1, len(resolvedFiles), f)
+	for _, f := range resolvedFiles {
 		currentVals, err := chartutil.ReadValuesFile(f)
 		if err != nil {
 			logOperation(debug, "Error reading values file: %v", err)
@@ -193,7 +186,6 @@ func loadAndMergeValuesWithSets(valuesFiles, setValues, setLiteralValues []strin
 	}
 
 	for _, set := range setValues {
-		logOperation(debug, "Applying --set value: %s", set)
 		if err := strvals.ParseInto(set, vals); err != nil {
 			logOperation(debug, "Error parsing --set value: %v", err)
 			return nil, fmt.Errorf("invalid --set value %s: %w", set, err)
@@ -201,14 +193,12 @@ func loadAndMergeValuesWithSets(valuesFiles, setValues, setLiteralValues []strin
 	}
 
 	for _, setLiteral := range setLiteralValues {
-		logOperation(debug, "Applying --set-literal value: %s", setLiteral)
 		if err := strvals.ParseIntoString(setLiteral, vals); err != nil {
 			logOperation(debug, "Error parsing --set-literal value: %v", err)
 			return nil, fmt.Errorf("invalid --set-literal value %s: %w", setLiteral, err)
 		}
 	}
 
-	logOperation(debug, "Successfully merged all values")
 	return vals, nil
 }
 
