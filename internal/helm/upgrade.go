@@ -107,7 +107,7 @@ func HelmUpgrade(releaseName, chartRef, namespace string, setValues []string, va
 
 	pterm.Success.Printf("Release %q successfully upgraded in %s\n", rel.Name, time.Since(startTime))
 	printReleaseInfo(rel, debug)
-	printResourcesFromReleaseNew(rel)
+	printResourcesFromReleaseUP(rel)
 	return nil
 }
 
