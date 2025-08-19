@@ -16,11 +16,6 @@ var (
 	installIfNotPresent bool
 )
 
-// upgradeCmd facilitates upgrading an existing Helm release or installing it if it's not present
-// (depending on the `--install` flag). It supports specifying a custom namespace, waiting for
-// resources to become ready (`--atomic`), setting arbitrary values (`--set` and `--values`),
-// and other typical Helm upgrade options. If no arguments are provided, it attempts to read
-// settings from the config file.
 var upgradeCmd = &cobra.Command{
 	Use:   "upgrade [NAME] [CHART]",
 	Short: "Upgrade a deployed Helm chart.",
@@ -67,20 +62,49 @@ var upgradeCmd = &cobra.Command{
 
 		timeoutDuration := time.Duration(configs.Timeout) * time.Second
 
+		if configs.Namespace == "" {
+			configs.Namespace = "default"
+		}
+
+		if configs.Debug {
+			pterm.EnableDebugMessages()
+			pterm.Debug.Printfln("Starting Helm upgrade with configuration:")
+			pterm.Debug.Printfln("  Release: %s", releaseName)
+			pterm.Debug.Printfln("  Chart: %s", chartPath)
+			pterm.Debug.Printfln("  Namespace: %s", configs.Namespace)
+			pterm.Debug.Printfln("  Timeout: %v", timeoutDuration)
+			pterm.Debug.Printfln("  Values files: %v", configs.File)
+			pterm.Debug.Printfln("  Set values: %v", configs.Set)
+			pterm.Debug.Printfln("  Set literal values: %v", configs.SetLiteral)
+			pterm.Debug.Printfln("  Repo URL: %s", RepoURL)
+			pterm.Debug.Printfln("  Version: %s", Version)
+			pterm.Debug.Printfln("  Create namespace: %v", createNamespace)
+			pterm.Debug.Printfln("  Install if not present: %v", installIfNotPresent)
+			pterm.Debug.Printfln("  Atomic: %v", configs.Atomic)
+		}
+
+		// Check if release exists and handle install if not present
 		if installIfNotPresent {
 			exists, err := helm.HelmReleaseExists(releaseName, configs.Namespace)
 			if err != nil {
+				if configs.Debug {
+					pterm.Debug.Printfln("Error checking release existence: %v", err)
+				}
 				return err
 			}
 			if !exists {
-				if err := helm.HelmInstall(releaseName, chartPath, configs.Namespace, configs.File, timeoutDuration, configs.Atomic, configs.Debug, configs.Set, []string{}, RepoURL, Version); err != nil {
+				if configs.Debug {
+					pterm.Debug.Printfln("Release not found, performing installation...")
+				}
+				if err := helm.HelmInstall(releaseName, chartPath, configs.Namespace, configs.File, timeoutDuration, configs.Atomic, configs.Debug, configs.Set, configs.SetLiteral, RepoURL, Version); err != nil {
 					return err
 				}
+				pterm.Success.Printfln("Release '%s' installed successfully", releaseName)
+				return nil
 			}
-		}
-
-		if configs.Namespace == "" {
-			configs.Namespace = "default"
+			if configs.Debug {
+				pterm.Debug.Printfln("Release exists, proceeding with upgrade")
+			}
 		}
 
 		err := helm.HelmUpgrade(
@@ -89,7 +113,7 @@ var upgradeCmd = &cobra.Command{
 			configs.Namespace,
 			configs.Set,
 			configs.File,
-			[]string{},
+			configs.SetLiteral,
 			createNamespace,
 			configs.Atomic,
 			timeoutDuration,
@@ -101,32 +125,32 @@ var upgradeCmd = &cobra.Command{
 			return err
 		}
 
-		pterm.Success.Println("Helm chart upgraded successfully.")
+		pterm.Success.Printfln("Release '%s' upgraded successfully", releaseName)
 		return nil
 	},
 	Example: `
-smurf selm upgrade my-release ./mychart
-smurf selm upgrade my-release ./mychart -n my-namespace
-smurf selm upgrade my-release ./mychart --set key1=val1,key2=val2
-smurf selm upgrade my-release ./mychart -f values.yaml --timeout 600 --atomic --debug --install
-smurf selm upgrade my-release ./mychart --repo-url https://charts.example.com --version 1.2.3
-smurf selm upgrade my-release ./mychart --set key1=val1 --set key2=val2
-smurf selm upgrade my-release ./mychart --set-literal myPassword='MySecurePass!'
-smurf selm upgrade
-# In the last example, it will read RELEASE and CHART from the config file
-`,
+	smurf selm upgrade my-release ./mychart
+	smurf selm upgrade my-release ./mychart -n my-namespace
+	smurf selm upgrade my-release ./mychart --set key1=val1,key2=val2
+	smurf selm upgrade my-release ./mychart -f values.yaml --timeout 600 --atomic --debug --install
+	smurf selm upgrade my-release ./mychart --repo-url https://charts.example.com --version 1.2.3
+	smurf selm upgrade my-release ./mychart --set key1=val1 --set key2=val2
+	smurf selm upgrade my-release ./mychart --set-literal myPassword='MySecurePass!'
+	smurf selm upgrade
+	# In the last example, it will read RELEASE and CHART from the config file
+	`,
 }
 
 func init() {
-	upgradeCmd.Flags().StringSliceVar(&configs.Set, "set", []string{}, "Set values on the command line (can specify multiple or separate values with commas: key1=val1,key2=val2)")
-	upgradeCmd.Flags().StringSliceVar(&configs.SetLiteral, "set-literal", []string{}, "Set literal values on the command line (values are always treated as strings)")
-	upgradeCmd.Flags().StringSliceVarP(&configs.File, "values", "f", []string{}, "Specify values in a YAML file (can specify multiple)")
-	upgradeCmd.Flags().StringVarP(&configs.Namespace, "namespace", "n", "default", "Specify the namespace to install the release into")
+	upgradeCmd.Flags().StringSliceVar(&configs.Set, "set", []string{}, "Set values on the command line")
+	upgradeCmd.Flags().StringSliceVar(&configs.SetLiteral, "set-literal", []string{}, "Set literal values on the command line")
+	upgradeCmd.Flags().StringSliceVarP(&configs.File, "values", "f", []string{}, "Specify values in a YAML file")
+	upgradeCmd.Flags().StringVarP(&configs.Namespace, "namespace", "n", "default", "Specify the namespace")
 	upgradeCmd.Flags().BoolVar(&createNamespace, "create-namespace", false, "Create the namespace if it does not exist")
-	upgradeCmd.Flags().BoolVar(&configs.Atomic, "atomic", false, "If set, the installation process purges the chart on fail, the upgrade process rolls back changes, and the upgrade process waits for the resources to be ready")
-	upgradeCmd.Flags().IntVar(&configs.Timeout, "timeout", 150, "Time to wait for any individual Kubernetes operation (like Jobs for hooks)")
+	upgradeCmd.Flags().BoolVar(&configs.Atomic, "atomic", false, "Roll back changes on failure")
+	upgradeCmd.Flags().IntVar(&configs.Timeout, "timeout", 150, "Timeout for Kubernetes operations")
 	upgradeCmd.Flags().BoolVar(&configs.Debug, "debug", false, "Enable verbose output")
-	upgradeCmd.Flags().BoolVar(&installIfNotPresent, "install", false, "Install the chart if it is not already installed")
+	upgradeCmd.Flags().BoolVar(&installIfNotPresent, "install", false, "Install if not present")
 	upgradeCmd.Flags().StringVar(&RepoURL, "repo-url", "", "Helm repository URL")
 	upgradeCmd.Flags().StringVar(&Version, "version", "", "Helm chart version")
 	selmCmd.AddCommand(upgradeCmd)

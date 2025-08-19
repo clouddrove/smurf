@@ -81,37 +81,58 @@ func logOperation(debug bool, operation string, args ...interface{}) {
 	}
 }
 
-func ensureNamespace(namespace string, create bool) error {
+func ensureNamespace(namespace string, create, debug bool) error {
+	if debug {
+		pterm.Debug.Printfln("Checking namespace: %s (create=%v)", namespace, create)
+	}
+
 	clientset, err := getKubeClient()
 	if err != nil {
-		return err
+		if debug {
+			pterm.Debug.Printfln("Failed to get Kubernetes client: %v", err)
+		}
+		return fmt.Errorf("failed to get kube client: %w", err)
 	}
 
 	_, err = clientset.CoreV1().Namespaces().Get(context.Background(), namespace, metav1.GetOptions{})
 	if err == nil {
-		pterm.Success.Sprintf("Namespace '%s' already exists.\n", namespace)
+		if debug {
+			pterm.Debug.Printfln("Namespace %s already exists", namespace)
+		}
 		return nil
 	}
+
 	if apierrors.IsNotFound(err) {
 		if create {
+			if debug {
+				pterm.Debug.Printfln("Creating namespace: %s", namespace)
+			}
 			ns := &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{Name: namespace},
 			}
 			_, err = clientset.CoreV1().Namespaces().Create(context.Background(), ns, metav1.CreateOptions{})
 			if err != nil {
-				pterm.Error.Printf("Failed to create namespace '%s': %v\n", namespace, err)
-				return fmt.Errorf("failed to create namespace '%s': %v", namespace, err)
+				if debug {
+					pterm.Debug.Printfln("Namespace creation failed: %v", err)
+				}
+				return fmt.Errorf("failed to create namespace '%s': %w", namespace, err)
 			}
-			pterm.Success.Printf("Namespace '%s' created successfully.\n", namespace)
+			if debug {
+				pterm.Debug.Printfln("Namespace created successfully")
+			}
 			return nil
 		}
-		pterm.Error.Printf("namespace '%v' does not exist and was not created\n", namespace)
-		return fmt.Errorf("namespace '%s' does not exist and was not created", namespace)
+
+		if debug {
+			pterm.Debug.Printfln("Namespace doesn't exist and create=false")
+		}
+		return fmt.Errorf("namespace '%s' does not exist", namespace)
 	}
 
-	// Unknown error
-	pterm.Error.Printf("namespace '%v' does not exist and was not created\n", namespace)
-	return fmt.Errorf("error checking namespace '%s': %v", namespace, err)
+	if debug {
+		pterm.Debug.Printfln("Unexpected error checking namespace: %v", err)
+	}
+	return fmt.Errorf("error checking namespace '%s': %w", namespace, err)
 }
 
 func mergeMaps(a, b map[string]interface{}) map[string]interface{} {
@@ -229,38 +250,86 @@ func parseResourcesFromManifest(manifest string) ([]Resource, error) {
 // monitorResources monitors the resources created by the Helm release until they are all ready.
 // It checks the status of the resources in the Kubernetes API and waits until they are all ready.
 // The function returns an error if the resources are not ready within the specified timeout.
-func monitorResources(rel *release.Release, namespace string, timeout time.Duration) (err error) {
-	resources, err := parseResourcesFromManifest(rel.Manifest)
-	if err != nil {
-		return err
+func monitorResources(rel *release.Release, namespace string, timeout time.Duration, debug bool) error {
+	if debug {
+		pterm.Debug.Println("Starting resource monitoring...")
 	}
 
 	clientset, err := getKubeClient()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get kube client: %w", err)
 	}
 
-	spinner, _ := pterm.DefaultSpinner.Start("Checking resource readiness... \n")
-	defer spinner.Stop()
+	// Parse the release manifest to get all resources
+	manifests := strings.Split(rel.Manifest, "\n---\n")
+	resources := make([]map[string]interface{}, 0)
 
-	deadline := time.Now().Add(timeout)
+	for _, manifest := range manifests {
+		if strings.TrimSpace(manifest) == "" {
+			continue
+		}
+
+		var obj map[string]interface{}
+		if err := yaml.Unmarshal([]byte(manifest), &obj); err != nil {
+			if debug {
+				pterm.Debug.Printfln("Failed to parse manifest: %v", err)
+			}
+			continue
+		}
+		resources = append(resources, obj)
+	}
+
+	if debug {
+		pterm.Debug.Printfln("Monitoring %d resources in namespace %s", len(resources), namespace)
+	}
+
+	// Wait for all resources to become ready
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
 	for {
-		allReady, notReadyResources, err := resourcesReady(clientset, namespace, resources)
-		if err != nil {
-			return err
-		}
-		if allReady {
-			spinner.Success("All resources are ready. \n")
-			return nil
-		}
-		if time.Now().After(deadline) {
-			spinner.Fail("Timeout waiting for all resources to become ready \n")
-			return errors.New("timeout waiting for all resources to become ready")
-		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("timeout waiting for resources to become ready")
 
-		spinner.UpdateText(fmt.Sprintf("Waiting for resources: %s \n", strings.Join(notReadyResources, ", ")))
+		case <-ticker.C:
+			allReady := true
+			failedResources := []string{}
 
-		time.Sleep(5 * time.Second)
+			for _, resource := range resources {
+				ready, err := isResourceReady(clientset, resource, namespace, debug)
+				if err != nil {
+					if debug {
+						pterm.Debug.Printfln("Error checking resource: %v", err)
+					}
+					failedResources = append(failedResources, fmt.Sprintf("%s: %v", getResourceName(resource), err))
+					allReady = false
+				} else if !ready {
+					allReady = false
+					if debug {
+						pterm.Debug.Printfln("Resource not ready: %s", getResourceName(resource))
+					}
+				}
+			}
+
+			if allReady {
+				if debug {
+					pterm.Debug.Println("All resources are ready")
+				}
+				return nil
+			}
+
+			if len(failedResources) > 0 {
+				return fmt.Errorf("resources failed: %s", strings.Join(failedResources, ", "))
+			}
+
+			if debug {
+				pterm.Debug.Println("Still waiting for resources to become ready...")
+			}
+		}
 	}
 }
 
