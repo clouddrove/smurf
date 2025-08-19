@@ -24,22 +24,22 @@ func HelmUpgrade(releaseName, chartRef, namespace string, setValues []string, va
 	startTime := time.Now()
 
 	if debug {
-		pterm.Debug.Println("=== HELM UPGRADE STARTED ===")
-		pterm.Debug.Printf("Release: %s\n", releaseName)
-		pterm.Debug.Printf("Chart: %s\n", chartRef)
-		pterm.Debug.Printf("Namespace: %s\n", namespace)
-		pterm.Debug.Printf("Create Namespace: %t\n", createNamespace)
-		pterm.Debug.Printf("Atomic: %t\n", atomic)
-		pterm.Debug.Printf("Timeout: %v\n", timeout)
-		pterm.Debug.Printf("Set values: %v\n", setValues)
-		pterm.Debug.Printf("Values files: %v\n", valuesFiles)
-		pterm.Debug.Printf("Set literal: %v\n", setLiteral)
+		pterm.Println("=== HELM UPGRADE STARTED ===")
+		pterm.Printf("Release: %s\n", releaseName)
+		pterm.Printf("Chart: %s\n", chartRef)
+		pterm.Printf("Namespace: %s\n", namespace)
+		pterm.Printf("Create Namespace: %t\n", createNamespace)
+		pterm.Printf("Atomic: %t\n", atomic)
+		pterm.Printf("Timeout: %v\n", timeout)
+		pterm.Printf("Set values: %v\n", setValues)
+		pterm.Printf("Values files: %v\n", valuesFiles)
+		pterm.Printf("Set literal: %v\n", setLiteral)
 	}
 
 	// Handle namespace creation
 	if createNamespace {
 		if debug {
-			pterm.Debug.Println("Creating namespace if not exists...")
+			pterm.Println("Creating namespace if not exists...")
 		}
 		if err := ensureNamespace(namespace, debug); err != nil {
 			logDetailedError("namespace creation", err, namespace, releaseName)
@@ -49,7 +49,7 @@ func HelmUpgrade(releaseName, chartRef, namespace string, setValues []string, va
 
 	// Initialize action config
 	if debug {
-		pterm.Debug.Println("Initializing Helm action configuration...")
+		pterm.Println("Initializing Helm action configuration...")
 	}
 	actionConfig, err := initActionConfig(namespace, debug)
 	if err != nil {
@@ -58,7 +58,7 @@ func HelmUpgrade(releaseName, chartRef, namespace string, setValues []string, va
 
 	// Verify release exists
 	if debug {
-		pterm.Debug.Println("Verifying release exists...")
+		pterm.Println("Verifying release exists...")
 	}
 	if err := verifyReleaseExists(actionConfig, releaseName, namespace, debug); err != nil {
 		return fmt.Errorf("release verification failed: %w", err)
@@ -66,31 +66,31 @@ func HelmUpgrade(releaseName, chartRef, namespace string, setValues []string, va
 
 	// Load chart
 	if debug {
-		pterm.Debug.Println("Loading chart...")
+		pterm.Println("Loading chart...")
 	}
 	chart, err := loadChart(chartRef, debug)
 	if err != nil {
 		return fmt.Errorf("failed to load chart: %w", err)
 	}
 	if debug {
-		pterm.Debug.Printf("Chart loaded: %s (version %s)\n", chart.Name(), chart.Metadata.Version)
+		pterm.Printf("Chart loaded: %s (version %s)\n", chart.Name(), chart.Metadata.Version)
 	}
 
 	// Load and merge values
 	if debug {
-		pterm.Debug.Println("Loading and merging values...")
+		pterm.Println("Loading and merging values...")
 	}
 	vals, err := loadAndMergeValuesWithSets(valuesFiles, setValues, setLiteral, debug)
 	if err != nil {
 		return fmt.Errorf("failed to load values: %w", err)
 	}
 	if debug {
-		pterm.Debug.Println("Values merged successfully")
+		pterm.Println("Values merged successfully")
 	}
 
 	// Create upgrade client
 	if debug {
-		pterm.Debug.Println("Setting up upgrade client...")
+		pterm.Println("Setting up upgrade client...")
 	}
 	client := action.NewUpgrade(actionConfig)
 	client.Namespace = namespace
@@ -100,22 +100,22 @@ func HelmUpgrade(releaseName, chartRef, namespace string, setValues []string, va
 	client.WaitForJobs = true
 
 	if debug {
-		pterm.Debug.Printf("Upgrade client configured:\n")
-		pterm.Debug.Printf("  - Namespace: %s\n", client.Namespace)
-		pterm.Debug.Printf("  - Atomic: %t\n", client.Atomic)
-		pterm.Debug.Printf("  - Timeout: %v\n", client.Timeout)
-		pterm.Debug.Printf("  - Wait: %t\n", client.Wait)
-		pterm.Debug.Printf("  - WaitForJobs: %t\n", client.WaitForJobs)
+		pterm.Printf("Upgrade client configured:\n")
+		pterm.Printf("  - Namespace: %s\n", client.Namespace)
+		pterm.Printf("  - Atomic: %t\n", client.Atomic)
+		pterm.Printf("  - Timeout: %v\n", client.Timeout)
+		pterm.Printf("  - Wait: %t\n", client.Wait)
+		pterm.Printf("  - WaitForJobs: %t\n", client.WaitForJobs)
 	}
 
 	// Execute upgrade
 	if debug {
-		pterm.Debug.Println("Executing upgrade...")
+		pterm.Println("Executing upgrade...")
 	}
 	rel, err := client.Run(releaseName, chart, vals)
 	if err != nil {
 		if debug {
-			pterm.Debug.Println("Upgrade failed, gathering debug information...")
+			pterm.Println("Upgrade failed, gathering debug information...")
 		}
 		pterm.Error.Printf("Helm upgrade failed: %v\n", err)
 
@@ -123,9 +123,9 @@ func HelmUpgrade(releaseName, chartRef, namespace string, setValues []string, va
 		if debug {
 			pods, err := getPods(namespace, releaseName)
 			if err != nil {
-				pterm.Debug.Printf("Failed to get pods: %v\n", err)
+				pterm.Printf("Failed to get pods: %v\n", err)
 			} else {
-				pterm.Debug.Printf("Found %d pods for release %s\n", len(pods), releaseName)
+				pterm.Printf("Found %d pods for release %s\n", len(pods), releaseName)
 				for _, pod := range pods {
 					printPodDetails(pod)
 				}
@@ -136,7 +136,7 @@ func HelmUpgrade(releaseName, chartRef, namespace string, setValues []string, va
 	}
 
 	if debug {
-		pterm.Debug.Println("Upgrade completed, verifying readiness...")
+		pterm.Println("Upgrade completed, verifying readiness...")
 	}
 	if err := verifyFinalReadiness(namespace, releaseName, 30*time.Second, debug); err != nil {
 		return fmt.Errorf("readiness verification failed: %w", err)
@@ -148,7 +148,7 @@ func HelmUpgrade(releaseName, chartRef, namespace string, setValues []string, va
 	if debug {
 		printReleaseInfo(rel, debug)
 		printResourcesFromRelease(rel)
-		pterm.Debug.Printf("=== HELM UPGRADE COMPLETED IN %s ===\n", duration)
+		pterm.Printf("=== HELM UPGRADE COMPLETED IN %s ===\n", duration)
 	}
 
 	printReleaseInfo(rel, debug)
@@ -165,7 +165,7 @@ func initActionConfig(namespace string, debug bool) (*action.Configuration, erro
 	logFn := func(format string, v ...interface{}) {
 		if debug {
 			message := fmt.Sprintf(format, v...)
-			pterm.Debug.Printfln("HELM-CLI: %s", strings.TrimSpace(message))
+			pterm.Printfln("HELM-CLI: %s", strings.TrimSpace(message))
 		}
 	}
 
@@ -177,7 +177,7 @@ func initActionConfig(namespace string, debug bool) (*action.Configuration, erro
 	)
 
 	if debug && err == nil {
-		pterm.Debug.Printf("Action config initialized for namespace: %s\n", namespace)
+		pterm.Printf("Action config initialized for namespace: %s\n", namespace)
 	}
 
 	return actionConfig, err
@@ -185,7 +185,7 @@ func initActionConfig(namespace string, debug bool) (*action.Configuration, erro
 
 func verifyReleaseExists(actionConfig *action.Configuration, releaseName, namespace string, debug bool) error {
 	if debug {
-		pterm.Debug.Printf("Checking if release %s exists in namespace %s\n", releaseName, namespace)
+		pterm.Printf("Checking if release %s exists in namespace %s\n", releaseName, namespace)
 	}
 
 	listAction := action.NewList(actionConfig)
@@ -196,13 +196,13 @@ func verifyReleaseExists(actionConfig *action.Configuration, releaseName, namesp
 	releases, err := listAction.Run()
 	if err != nil {
 		if debug {
-			pterm.Debug.Printf("Failed to list releases: %v\n", err)
+			pterm.Printf("Failed to list releases: %v\n", err)
 		}
 		return fmt.Errorf("failed to list releases: %w", err)
 	}
 
 	if debug {
-		pterm.Debug.Printf("Found %d releases total\n", len(releases))
+		pterm.Printf("Found %d releases total\n", len(releases))
 	}
 
 	found := false
@@ -210,7 +210,7 @@ func verifyReleaseExists(actionConfig *action.Configuration, releaseName, namesp
 		if r.Name == releaseName && r.Namespace == namespace {
 			found = true
 			if debug {
-				pterm.Debug.Printf("Release found: %s (status: %s, version: %d)\n",
+				pterm.Printf("Release found: %s (status: %s, version: %d)\n",
 					releaseName, r.Info.Status, r.Version)
 			}
 			break
@@ -219,11 +219,11 @@ func verifyReleaseExists(actionConfig *action.Configuration, releaseName, namesp
 
 	if !found {
 		if debug {
-			pterm.Debug.Printf("Release %s not found in namespace %s\n", releaseName, namespace)
-			pterm.Debug.Printf("Available releases in namespace %s:\n", namespace)
+			pterm.Printf("Release %s not found in namespace %s\n", releaseName, namespace)
+			pterm.Printf("Available releases in namespace %s:\n", namespace)
 			for _, r := range releases {
 				if r.Namespace == namespace {
-					pterm.Debug.Printf("  - %s (status: %s)\n", r.Name, r.Info.Status)
+					pterm.Printf("  - %s (status: %s)\n", r.Name, r.Info.Status)
 				}
 			}
 		}
@@ -235,31 +235,31 @@ func verifyReleaseExists(actionConfig *action.Configuration, releaseName, namesp
 
 func loadChart(chartRef string, debug bool) (*chart.Chart, error) {
 	if debug {
-		pterm.Debug.Printf("Loading chart from: %s\n", chartRef)
+		pterm.Printf("Loading chart from: %s\n", chartRef)
 	}
 
 	absPath, err := filepath.Abs(chartRef)
 	if err != nil {
 		if debug {
-			pterm.Debug.Printf("Path resolution failed: %v\n", err)
+			pterm.Printf("Path resolution failed: %v\n", err)
 		}
 		return nil, fmt.Errorf("failed to resolve chart path: %w", err)
 	}
 
 	if debug {
-		pterm.Debug.Printf("Resolved absolute path: %s\n", absPath)
+		pterm.Printf("Resolved absolute path: %s\n", absPath)
 	}
 
 	chart, err := loader.Load(absPath)
 	if err != nil {
 		if debug {
-			pterm.Debug.Printf("Chart loading failed: %v\n", err)
+			pterm.Printf("Chart loading failed: %v\n", err)
 		}
 		return nil, err
 	}
 
 	if debug {
-		pterm.Debug.Printf("Chart loaded successfully: %s v%s\n",
+		pterm.Printf("Chart loaded successfully: %s v%s\n",
 			chart.Metadata.Name, chart.Metadata.Version)
 	}
 
@@ -268,9 +268,9 @@ func loadChart(chartRef string, debug bool) (*chart.Chart, error) {
 
 func loadAndMergeValuesWithSets(valuesFiles, setValues, setLiteralValues []string, debug bool) (map[string]interface{}, error) {
 	if debug {
-		pterm.Debug.Printf("Loading values from %d files\n", len(valuesFiles))
-		pterm.Debug.Printf("Applying %d set values\n", len(setValues))
-		pterm.Debug.Printf("Applying %d literal values\n", len(setLiteralValues))
+		pterm.Printf("Loading values from %d files\n", len(valuesFiles))
+		pterm.Printf("Applying %d set values\n", len(setValues))
+		pterm.Printf("Applying %d literal values\n", len(setLiteralValues))
 	}
 
 	resolvedFiles, err := resolveValuesPaths(valuesFiles, debug)
@@ -281,12 +281,12 @@ func loadAndMergeValuesWithSets(valuesFiles, setValues, setLiteralValues []strin
 	vals := make(map[string]interface{})
 	for i, f := range resolvedFiles {
 		if debug {
-			pterm.Debug.Printf("Reading values file %d: %s\n", i+1, f)
+			pterm.Printf("Reading values file %d: %s\n", i+1, f)
 		}
 		currentVals, err := chartutil.ReadValuesFile(f)
 		if err != nil {
 			if debug {
-				pterm.Debug.Printf("Error reading values file: %v\n", err)
+				pterm.Printf("Error reading values file: %v\n", err)
 			}
 			return nil, fmt.Errorf("failed to read %s: %w", f, err)
 		}
@@ -295,11 +295,11 @@ func loadAndMergeValuesWithSets(valuesFiles, setValues, setLiteralValues []strin
 
 	for i, set := range setValues {
 		if debug {
-			pterm.Debug.Printf("Applying set value %d: %s\n", i+1, set)
+			pterm.Printf("Applying set value %d: %s\n", i+1, set)
 		}
 		if err := strvals.ParseInto(set, vals); err != nil {
 			if debug {
-				pterm.Debug.Printf("Error parsing set value: %v\n", err)
+				pterm.Printf("Error parsing set value: %v\n", err)
 			}
 			return nil, fmt.Errorf("invalid --set value %s: %w", set, err)
 		}
@@ -307,18 +307,18 @@ func loadAndMergeValuesWithSets(valuesFiles, setValues, setLiteralValues []strin
 
 	for i, setLiteral := range setLiteralValues {
 		if debug {
-			pterm.Debug.Printf("Applying literal value %d: %s\n", i+1, setLiteral)
+			pterm.Printf("Applying literal value %d: %s\n", i+1, setLiteral)
 		}
 		if err := strvals.ParseIntoString(setLiteral, vals); err != nil {
 			if debug {
-				pterm.Debug.Printf("Error parsing literal value: %v\n", err)
+				pterm.Printf("Error parsing literal value: %v\n", err)
 			}
 			return nil, fmt.Errorf("invalid --set-literal value %s: %w", setLiteral, err)
 		}
 	}
 
 	if debug {
-		pterm.Debug.Println("All values processed successfully")
+		pterm.Println("All values processed successfully")
 	}
 
 	return vals, nil
@@ -328,26 +328,26 @@ func resolveValuesPaths(valuesFiles []string, debug bool) ([]string, error) {
 	var resolved []string
 	for i, f := range valuesFiles {
 		if debug {
-			pterm.Debug.Printf("Resolving values file %d: %s\n", i+1, f)
+			pterm.Printf("Resolving values file %d: %s\n", i+1, f)
 		}
 		absPath, err := filepath.Abs(f)
 		if err != nil {
 			if debug {
-				pterm.Debug.Printf("Path resolution failed: %v\n", err)
+				pterm.Printf("Path resolution failed: %v\n", err)
 			}
 			return nil, fmt.Errorf("failed to resolve path %s: %w", f, err)
 		}
 
 		if _, err := os.Stat(absPath); err != nil {
 			if debug {
-				pterm.Debug.Printf("Values file not found: %v\n", err)
+				pterm.Printf("Values file not found: %v\n", err)
 			}
 			return nil, fmt.Errorf("values file not found: %s", absPath)
 		}
 
 		resolved = append(resolved, absPath)
 		if debug {
-			pterm.Debug.Printf("Resolved to: %s\n", absPath)
+			pterm.Printf("Resolved to: %s\n", absPath)
 		}
 	}
 	return resolved, nil
@@ -371,7 +371,7 @@ func getPods(namespace, releaseName string) ([]corev1.Pod, error) {
 
 func verifyFinalReadiness(namespace, releaseName string, timeout time.Duration, debug bool) error {
 	if debug {
-		pterm.Debug.Printf("Verifying readiness with timeout: %v\n", timeout)
+		pterm.Printf("Verifying readiness with timeout: %v\n", timeout)
 	}
 
 	deadline := time.Now().Add(timeout)
@@ -383,26 +383,26 @@ func verifyFinalReadiness(namespace, releaseName string, timeout time.Duration, 
 		}
 
 		if debug {
-			pterm.Debug.Printf("Readiness check attempt %d\n", attempt)
+			pterm.Printf("Readiness check attempt %d\n", attempt)
 		}
 
 		pods, err := getPods(namespace, releaseName)
 		if err != nil {
 			if debug {
-				pterm.Debug.Printf("Failed to get pods: %v\n", err)
+				pterm.Printf("Failed to get pods: %v\n", err)
 			}
 			return fmt.Errorf("failed to get pods: %w", err)
 		}
 
 		if debug {
-			pterm.Debug.Printf("Found %d pods\n", len(pods))
+			pterm.Printf("Found %d pods\n", len(pods))
 		}
 
 		allReady := true
 		for _, pod := range pods {
 			if pod.Status.Phase != corev1.PodRunning {
 				if debug {
-					pterm.Debug.Printf("Pod %s not running (status: %s)\n", pod.Name, pod.Status.Phase)
+					pterm.Printf("Pod %s not running (status: %s)\n", pod.Name, pod.Status.Phase)
 				}
 				allReady = false
 				break
@@ -410,7 +410,7 @@ func verifyFinalReadiness(namespace, releaseName string, timeout time.Duration, 
 			for _, cond := range pod.Status.Conditions {
 				if cond.Type == corev1.PodReady && cond.Status != corev1.ConditionTrue {
 					if debug {
-						pterm.Debug.Printf("Pod %s not ready (condition: %s=%s)\n",
+						pterm.Printf("Pod %s not ready (condition: %s=%s)\n",
 							pod.Name, cond.Type, cond.Status)
 					}
 					allReady = false
@@ -424,7 +424,7 @@ func verifyFinalReadiness(namespace, releaseName string, timeout time.Duration, 
 
 		if allReady {
 			if debug {
-				pterm.Debug.Println("All pods are ready")
+				pterm.Println("All pods are ready")
 			}
 			return nil
 		}
