@@ -8,26 +8,40 @@ import (
 // HelmReleaseExists checks if a Helm release with the given name exists in the specified namespace.
 // It initializes Helm's action configuration, runs the Helm list command, and returns true if a release
 // with the given name is found in the specified namespace.
-func HelmReleaseExists(releaseName, namespace string) (bool, error) {
-	actionConfig := new(action.Configuration)
-	if err := actionConfig.Init(settings.RESTClientGetter(), namespace, "secrets", nil); err != nil {
-		return false, err
+// Helper function to check if release exists
+func HelmReleaseExists(releaseName, namespace string, debug bool) (bool, error) {
+	if debug {
+		pterm.Debug.Printf("Checking if release %s exists in namespace %s\n", releaseName, namespace)
 	}
 
-	list := action.NewList(actionConfig)
-	list.Deployed = true
-	list.AllNamespaces = false
-	releases, err := list.Run()
+	actionConfig, err := initActionConfig(namespace, debug)
 	if err != nil {
 		return false, err
 	}
 
-	for _, rel := range releases {
-		if rel.Name == releaseName && rel.Namespace == namespace {
+	listAction := action.NewList(actionConfig)
+	listAction.AllNamespaces = false
+	listAction.SetStateMask()
+
+	releases, err := listAction.Run()
+	if err != nil {
+		if debug {
+			pterm.Debug.Printf("Failed to list releases: %v\n", err)
+		}
+		return false, err
+	}
+
+	for _, r := range releases {
+		if r.Name == releaseName && r.Namespace == namespace {
+			if debug {
+				pterm.Debug.Printf("Release found: %s (status: %s)\n", releaseName, r.Info.Status)
+			}
 			return true, nil
 		}
 	}
 
-	pterm.Success.Printfln("Helm realese exists...")
+	if debug {
+		pterm.Debug.Printf("Release not found: %s\n", releaseName)
+	}
 	return false, nil
 }
