@@ -11,7 +11,7 @@ import (
 // Helper function to check if release exists
 func HelmReleaseExists(releaseName, namespace string, debug bool) (bool, error) {
 	if debug {
-		pterm.Debug.Printf("Checking if release %s exists in namespace %s\n", releaseName, namespace)
+		pterm.Printf("Checking if release %s exists in namespace %s\n", releaseName, namespace)
 	}
 
 	actionConfig, err := initActionConfig(namespace, debug)
@@ -26,7 +26,7 @@ func HelmReleaseExists(releaseName, namespace string, debug bool) (bool, error) 
 	releases, err := listAction.Run()
 	if err != nil {
 		if debug {
-			pterm.Debug.Printf("Failed to list releases: %v\n", err)
+			pterm.Printf("Failed to list releases: %v\n", err)
 		}
 		return false, err
 	}
@@ -34,14 +34,14 @@ func HelmReleaseExists(releaseName, namespace string, debug bool) (bool, error) 
 	for _, r := range releases {
 		if r.Name == releaseName && r.Namespace == namespace {
 			if debug {
-				pterm.Debug.Printf("Release found: %s (status: %s)\n", releaseName, r.Info.Status)
+				pterm.Printf("Release found: %s (status: %s)\n", releaseName, r.Info.Status)
 			}
 			return true, nil
 		}
 	}
 
 	if debug {
-		pterm.Debug.Printf("Release not found: %s\n", releaseName)
+		pterm.Printf("Release not found: %s\n", releaseName)
 	}
 	return false, nil
 }
