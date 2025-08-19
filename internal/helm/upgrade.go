@@ -100,12 +100,12 @@ func HelmUpgrade(releaseName, chartRef, namespace string, setValues []string, va
 	client.WaitForJobs = true
 
 	if debug {
-		pterm.Debug.Printf("Upgrade client configured:")
-		pterm.Debug.Printf("  - Namespace: %s", client.Namespace)
-		pterm.Debug.Printf("  - Atomic: %t", client.Atomic)
-		pterm.Debug.Printf("  - Timeout: %v", client.Timeout)
-		pterm.Debug.Printf("  - Wait: %t", client.Wait)
-		pterm.Debug.Printf("  - WaitForJobs: %t", client.WaitForJobs)
+		pterm.Debug.Printf("Upgrade client configured:\n")
+		pterm.Debug.Printf("  - Namespace: %s\n", client.Namespace)
+		pterm.Debug.Printf("  - Atomic: %t\n", client.Atomic)
+		pterm.Debug.Printf("  - Timeout: %v\n", client.Timeout)
+		pterm.Debug.Printf("  - Wait: %t\n", client.Wait)
+		pterm.Debug.Printf("  - WaitForJobs: %t\n", client.WaitForJobs)
 	}
 
 	// Execute upgrade

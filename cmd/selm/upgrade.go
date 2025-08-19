@@ -88,19 +88,19 @@ var upgradeCmd = &cobra.Command{
 		timeoutDuration := time.Duration(configs.Timeout) * time.Second
 
 		if configs.Debug {
-			pterm.Debug.Printf("Configuration:")
-			pterm.Debug.Printf("  - Release: %s", releaseName)
-			pterm.Debug.Printf("  - Chart: %s", chartPath)
-			pterm.Debug.Printf("  - Namespace: %s", configs.Namespace)
-			pterm.Debug.Printf("  - Timeout: %v", timeoutDuration)
-			pterm.Debug.Printf("  - Atomic: %t", configs.Atomic)
-			pterm.Debug.Printf("  - Create Namespace: %t", createNamespace)
-			pterm.Debug.Printf("  - Install if not present: %t", installIfNotPresent)
-			pterm.Debug.Printf("  - Set values: %v", configs.Set)
-			pterm.Debug.Printf("  - Values files: %v", configs.File)
-			pterm.Debug.Printf("  - Set literal: %v", configs.SetLiteral)
-			pterm.Debug.Printf("  - Repo URL: %s", RepoURL)
-			pterm.Debug.Printf("  - Version: %s", Version)
+			pterm.Debug.Printf("Configuration\n")
+			pterm.Debug.Printf("  - Release: %s\n", releaseName)
+			pterm.Debug.Printf("  - Chart: %s\n", chartPath)
+			pterm.Debug.Printf("  - Namespace: %s\n", configs.Namespace)
+			pterm.Debug.Printf("  - Timeout: %v\n", timeoutDuration)
+			pterm.Debug.Printf("  - Atomic: %t\n", configs.Atomic)
+			pterm.Debug.Printf("  - Create Namespace: %t\n", createNamespace)
+			pterm.Debug.Printf("  - Install if not present: %t\n", installIfNotPresent)
+			pterm.Debug.Printf("  - Set values: %v\n", configs.Set)
+			pterm.Debug.Printf("  - Values files: %v\n", configs.File)
+			pterm.Debug.Printf("  - Set literal: %v\n", configs.SetLiteral)
+			pterm.Debug.Printf("  - Repo URL: %s\n", RepoURL)
+			pterm.Debug.Printf("  - Version: %s\n", Version)
 		}
 
 		if installIfNotPresent {
