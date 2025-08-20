@@ -1,7 +1,7 @@
 package selm
 
 import (
-	"errors"
+	"fmt"
 	"path/filepath"
 	"time"
 
@@ -14,7 +14,6 @@ import (
 var RepoURL string
 var Version string
 
-// installCmd is a subcommand that installs a Helm chart into a Kubernetes cluster.
 var installCmd = &cobra.Command{
 	Use:   "install [RELEASE] [CHART]",
 	Short: "Install a Helm chart into a Kubernetes cluster.",
@@ -31,7 +30,7 @@ var installCmd = &cobra.Command{
 		if releaseName == "" || chartPath == "" {
 			data, err := configs.LoadConfig(configs.FileName)
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to load config: %w", err)
 			}
 
 			if releaseName == "" {
@@ -45,18 +44,12 @@ var installCmd = &cobra.Command{
 			}
 
 			if releaseName == "" || chartPath == "" {
-				pterm.Error.Printfln("both RELEASE and CHART must be provided either as arguments or in the config")
-				return errors.New("both RELEASE and CHART must be provided either as arguments or in the config")
+				return fmt.Errorf("both RELEASE and CHART must be provided either as arguments or in the config")
 			}
 
 			if configs.Namespace == "" && data.Selm.Namespace != "" {
 				configs.Namespace = data.Selm.Namespace
 			}
-		}
-
-		if releaseName == "" || chartPath == "" {
-			pterm.Error.Printfln("RELEASE and CHART must be provided")
-			return errors.New("RELEASE and CHART must be provided")
 		}
 
 		timeoutDuration := time.Duration(configs.Timeout) * time.Second
@@ -65,12 +58,38 @@ var installCmd = &cobra.Command{
 			configs.Namespace = "default"
 		}
 
-		pterm.Info.Println("Starting Helm install...")
-		err := helm.HelmInstall(releaseName, chartPath, configs.Namespace, configs.File, timeoutDuration, configs.Atomic, configs.Debug, configs.Set, configs.SetLiteral, RepoURL, Version)
-		if err != nil {
-			return err
+		if configs.Debug {
+			pterm.EnableDebugMessages()
+			pterm.Debug.Printfln("Starting Helm install with configuration:")
+			pterm.Debug.Printfln("  Release: %s", releaseName)
+			pterm.Debug.Printfln("  Chart: %s", chartPath)
+			pterm.Debug.Printfln("  Namespace: %s", configs.Namespace)
+			pterm.Debug.Printfln("  Timeout: %v", timeoutDuration)
+			pterm.Debug.Printfln("  Values files: %v", configs.File)
+			pterm.Debug.Printfln("  Set values: %v", configs.Set)
+			pterm.Debug.Printfln("  Set literal values: %v", configs.SetLiteral)
+			pterm.Debug.Printfln("  Repo URL: %s", RepoURL)
+			pterm.Debug.Printfln("  Version: %s", Version)
 		}
-		pterm.Success.Println("Helm chart installed successfully.")
+
+		err := helm.HelmInstall(
+			releaseName,
+			chartPath,
+			configs.Namespace,
+			configs.File,
+			timeoutDuration,
+			configs.Atomic,
+			configs.Debug,
+			configs.Set,
+			configs.SetLiteral,
+			RepoURL,
+			Version,
+		)
+		if err != nil {
+			return fmt.Errorf("installation failed: %w", err)
+		}
+
+		pterm.Success.Printfln("Release '%s' successfully installed", releaseName)
 		return nil
 	},
 	Example: `
@@ -93,8 +112,8 @@ func init() {
 	installCmd.Flags().StringArrayVarP(&configs.File, "values", "f", []string{}, "Specify values in a YAML file")
 	installCmd.Flags().BoolVar(&configs.Atomic, "atomic", false, "If set, installation process purges chart on fail")
 	installCmd.Flags().BoolVar(&configs.Debug, "debug", false, "Enable verbose output")
-	installCmd.Flags().StringSliceVar(&configs.Set, "set", []string{}, "Set values on the command line (can specify multiple or separate values with commas: key1=val1,key2=val2)")
-	installCmd.Flags().StringSliceVar(&configs.SetLiteral, "set-literal", []string{}, "Set literal values on the command line (values are always treated as strings)")
+	installCmd.Flags().StringSliceVar(&configs.Set, "set", []string{}, "Set values on the command line")
+	installCmd.Flags().StringSliceVar(&configs.SetLiteral, "set-literal", []string{}, "Set literal values on the command line")
 	installCmd.Flags().StringVar(&RepoURL, "repo", "", "Specify the chart repository URL for remote charts")
 	installCmd.Flags().StringVar(&Version, "version", "", "Specify the chart version to install")
 	selmCmd.AddCommand(installCmd)
