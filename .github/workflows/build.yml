@@ -33,48 +33,45 @@ jobs:
       - name: Test
         run: make test
 
+      - name: Get Build Info
+        id: buildinfo
+        run: |
+          set -euo pipefail
+          echo "Collecting build information..."
+          
+          # Get version from GitHub releases or git tags
+          VERSION=$(curl -sf https://api.github.com/repos/clouddrove/smurf/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' || git describe --tags --abbrev=0)
+          COMMIT=$(git rev-parse --short HEAD)
+          DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          
+          echo "Version: $VERSION"
+          echo "Commit: $COMMIT"
+          echo "Build Date: $DATE"
+          
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "commit=${COMMIT}" >> $GITHUB_OUTPUT
+          echo "date=${DATE}" >> $GITHUB_OUTPUT
+
       - name: Build
-        run: go build -o smurf .
+        run: |
+          echo "Building with version injection:"
+          echo "Package: ${{env.APP_PACKAGE}}"
+          echo "Version: ${{steps.buildinfo.outputs.version}}"
+          echo "Commit: ${{steps.buildinfo.outputs.commit}}"
+          echo "Date: ${{steps.buildinfo.outputs.date}}"
+          
+          go build -a \
+            -ldflags "\
+              -X '${{env.APP_PACKAGE}}.version=${{steps.buildinfo.outputs.version}}' \
+              -X '${{env.APP_PACKAGE}}.commit=${{steps.buildinfo.outputs.commit}}' \
+              -X '${{env.APP_PACKAGE}}.date=${{steps.buildinfo.outputs.date}}'" \
+            -o smurf .
 
-      # - name: Get Build Info
-      #   id: buildinfo
-      #   run: |
-      #     set -euo pipefail
-      #     echo "Collecting build information..."
-          
-      #     # Get version from GitHub releases or git tags
-      #     VERSION=$(curl -sf https://api.github.com/repos/clouddrove/smurf/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' || git describe --tags --abbrev=0)
-      #     COMMIT=$(git rev-parse --short HEAD)
-      #     DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
-          
-      #     echo "Version: $VERSION"
-      #     echo "Commit: $COMMIT"
-      #     echo "Build Date: $DATE"
-          
-      #     echo "version=${VERSION}" >> $GITHUB_OUTPUT
-      #     echo "commit=${COMMIT}" >> $GITHUB_OUTPUT
-      #     echo "date=${DATE}" >> $GITHUB_OUTPUT
-
-      # - name: Build
-      #   run: |
-      #     echo "Building with version injection:"
-      #     echo "Package: ${{env.APP_PACKAGE}}"
-      #     echo "Version: ${{steps.buildinfo.outputs.version}}"
-      #     echo "Commit: ${{steps.buildinfo.outputs.commit}}"
-      #     echo "Date: ${{steps.buildinfo.outputs.date}}"
-          
-      #     go build -a \
-      #       -ldflags "\
-      #         -X '${{env.APP_PACKAGE}}.version=${{steps.buildinfo.outputs.version}}' \
-      #         -X '${{env.APP_PACKAGE}}.commit=${{steps.buildinfo.outputs.commit}}' \
-      #         -X '${{env.APP_PACKAGE}}.date=${{steps.buildinfo.outputs.date}}'" \
-      #       -o smurf .
-
-      # - name: Verify Version
-      #   run: |
-      #     echo "Binary version report:"
-      #     ./smurf --version
-      #     ./smurf version
+      - name: Verify Version
+        run: |
+          echo "Binary version report:"
+          ./smurf --version
+          ./smurf version
 
   format:
     name: Check Formatting
