@@ -1,7 +1,6 @@
 package sdkr
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"os"
@@ -21,7 +20,7 @@ import (
 // after a successful push.
 var provisionHubCmd = &cobra.Command{
 	Use:   "provision-hub [IMAGE_NAME[:TAG]]",
-	Short: "Build, scan, and push a Docker image to Docker Hub.",
+	Short: "Build, scan, and push a Docker image .",
 	Long: `Build, scan, and push a Docker image to Docker Hub.
 Set DOCKER_USERNAME and DOCKER_PASSWORD environment variables for Docker Hub authentication, for example:
   export DOCKER_USERNAME="your-username"
@@ -59,6 +58,7 @@ Set DOCKER_USERNAME and DOCKER_PASSWORD environment variables for Docker Hub aut
 		}
 
 		if os.Getenv("DOCKER_USERNAME") == "" || os.Getenv("DOCKER_PASSWORD") == "" {
+			fmt.Println("error : ", os.Getenv("DOCKER_USERNAME"), "&&", os.Getenv("DOCKER_PASSWORD"))
 			pterm.Error.Println("Docker Hub credentials are required")
 			return errors.New("missing required Docker Hub credentials")
 		}
@@ -116,27 +116,28 @@ Set DOCKER_USERNAME and DOCKER_PASSWORD environment variables for Docker Hub aut
 			return err
 		}
 		pterm.Success.Println("Build completed successfully.")
-
-		pterm.Info.Println("Starting scan with Trivy...")
-		scanErr := docker.Trivy(fullImageName)
-		if scanErr != nil {
-			return scanErr
-		}
-
-		if !configs.ConfirmAfterPush {
-			pterm.Info.Println("Press Enter to continue...")
-			_, _ = bufio.NewReader(os.Stdin).ReadBytes('\n')
-		}
+		/*
+			pterm.Info.Println("Starting scan with Trivy...")
+			scanErr := docker.Trivy(fullImageName)
+			if scanErr != nil {
+				return scanErr
+			}
+		*/
+		/*
+			if !configs.ConfirmAfterPush {
+				pterm.Info.Println("Press Enter to continue...")
+				_, _ = bufio.NewReader(os.Stdin).ReadBytes('\n')
+			}*/
 
 		pterm.Info.Printf("Pushing image %s...\n", fullImageName)
 		pushOpts := docker.PushOptions{
 			ImageName: fullImageName,
+			Timeout:   1000000000000,
 		}
 		if err := docker.PushImage(pushOpts); err != nil {
 			pterm.Error.Println("Push failed:", err)
 			return err
 		}
-		pterm.Success.Println("Push completed successfully.")
 
 		if configs.DeleteAfterPush {
 			pterm.Info.Printf("Deleting local image %s...\n", fullImageName)

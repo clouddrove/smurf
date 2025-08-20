@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/pterm/pterm"
@@ -18,69 +19,79 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// HelmUpgrade performs a Helm upgrade operation for a specified release.
-// It initializes the Helm action configuration, sets up the upgrade parameters,
-// executes the upgrade, and then retrieves the status of the release post-upgrade.
-// Detailed error logging is performed if any step fails.
+// HelmUpgrade performs a Helm upgrade operation with comprehensive debug logging
 func HelmUpgrade(releaseName, chartRef, namespace string, setValues []string, valuesFiles []string, setLiteral []string, createNamespace, atomic bool, timeout time.Duration, debug bool, repoURL string, version string) error {
 	startTime := time.Now()
-	logOperation(debug, "Starting Helm upgrade for release %s in namespace %s", releaseName, namespace)
 
-	// Handle namespace creation separately since Upgrade doesn't have CreateNamespace
-	// Handle namespace creation first
+	if debug {
+		pterm.Println("=== HELM UPGRADE STARTED ===")
+		pterm.Printf("Release: %s\n", releaseName)
+		pterm.Printf("Chart: %s\n", chartRef)
+		pterm.Printf("Namespace: %s\n", namespace)
+		pterm.Printf("Create Namespace: %t\n", createNamespace)
+		pterm.Printf("Atomic: %t\n", atomic)
+		pterm.Printf("Timeout: %v\n", timeout)
+		pterm.Printf("Set values: %v\n", setValues)
+		pterm.Printf("Values files: %v\n", valuesFiles)
+		pterm.Printf("Set literal: %v\n", setLiteral)
+	}
+
+	// Handle namespace creation
 	if createNamespace {
-		if err := ensureNamespace(namespace, true); err != nil {
+		if debug {
+			pterm.Println("Creating namespace if not exists...")
+		}
+		if err := ensureNamespace(namespace, debug); err != nil {
 			logDetailedError("namespace creation", err, namespace, releaseName)
-			return err
+			return fmt.Errorf("namespace creation failed: %w", err)
 		}
 	}
 
-	// Initialize action config once with proper namespace
+	// Initialize action config
+	if debug {
+		pterm.Println("Initializing Helm action configuration...")
+	}
 	actionConfig, err := initActionConfig(namespace, debug)
 	if err != nil {
 		return fmt.Errorf("failed to initialize helm: %w", err)
 	}
 
-	// Verify the release exists in the target namespace
-	if err := verifyReleaseExists(actionConfig, releaseName, namespace); err != nil {
+	// Verify release exists
+	if debug {
+		pterm.Println("Verifying release exists...")
+	}
+	if err := verifyReleaseExists(actionConfig, releaseName, namespace, debug); err != nil {
 		return fmt.Errorf("release verification failed: %w", err)
 	}
 
-	settings := cli.New()
-
-	logFn := func(format string, v ...interface{}) {
-		if debug {
-			fmt.Printf(format, v...)
-			fmt.Println()
-		}
+	// Load chart
+	if debug {
+		pterm.Println("Loading chart...")
 	}
-
-	if err := actionConfig.Init(settings.RESTClientGetter(), namespace, os.Getenv("HELM_DRIVER"), logFn); err != nil {
-		logDetailedError("helm action configuration", err, namespace, releaseName)
-		return err
-	}
-
-	if actionConfig.KubeClient == nil {
-		err := fmt.Errorf("KubeClient initialization failed")
-		logDetailedError("kubeclient initialization", err, namespace, releaseName)
-		return err
-	}
-
-	actionConfig, err = initActionConfig(namespace, debug)
-	if err != nil {
-		return fmt.Errorf("failed to initialize helm: %w", err)
-	}
-
 	chart, err := loadChart(chartRef, debug)
 	if err != nil {
 		return fmt.Errorf("failed to load chart: %w", err)
 	}
+	if debug {
+		pterm.Printf("Chart loaded: %s (version %s)\n", chart.Name(), chart.Metadata.Version)
+	}
 
+	// Load and merge values
+	if debug {
+		pterm.Println("Loading and merging values...")
+	}
 	vals, err := loadAndMergeValuesWithSets(valuesFiles, setValues, setLiteral, debug)
 	if err != nil {
 		return fmt.Errorf("failed to load values: %w", err)
 	}
+	if debug {
+		pterm.Println("Values merged successfully")
+	}
 
+	// Create upgrade client
+	if debug {
+		pterm.Println("Setting up upgrade client...")
+	}
 	client := action.NewUpgrade(actionConfig)
 	client.Namespace = namespace
 	client.Atomic = atomic
@@ -88,24 +99,58 @@ func HelmUpgrade(releaseName, chartRef, namespace string, setValues []string, va
 	client.Wait = true
 	client.WaitForJobs = true
 
+	if debug {
+		pterm.Printf("Upgrade client configured:\n")
+		pterm.Printf("  - Namespace: %s\n", client.Namespace)
+		pterm.Printf("  - Atomic: %t\n", client.Atomic)
+		pterm.Printf("  - Timeout: %v\n", client.Timeout)
+		pterm.Printf("  - Wait: %t\n", client.Wait)
+		pterm.Printf("  - WaitForJobs: %t\n", client.WaitForJobs)
+	}
+
+	// Execute upgrade
+	if debug {
+		pterm.Println("Executing upgrade...")
+	}
 	rel, err := client.Run(releaseName, chart, vals)
 	if err != nil {
-		pterm.Error.Printf("HELM UPGRADE FAILED: %v\n", err)
+		if debug {
+			pterm.Println("Upgrade failed, gathering debug information...")
+		}
+		pterm.Error.Printf("Helm upgrade failed: %v\n", err)
 
 		// Get pod details for debugging
-		pods, _ := getPods(namespace, releaseName)
-		for _, pod := range pods {
-			printPodDetails(pod) // Now matches the correct signature
+		if debug {
+			pods, err := getPods(namespace, releaseName)
+			if err != nil {
+				pterm.Printf("Failed to get pods: %v\n", err)
+			} else {
+				pterm.Printf("Found %d pods for release %s\n", len(pods), releaseName)
+				for _, pod := range pods {
+					printPodDetails(pod)
+				}
+			}
 		}
 
 		return fmt.Errorf("upgrade failed: %w", err)
 	}
 
+	if debug {
+		pterm.Println("Upgrade completed, verifying readiness...")
+	}
 	if err := verifyFinalReadiness(namespace, releaseName, 30*time.Second, debug); err != nil {
 		return fmt.Errorf("readiness verification failed: %w", err)
 	}
 
-	pterm.Success.Printf("Release %q successfully upgraded in %s\n", rel.Name, time.Since(startTime))
+	duration := time.Since(startTime)
+	pterm.Success.Printf("Release %q successfully upgraded in %s\n", rel.Name, duration)
+
+	if debug {
+		printReleaseInfo(rel, debug)
+		printResourcesFromRelease(rel)
+		pterm.Printf("=== HELM UPGRADE COMPLETED IN %s ===\n", duration)
+	}
+
 	printReleaseInfo(rel, debug)
 	printResourcesFromRelease(rel)
 	return nil
@@ -113,23 +158,36 @@ func HelmUpgrade(releaseName, chartRef, namespace string, setValues []string, va
 
 func initActionConfig(namespace string, debug bool) (*action.Configuration, error) {
 	settings := cli.New()
-	settings.SetNamespace(namespace) // Explicitly set namespace
+	settings.SetNamespace(namespace)
 
 	actionConfig := new(action.Configuration)
+
+	logFn := func(format string, v ...interface{}) {
+		if debug {
+			message := fmt.Sprintf(format, v...)
+			pterm.Printfln("HELM-CLI: %s", strings.TrimSpace(message))
+		}
+	}
+
 	err := actionConfig.Init(
 		settings.RESTClientGetter(),
-		namespace, // Pass namespace here
+		namespace,
 		os.Getenv("HELM_DRIVER"),
-		func(format string, v ...interface{}) {
-			if debug {
-				pterm.Debug.Printf(format, v...)
-			}
-		},
+		logFn,
 	)
+
+	if debug && err == nil {
+		pterm.Printf("Action config initialized for namespace: %s\n", namespace)
+	}
+
 	return actionConfig, err
 }
 
-func verifyReleaseExists(actionConfig *action.Configuration, releaseName, namespace string) error {
+func verifyReleaseExists(actionConfig *action.Configuration, releaseName, namespace string, debug bool) error {
+	if debug {
+		pterm.Printf("Checking if release %s exists in namespace %s\n", releaseName, namespace)
+	}
+
 	listAction := action.NewList(actionConfig)
 	listAction.AllNamespaces = false
 	listAction.All = true
@@ -137,45 +195,84 @@ func verifyReleaseExists(actionConfig *action.Configuration, releaseName, namesp
 
 	releases, err := listAction.Run()
 	if err != nil {
+		if debug {
+			pterm.Printf("Failed to list releases: %v\n", err)
+		}
 		return fmt.Errorf("failed to list releases: %w", err)
 	}
 
+	if debug {
+		pterm.Printf("Found %d releases total\n", len(releases))
+	}
+
+	found := false
 	for _, r := range releases {
 		if r.Name == releaseName && r.Namespace == namespace {
-			return nil
+			found = true
+			if debug {
+				pterm.Printf("Release found: %s (status: %s, version: %d)\n",
+					releaseName, r.Info.Status, r.Version)
+			}
+			break
 		}
 	}
 
-	return fmt.Errorf("release %s not found in namespace %s", releaseName, namespace)
+	if !found {
+		if debug {
+			pterm.Printf("Release %s not found in namespace %s\n", releaseName, namespace)
+			pterm.Printf("Available releases in namespace %s:\n", namespace)
+			for _, r := range releases {
+				if r.Namespace == namespace {
+					pterm.Printf("  - %s (status: %s)\n", r.Name, r.Info.Status)
+				}
+			}
+		}
+		return fmt.Errorf("release %s not found in namespace %s", releaseName, namespace)
+	}
+
+	return nil
 }
 
-// Load chart from path or repo
 func loadChart(chartRef string, debug bool) (*chart.Chart, error) {
-	logOperation(debug, "Resolving chart path: %s", chartRef)
+	if debug {
+		pterm.Printf("Loading chart from: %s\n", chartRef)
+	}
+
 	absPath, err := filepath.Abs(chartRef)
 	if err != nil {
-		logOperation(debug, "Path resolution failed: %v", err)
+		if debug {
+			pterm.Printf("Path resolution failed: %v\n", err)
+		}
 		return nil, fmt.Errorf("failed to resolve chart path: %w", err)
 	}
-	logOperation(debug, "Absolute chart path: %s", absPath)
+
+	if debug {
+		pterm.Printf("Resolved absolute path: %s\n", absPath)
+	}
 
 	chart, err := loader.Load(absPath)
 	if err != nil {
-		logOperation(debug, "Chart loading failed: %v", err)
+		if debug {
+			pterm.Printf("Chart loading failed: %v\n", err)
+		}
 		return nil, err
 	}
-	logOperation(debug, "Chart metadata loaded - Name: %s, Version: %s",
-		chart.Metadata.Name, chart.Metadata.Version)
+
+	if debug {
+		pterm.Printf("Chart loaded successfully: %s v%s\n",
+			chart.Metadata.Name, chart.Metadata.Version)
+	}
+
 	return chart, nil
 }
 
-// loadAndMergeValuesWithSets loads values from the specified files and merges them with the set values.
-// It returns the merged values map or an error if the values cannot be loaded or parsed.
-// The set values are applied after loading the values from the files.
-// loadAndMergeValuesWithSets loads values from the specified files and merges them with the set values.
-// It properly handles relative paths for nested values files.
 func loadAndMergeValuesWithSets(valuesFiles, setValues, setLiteralValues []string, debug bool) (map[string]interface{}, error) {
-	logOperation(debug, "Starting values files processing")
+	if debug {
+		pterm.Printf("Loading values from %d files\n", len(valuesFiles))
+		pterm.Printf("Applying %d set values\n", len(setValues))
+		pterm.Printf("Applying %d literal values\n", len(setLiteralValues))
+	}
+
 	resolvedFiles, err := resolveValuesPaths(valuesFiles, debug)
 	if err != nil {
 		return nil, err
@@ -183,36 +280,79 @@ func loadAndMergeValuesWithSets(valuesFiles, setValues, setLiteralValues []strin
 
 	vals := make(map[string]interface{})
 	for i, f := range resolvedFiles {
-		logOperation(debug, "Processing values file %d/%d: %s", i+1, len(resolvedFiles), f)
+		if debug {
+			pterm.Printf("Reading values file %d: %s\n", i+1, f)
+		}
 		currentVals, err := chartutil.ReadValuesFile(f)
 		if err != nil {
-			logOperation(debug, "Error reading values file: %v", err)
+			if debug {
+				pterm.Printf("Error reading values file: %v\n", err)
+			}
 			return nil, fmt.Errorf("failed to read %s: %w", f, err)
 		}
 		vals = mergeMaps(vals, currentVals)
 	}
 
-	for _, set := range setValues {
-		logOperation(debug, "Applying --set value: %s", set)
+	for i, set := range setValues {
+		if debug {
+			pterm.Printf("Applying set value %d: %s\n", i+1, set)
+		}
 		if err := strvals.ParseInto(set, vals); err != nil {
-			logOperation(debug, "Error parsing --set value: %v", err)
+			if debug {
+				pterm.Printf("Error parsing set value: %v\n", err)
+			}
 			return nil, fmt.Errorf("invalid --set value %s: %w", set, err)
 		}
 	}
 
-	for _, setLiteral := range setLiteralValues {
-		logOperation(debug, "Applying --set-literal value: %s", setLiteral)
+	for i, setLiteral := range setLiteralValues {
+		if debug {
+			pterm.Printf("Applying literal value %d: %s\n", i+1, setLiteral)
+		}
 		if err := strvals.ParseIntoString(setLiteral, vals); err != nil {
-			logOperation(debug, "Error parsing --set-literal value: %v", err)
+			if debug {
+				pterm.Printf("Error parsing literal value: %v\n", err)
+			}
 			return nil, fmt.Errorf("invalid --set-literal value %s: %w", setLiteral, err)
 		}
 	}
 
-	logOperation(debug, "Successfully merged all values")
+	if debug {
+		pterm.Println("All values processed successfully")
+	}
+
 	return vals, nil
 }
 
-// Get pods for a release
+func resolveValuesPaths(valuesFiles []string, debug bool) ([]string, error) {
+	var resolved []string
+	for i, f := range valuesFiles {
+		if debug {
+			pterm.Printf("Resolving values file %d: %s\n", i+1, f)
+		}
+		absPath, err := filepath.Abs(f)
+		if err != nil {
+			if debug {
+				pterm.Printf("Path resolution failed: %v\n", err)
+			}
+			return nil, fmt.Errorf("failed to resolve path %s: %w", f, err)
+		}
+
+		if _, err := os.Stat(absPath); err != nil {
+			if debug {
+				pterm.Printf("Values file not found: %v\n", err)
+			}
+			return nil, fmt.Errorf("values file not found: %s", absPath)
+		}
+
+		resolved = append(resolved, absPath)
+		if debug {
+			pterm.Printf("Resolved to: %s\n", absPath)
+		}
+	}
+	return resolved, nil
+}
+
 func getPods(namespace, releaseName string) ([]corev1.Pod, error) {
 	clientset, err := getKubeClient()
 	if err != nil {
@@ -229,38 +369,67 @@ func getPods(namespace, releaseName string) ([]corev1.Pod, error) {
 	return podList.Items, nil
 }
 
-// Verify final pod readiness
 func verifyFinalReadiness(namespace, releaseName string, timeout time.Duration, debug bool) error {
+	if debug {
+		pterm.Printf("Verifying readiness with timeout: %v\n", timeout)
+	}
+
 	deadline := time.Now().Add(timeout)
-	for {
+	pollInterval := 2 * time.Second
+
+	for attempt := 1; ; attempt++ {
 		if time.Now().After(deadline) {
 			return fmt.Errorf("readiness verification timed out after %s", timeout)
 		}
 
+		if debug {
+			pterm.Printf("Readiness check attempt %d\n", attempt)
+		}
+
 		pods, err := getPods(namespace, releaseName)
 		if err != nil {
+			if debug {
+				pterm.Printf("Failed to get pods: %v\n", err)
+			}
 			return fmt.Errorf("failed to get pods: %w", err)
+		}
+
+		if debug {
+			pterm.Printf("Found %d pods\n", len(pods))
 		}
 
 		allReady := true
 		for _, pod := range pods {
 			if pod.Status.Phase != corev1.PodRunning {
+				if debug {
+					pterm.Printf("Pod %s not running (status: %s)\n", pod.Name, pod.Status.Phase)
+				}
 				allReady = false
 				break
 			}
 			for _, cond := range pod.Status.Conditions {
 				if cond.Type == corev1.PodReady && cond.Status != corev1.ConditionTrue {
+					if debug {
+						pterm.Printf("Pod %s not ready (condition: %s=%s)\n",
+							pod.Name, cond.Type, cond.Status)
+					}
 					allReady = false
 					break
 				}
 			}
+			if !allReady {
+				break
+			}
 		}
 
 		if allReady {
-			logOperation(debug, "All pods are ready")
+			if debug {
+				pterm.Println("All pods are ready")
+			}
 			return nil
 		}
-		time.Sleep(5 * time.Second)
+
+		time.Sleep(pollInterval)
 	}
 }
 
@@ -282,24 +451,4 @@ func printPodDetails(pod corev1.Pod) {
 			}
 		}
 	}
-}
-func resolveValuesPaths(valuesFiles []string, debug bool) ([]string, error) {
-	var resolved []string
-	for i, f := range valuesFiles {
-		logOperation(debug, "Resolving path for values file %d: %s", i+1, f)
-		absPath, err := filepath.Abs(f)
-		if err != nil {
-			logOperation(debug, "Path resolution failed: %v", err)
-			return nil, fmt.Errorf("failed to resolve path %s: %w", f, err)
-		}
-
-		if _, err := os.Stat(absPath); err != nil {
-			logOperation(debug, "Values file not found: %v", err)
-			return nil, fmt.Errorf("values file not found: %s", absPath)
-		}
-
-		resolved = append(resolved, absPath)
-		logOperation(debug, "Resolved path: %s -> %s", f, absPath)
-	}
-	return resolved, nil
 }

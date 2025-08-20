@@ -26,9 +26,6 @@ func HelmInstall(
 	duration time.Duration, atomic, debug bool,
 	setValues, setLiteralValues []string, repoURL, version string,
 ) error {
-	spinner, _ := pterm.DefaultSpinner.Start(fmt.Sprintf("Starting Helm Install for release: %s", releaseName))
-	defer spinner.Stop()
-
 	if err := ensureNamespace(namespace, true); err != nil {
 		logDetailedError("namespace creation", err, namespace, releaseName)
 		return err
@@ -80,7 +77,6 @@ func HelmInstall(
 		return err
 	}
 
-	spinner.Success(fmt.Sprintf("Installation Completed Successfully for release: %s", releaseName))
 	printReleaseInfo(rel, debug)
 	printResourcesFromRelease(rel)
 

@@ -2,6 +2,7 @@ package selm
 
 import (
 	"errors"
+	"fmt"
 	"path/filepath"
 	"time"
 
@@ -17,25 +18,35 @@ var (
 )
 
 // upgradeCmd facilitates upgrading an existing Helm release or installing it if it's not present
-// (depending on the `--install` flag). It supports specifying a custom namespace, waiting for
-// resources to become ready (`--atomic`), setting arbitrary values (`--set` and `--values`),
-// and other typical Helm upgrade options. If no arguments are provided, it attempts to read
-// settings from the config file.
 var upgradeCmd = &cobra.Command{
 	Use:   "upgrade [NAME] [CHART]",
 	Short: "Upgrade a deployed Helm chart.",
 	Args:  cobra.MaximumNArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if configs.Debug {
+			pterm.EnableDebugMessages()
+			pterm.Println("=== DEBUG MODE ENABLED ===")
+		}
+
 		var releaseName, chartPath string
 
 		if len(args) >= 1 {
 			releaseName = args[0]
+			if configs.Debug {
+				pterm.Printf("Release name from argument: %s\n", releaseName)
+			}
 		}
 		if len(args) >= 2 {
 			chartPath = args[1]
+			if configs.Debug {
+				pterm.Printf("Chart path from argument: %s\n", chartPath)
+			}
 		}
 
 		if releaseName == "" || chartPath == "" {
+			if configs.Debug {
+				pterm.Println("Loading configuration from file...")
+			}
 			data, err := configs.LoadConfig(configs.FileName)
 			if err != nil {
 				return err
@@ -46,9 +57,15 @@ var upgradeCmd = &cobra.Command{
 				if releaseName == "" {
 					releaseName = filepath.Base(data.Selm.ChartName)
 				}
+				if configs.Debug {
+					pterm.Printf("Using release name from config: %s\n", releaseName)
+				}
 			}
 			if chartPath == "" {
 				chartPath = data.Selm.ChartName
+				if configs.Debug {
+					pterm.Printf("Using chart path from config: %s\n", chartPath)
+				}
 			}
 
 			if releaseName == "" || chartPath == "" {
@@ -57,6 +74,9 @@ var upgradeCmd = &cobra.Command{
 
 			if configs.Namespace == "default" && data.Selm.Namespace != "" {
 				configs.Namespace = data.Selm.Namespace
+				if configs.Debug {
+					pterm.Printf("Using namespace from config: %s\n", configs.Namespace)
+				}
 			}
 		}
 
@@ -67,20 +87,71 @@ var upgradeCmd = &cobra.Command{
 
 		timeoutDuration := time.Duration(configs.Timeout) * time.Second
 
+		if configs.Debug {
+			pterm.Printf("Configuration\n")
+			pterm.Printf("  - Release: %s\n", releaseName)
+			pterm.Printf("  - Chart: %s\n", chartPath)
+			pterm.Printf("  - Namespace: %s\n", configs.Namespace)
+			pterm.Printf("  - Timeout: %v\n", timeoutDuration)
+			pterm.Printf("  - Atomic: %t\n", configs.Atomic)
+			pterm.Printf("  - Create Namespace: %t\n", createNamespace)
+			pterm.Printf("  - Install if not present: %t\n", installIfNotPresent)
+			pterm.Printf("  - Set values: %v\n", configs.Set)
+			pterm.Printf("  - Values files: %v\n", configs.File)
+			pterm.Printf("  - Set literal: %v\n", configs.SetLiteral)
+			pterm.Printf("  - Repo URL: %s\n", RepoURL)
+			pterm.Printf("  - Version: %s\n", Version)
+		}
+
 		if installIfNotPresent {
-			exists, err := helm.HelmReleaseExists(releaseName, configs.Namespace)
+			if configs.Debug {
+				pterm.Println("Checking if release exists (--install flag enabled)...")
+			}
+			exists, err := helm.HelmReleaseExists(releaseName, configs.Namespace, configs.Debug)
 			if err != nil {
 				return err
 			}
 			if !exists {
-				if err := helm.HelmInstall(releaseName, chartPath, configs.Namespace, configs.File, timeoutDuration, configs.Atomic, configs.Debug, configs.Set, []string{}, RepoURL, Version); err != nil {
+				if configs.Debug {
+					pterm.Println("Release not found, installing...")
+				}
+				if err := helm.HelmInstall(releaseName, chartPath, configs.Namespace, configs.File, timeoutDuration, configs.Atomic, configs.Debug, configs.Set, configs.SetLiteral, RepoURL, Version); err != nil {
 					return err
 				}
+				if configs.Debug {
+					pterm.Println("Installation completed successfully")
+				}
+				pterm.Success.Println("Helm chart installed successfully.")
+				return nil
+			}
+			if configs.Debug {
+				pterm.Println("Release exists, proceeding with upgrade")
+			}
+		} else {
+			if configs.Debug {
+				pterm.Println("Checking if release exists (--install flag not enabled)...")
+			}
+			exists, err := helm.HelmReleaseExists(releaseName, configs.Namespace, configs.Debug)
+			if err != nil {
+				return err
+			}
+			if !exists {
+				return fmt.Errorf("release %s not found in namespace %s. Use --install flag to install it", releaseName, configs.Namespace)
+			}
+			if configs.Debug {
+				pterm.Println("Release exists, proceeding with upgrade")
 			}
 		}
 
 		if configs.Namespace == "" {
 			configs.Namespace = "default"
+			if configs.Debug {
+				pterm.Printf("Using default namespace: %s\n", configs.Namespace)
+			}
+		}
+
+		if configs.Debug {
+			pterm.Println("Starting Helm upgrade...")
 		}
 
 		err := helm.HelmUpgrade(
@@ -89,7 +160,7 @@ var upgradeCmd = &cobra.Command{
 			configs.Namespace,
 			configs.Set,
 			configs.File,
-			[]string{},
+			configs.SetLiteral,
 			createNamespace,
 			configs.Atomic,
 			timeoutDuration,

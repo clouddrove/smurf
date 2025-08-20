@@ -5,85 +5,107 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"strings"
+	"time"
 
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/registry"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/jsonmessage"
-	"github.com/pterm/pterm"
 	"golang.org/x/oauth2/google"
 )
 
-// / PushImageToGCR pushes the specified Docker image to the specified Google Container Registry.
-// It authenticates with Google Cloud, retrieves the registry details and credentials, tags the image,
-// and pushes it to the registry. It displays a spinner with progress updates and prints the
-// push response messages. Upon successful completion, it prints a success message with a link
-// to the pushed image in the GCR.
+// Color codes
+const (
+	colorReset  = "\033[0m"
+	colorRed    = "\033[31m"
+	colorGreen  = "\033[32m"
+	colorYellow = "\033[33m"
+	colorBlue   = "\033[34m"
+	colorCyan   = "\033[36m"
+)
+
+type ColorfulLogger struct {
+	startTime time.Time
+}
+
+func NewColorfulLogger() *ColorfulLogger {
+	return &ColorfulLogger{startTime: time.Now()}
+}
+
+func (l *ColorfulLogger) logStep(message string) {
+	fmt.Printf("%s[%s] %s %s%s%s\n",
+		colorBlue,
+		time.Since(l.startTime).Round(time.Millisecond),
+		"→",
+		colorCyan,
+		message,
+		colorReset)
+}
+
+func (l *ColorfulLogger) logSuccess(message string) {
+	fmt.Printf("%s[%s] %s %s%s%s\n",
+		colorGreen,
+		time.Since(l.startTime).Round(time.Millisecond),
+		"✓",
+		colorGreen,
+		message,
+		colorReset)
+}
+
+func (l *ColorfulLogger) logLayerPushed(layerID string) {
+	fmt.Printf("%s[%s] %s %s%s pushed%s\n",
+		colorYellow,
+		time.Since(l.startTime).Round(time.Millisecond),
+		"⬆",
+		colorCyan,
+		layerID[:12]+"...",
+		colorReset)
+}
+
 func PushImageToGCR(projectID, imageNameWithTag string) error {
+	logger := NewColorfulLogger()
 	ctx := context.Background()
 
-	// Parse image name and tag
-	imageName := imageNameWithTag
-	imageTag := "latest"
-	if parts := strings.Split(imageNameWithTag, ":"); len(parts) == 2 {
-		imageName = parts[0]
+	logger.logStep("Starting image push to GCR")
+
+	// Authentication
+	creds, err := google.FindDefaultCredentials(ctx, "https://www.googleapis.com/auth/cloud-platform")
+	if err != nil {
+		return fmt.Errorf("%sauthentication failed%s: %v", colorRed, colorReset, err)
+	}
+	logger.logSuccess("Authenticated with Google Cloud")
+
+	token, err := creds.TokenSource.Token()
+	if err != nil {
+		return fmt.Errorf("%stoken acquisition failed%s: %v", colorRed, colorReset, err)
+	}
+
+	// Docker client
+	dockerClient, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		return fmt.Errorf("%sdocker client creation failed%s: %v", colorRed, colorReset, err)
+	}
+
+	// Image tagging
+	parts := strings.Split(imageNameWithTag, ":")
+	imageName, imageTag := parts[0], "latest"
+	if len(parts) == 2 {
 		imageTag = parts[1]
 	}
 
-	spinner, _ := pterm.DefaultSpinner.Start("Authenticating with Google Cloud...")
-	creds, err := google.FindDefaultCredentials(ctx, "https://www.googleapis.com/auth/cloud-platform")
-	if err != nil {
-		spinner.Fail("Failed to authenticate with Google Cloud\n")
-		return fmt.Errorf("failed to authenticate with Google Cloud: %v", err)
-	}
-	spinner.Success("Authenticated with Google Cloud\n")
-
-	spinner, _ = pterm.DefaultSpinner.Start("Obtaining access token...")
-	tokenSource := creds.TokenSource
-	token, err := tokenSource.Token()
-	if err != nil {
-		spinner.Fail("Failed to obtain access token\n")
-		return fmt.Errorf("failed to obtain access token: %v", err)
-	}
-	spinner.Success("Access token obtained\n")
-
-	spinner, _ = pterm.DefaultSpinner.Start("Creating Docker client...")
-	dockerClient, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-	if err != nil {
-		spinner.Fail("Failed to create Docker client\n")
-		return fmt.Errorf("failed to create Docker client: %v", err)
-	}
-	spinner.Success("Docker client created\n")
-
-	spinner, _ = pterm.DefaultSpinner.Start("Tagging the image...")
-	var registryHost string
-
-	// Check if the image name already includes a registry
-	if strings.Contains(imageName, "gcr.io") || strings.Contains(imageName, "docker.pkg.dev") {
-		// Use the image name as is, since it already includes a registry
-		registryHost = ""
-	} else {
-		registryHost = fmt.Sprintf("gcr.io/%s/", projectID)
+	taggedImage := imageNameWithTag
+	if !strings.Contains(imageName, "gcr.io") && !strings.Contains(imageName, "docker.pkg.dev") {
+		taggedImage = fmt.Sprintf("gcr.io/%s/%s:%s", projectID, imageName, imageTag)
 	}
 
-	// Construct the proper tagged image with registry and tag
-	sourceImage := fmt.Sprintf("%s:%s", imageName, imageTag)
-	taggedImage := fmt.Sprintf("%s%s:%s", registryHost, imageName, imageTag)
-
-	// If the image already has a full registry path, don't prepend registryHost
-	if registryHost == "" {
-		taggedImage = sourceImage
+	if err := dockerClient.ImageTag(ctx, imageNameWithTag, taggedImage); err != nil {
+		return fmt.Errorf("%simage tagging failed%s: %v", colorRed, colorReset, err)
 	}
+	logger.logSuccess(fmt.Sprintf("Tagged image: %s%s%s", colorCyan, taggedImage, colorReset))
 
-	err = dockerClient.ImageTag(ctx, sourceImage, taggedImage)
-	if err != nil {
-		spinner.Fail("Failed to tag the image\n")
-		return fmt.Errorf("failed to tag the image: %v", err)
-	}
-	spinner.Success("Image tagged\n")
-
-	spinner, _ = pterm.DefaultSpinner.Start("Pushing the image to GCR...")
+	// Image push
 	authConfig := registry.AuthConfig{
 		Username:      "oauth2accesstoken",
 		Password:      token.AccessToken,
@@ -91,57 +113,56 @@ func PushImageToGCR(projectID, imageNameWithTag string) error {
 	}
 	encodedAuth, err := encodeAuthToBase64(authConfig)
 	if err != nil {
-		spinner.Fail("Failed to encode authentication credentials\n")
-		return fmt.Errorf("failed to encode authentication credentials: %v", err)
+		return fmt.Errorf("%sauth encoding failed%s: %v", colorRed, colorReset, err)
 	}
 
-	pushOptions := image.PushOptions{
+	pushResponse, err := dockerClient.ImagePush(ctx, taggedImage, image.PushOptions{
 		RegistryAuth: encodedAuth,
-	}
-
-	pushResponse, err := dockerClient.ImagePush(ctx, taggedImage, pushOptions)
+	})
 	if err != nil {
-		spinner.Fail("Failed to push the image\n")
-		return fmt.Errorf("failed to push the image: %v", err)
+		return fmt.Errorf("%spush failed%s: %v", colorRed, colorReset, err)
 	}
 	defer pushResponse.Close()
 
+	logger.logStep("Starting image push")
 	dec := json.NewDecoder(pushResponse)
-	progressBar, _ := pterm.DefaultProgressbar.WithTotal(100).WithTitle("Pushing to GCR").Start()
 	for {
 		var event jsonmessage.JSONMessage
 		if err := dec.Decode(&event); err != nil {
 			if err == io.EOF {
 				break
 			}
-			spinner.Fail("Failed to read push response\n")
-			return fmt.Errorf("failed to read push response: %v", err)
+			return fmt.Errorf("%spush response failed%s: %v", colorRed, colorReset, err)
 		}
 		if event.Error != nil {
-			spinner.Fail("Failed to push the image\n")
-			return fmt.Errorf("failed to push the image: %v", err)
+			return fmt.Errorf("%spush failed%s: %v", colorRed, colorReset, event.Error)
 		}
-		if event.Progress != nil && event.Progress.Total > 0 {
-			progress := int(float64(event.Progress.Current) / float64(event.Progress.Total) * 100)
-			if progress > 100 {
-				progress = 100
-			}
-			progressBar.Add(progress - progressBar.Current)
+
+		// Only log when a layer is fully pushed
+		if event.Status == "Pushed" && event.ID != "" {
+			logger.logLayerPushed(event.ID)
 		}
 	}
-	progressBar.Stop()
-	spinner.Success("Image pushed to GCR\n")
 
-	// Construct the proper console link
+	// Final output
 	registryType := "gcr"
 	if strings.Contains(imageName, "docker.pkg.dev") {
 		registryType = "artifacts/repository"
 	}
-
 	link := fmt.Sprintf("https://console.cloud.google.com/%s/images/%s/%s?project=%s",
 		registryType, projectID, imageName, projectID)
 
-	pterm.Success.Printfln("Image pushed to GCR: %s\n", link)
-	pterm.Success.Printfln("Successfully pushed image '%s' to GCR\n", taggedImage)
+	if outputPath := os.Getenv("GITHUB_OUTPUT"); outputPath != "" {
+		file, err := os.OpenFile(outputPath, os.O_APPEND|os.O_WRONLY, 0644)
+		if err == nil {
+			fmt.Fprintf(file, "image_url=%s\n", link)
+			file.Close()
+		}
+	}
+
+	logger.logSuccess("Image pushed successfully")
+	logger.logSuccess(fmt.Sprintf("View in console: %s%s%s", colorCyan, link, colorReset))
+	logger.logSuccess(fmt.Sprintf("Image reference: %s%s%s", colorCyan, taggedImage, colorReset))
+
 	return nil
 }
