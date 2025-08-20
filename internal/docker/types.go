@@ -2,16 +2,18 @@ package docker
 
 import "time"
 
-// BuildOptions struct to hold options for building a Docker image
+// BuildOptions contains configuration for the Docker build
 type BuildOptions struct {
 	ContextDir     string
 	DockerfilePath string
-	NoCache        bool
 	BuildArgs      map[string]string
 	Target         string
 	Platform       string
-	Timeout        time.Duration
+	NoCache        bool
 	BuildKit       bool
+	Timeout        time.Duration
+	Excludes       []string
+	Labels         map[string]string
 }
 
 // ImageInfo struct to hold information about a Docker image

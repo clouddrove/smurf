@@ -50,6 +50,7 @@ func PushImage(opts PushOptions) error {
 	pushResp, err := cli.ImagePush(ctx, opts.ImageName, image.PushOptions{
 		RegistryAuth: authStr,
 	})
+
 	if err != nil {
 		spinner.Fail(fmt.Sprintf("Failed to push image %s, error : %v", opts.ImageName, err))
 		return fmt.Errorf("failed to push image : %v", err)

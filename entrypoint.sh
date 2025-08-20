@@ -2,13 +2,13 @@
 set -e
 
 # Debugging info
-echo "Starting entrypoint script..."
-echo "Current User: $(whoami)"
-echo "Working Directory: $(pwd)"
-echo "AWS Region: ${AWS_REGION:-not set}"
-echo "EKS Cluster: ${EKS_CLUSTER_NAME:-not set}"
-echo "GCP Project: ${GCP_PROJECT_ID:-not set}"
-echo "GKE Cluster: ${GKE_CLUSTER_NAME:-not set}"
+# echo "Starting entrypoint script..."
+# echo "Current User: $(whoami)"
+# echo "Working Directory: $(pwd)"
+# echo "AWS Region: ${AWS_REGION:-not set}"
+# echo "EKS Cluster: ${EKS_CLUSTER_NAME:-not set}"
+# echo "GCP Project: ${GCP_PROJECT_ID:-not set}"
+# echo "GKE Cluster: ${GKE_CLUSTER_NAME:-not set}"
 
 # Function to check file existence and non-emptiness
 check_file_exists() {
@@ -93,9 +93,9 @@ if [[ "$PROVIDER" == "aws" ]]; then
 elif [[ "$PROVIDER" == "gcp" ]]; then
     echo "🔹 GCP authentication is enabled. Performing GCP login..."
     gcp_gke_login
-else
-    echo "⚠️ Unknown or unspecified provider: ${PROVIDER:-none}"
-    echo "⚠️ Skipping cloud provider authentication."
+# else
+#     echo "⚠️ Unknown or unspecified provider: ${PROVIDER:-none}"
+#     echo "⚠️ Skipping cloud provider authentication."
 fi
 
 # Initialize command with base command

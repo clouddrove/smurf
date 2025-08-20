@@ -137,22 +137,40 @@ func mergeMaps(a, b map[string]interface{}) map[string]interface{} {
 func printReleaseInfo(rel *release.Release, debug bool) {
 	logOperation(debug, "Printing release info for %s", rel.Name)
 
-	pterm.FgCyan.Println("\n----- RELEASE INFO -----")
+	// Clean header with release name
+	pterm.Println()
+	pterm.Printf("%s %s\n\n",
+		pterm.Bold.Sprint("RELEASE :"),
+		pterm.Cyan(rel.Name))
 
-	pterm.FgGreen.Printf("NAME: %s\n", rel.Name)
-	pterm.FgGreen.Printf("CHART: %s-%s\n", rel.Chart.Metadata.Name, rel.Chart.Metadata.Version)
-	pterm.FgGreen.Printf("NAMESPACE: %s\n", rel.Namespace)
-	pterm.FgGreen.Printf("LAST DEPLOYED: %s\n\n", rel.Info.LastDeployed)
-	pterm.FgGreen.Printf("STATUS: %s\n", rel.Info.Status)
-	pterm.FgGreen.Printf("REVISION: %d\n", rel.Version)
-
-	if rel.Info.Notes != "" {
-		logOperation(debug, "Release notes available")
-		pterm.FgGreen.Println("\nNOTES:")
-		fmt.Println(rel.Info.Notes)
+	// Release information in a clean table
+	releaseTable := pterm.TableData{
+		{"NAME", rel.Name},
+		{"CHART", fmt.Sprintf("%s-%s", rel.Chart.Metadata.Name, rel.Chart.Metadata.Version)},
+		{"NAMESPACE", rel.Namespace},
+		{"LAST DEPLOYED", rel.Info.LastDeployed.Format("2006-01-02 15:04:05")},
+		{"STATUS", string(rel.Info.Status)},
+		{"REVISION", fmt.Sprintf("%d", rel.Version)},
 	}
 
-	pterm.FgCyan.Println("-----------------------")
+	pterm.DefaultTable.
+		WithBoxed(true).
+		WithHeaderStyle(pterm.NewStyle(pterm.Bold)).
+		WithLeftAlignment().
+		WithData(releaseTable).
+		Render()
+
+	// Application notes section (completely separate from table)
+	if rel.Info.Notes != "" {
+		pterm.Println("\n" + pterm.DefaultSection.
+			WithLevel(2).
+			WithStyle(pterm.NewStyle(pterm.Bold)).
+			Sprint("NOTES : "))
+
+		// Print raw notes without table formatting
+		fmt.Println(rel.Info.Notes)
+	}
+	pterm.Println()
 }
 
 // convertToMapStringInterface converts an interface{} to a map[string]interface{} recursively.
@@ -206,238 +224,6 @@ func parseResourcesFromManifest(manifest string) ([]Resource, error) {
 		}
 	}
 	return resources, nil
-}
-
-// printResourcesFromRelease prints detailed information about the Kubernetes resources created by the Helm release.
-// It fetches detailed information about the resources from the Kubernetes API and prints it to the console.
-func printResourcesFromRelease(rel *release.Release) {
-	resources, err := parseResourcesFromManifest(rel.Manifest)
-	if err != nil {
-		pterm.Error.Printfln("Error parsing manifest: %v \n", err)
-		return
-	}
-
-	if len(resources) == 0 {
-		pterm.FgGreen.Println("No Kubernetes resources were created by this release.")
-		return
-	}
-
-	pterm.FgCyan.Print("----- RESOURCES ----- \n")
-
-	clientset, getClientErr := getKubeClient()
-	if getClientErr != nil {
-		pterm.Error.Printfln("Error getting kube client for detailed resource info: %v \n", getClientErr)
-		for _, r := range resources {
-			pterm.FgGreen.Printfln("%s: %s \n", r.Kind, r.Name)
-		}
-		pterm.FgCyan.Print("-------------------------------- \n")
-		return
-	}
-
-	for _, r := range resources {
-		switch r.Kind {
-		case "Deployment":
-			dep, err := clientset.AppsV1().Deployments(rel.Namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
-			if err != nil {
-				pterm.Warning.Printfln("%s: %s (Failed to get details: %v) \n", r.Kind, r.Name, err)
-				continue
-			}
-			pterm.FgGreen.Printfln("Deployment: %s \n", r.Name)
-			pterm.FgGreen.Printfln("- Desired Replicas: %d \n", *dep.Spec.Replicas)
-			pterm.FgGreen.Printfln("- Ready Replicas:   %d \n", dep.Status.ReadyReplicas)
-
-		case "ReplicaSet":
-			rs, err := clientset.AppsV1().ReplicaSets(rel.Namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
-			if err != nil {
-				pterm.Warning.Printfln("%s: %s (Failed to get details: %v) \n", r.Kind, r.Name, err)
-				continue
-			}
-			pterm.FgGreen.Printfln("ReplicaSet: %s \n", r.Name)
-			pterm.FgGreen.Printfln("- Desired Replicas: %d \n", *rs.Spec.Replicas)
-			pterm.FgGreen.Printfln("- Current Replicas: %d \n", rs.Status.Replicas)
-			pterm.FgGreen.Printfln("- Ready Replicas:   %d \n", rs.Status.ReadyReplicas)
-
-		case "StatefulSet":
-			ss, err := clientset.AppsV1().StatefulSets(rel.Namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
-			if err != nil {
-				pterm.Warning.Printfln("%s: %s (Failed to get details: %v) \n", r.Kind, r.Name, err)
-				continue
-			}
-			pterm.FgGreen.Printfln("StatefulSet: %s \n", r.Name)
-			pterm.FgGreen.Printfln("- Desired Replicas: %d \n", *ss.Spec.Replicas)
-			pterm.FgGreen.Printfln("- Current Replicas: %d \n", ss.Status.CurrentReplicas)
-			pterm.FgGreen.Printfln("- Ready Replicas:   %d \n", ss.Status.ReadyReplicas)
-
-		case "DaemonSet":
-			ds, err := clientset.AppsV1().DaemonSets(rel.Namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
-			if err != nil {
-				pterm.Warning.Printfln("%s: %s (Failed to get details: %v) \n", r.Kind, r.Name, err)
-				continue
-			}
-			pterm.FgGreen.Printfln("DaemonSet: %s \n", r.Name)
-			pterm.FgGreen.Printfln("- Desired Number Scheduled: %d \n", ds.Status.DesiredNumberScheduled)
-			pterm.FgGreen.Printfln("- Number Scheduled:         %d \n", ds.Status.CurrentNumberScheduled)
-			pterm.FgGreen.Printfln("- Number Ready:             %d \n", ds.Status.NumberReady)
-
-		case "Pod":
-			pod, err := clientset.CoreV1().Pods(rel.Namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
-			if err != nil {
-				pterm.Warning.Printfln("%s: %s (Failed to get details: %v) \n", r.Kind, r.Name, err)
-				continue
-			}
-			pterm.FgGreen.Printfln("Pod: %s \n", r.Name)
-			pterm.FgGreen.Printfln("- Phase: %s \n", pod.Status.Phase)
-			ready := false
-			for _, cond := range pod.Status.Conditions {
-				if cond.Type == corev1.PodReady && cond.Status == corev1.ConditionTrue {
-					ready = true
-					break
-				}
-			}
-			pterm.FgGreen.Printfln("- Ready: %v \n", ready)
-			pterm.FgGreen.Printfln("- IP: %s \n", pod.Status.PodIP)
-			for _, cs := range pod.Status.ContainerStatuses {
-				pterm.FgGreen.Printfln("  Container: %s \n", cs.Name)
-				if cs.State.Waiting != nil {
-					pterm.FgRed.Printfln("    State: Waiting \n")
-					pterm.FgRed.Printfln("    Reason: %s \n", cs.State.Waiting.Reason)
-					pterm.FgRed.Printfln("    Message: %s \n", cs.State.Waiting.Message)
-				}
-				if cs.State.Terminated != nil {
-					pterm.FgRed.Printfln("    State: Terminated \n")
-					pterm.FgRed.Printfln("    Reason: %s \n", cs.State.Terminated.Reason)
-					pterm.FgRed.Printfln("    Message: %s \n", cs.State.Terminated.Message)
-				}
-				if cs.State.Running != nil {
-					pterm.FgGreen.Printfln("    State: Running \n")
-					pterm.FgGreen.Printfln("    Started at: %s \n", cs.State.Running.StartedAt)
-				}
-				pterm.FgGreen.Printfln("    Ready: %v \n", cs.Ready)
-				pterm.FgGreen.Printfln("    Restart Count: %d \n", cs.RestartCount)
-			}
-
-		case "Service":
-			svc, err := clientset.CoreV1().Services(rel.Namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
-			if err != nil {
-				pterm.Warning.Printfln("%s: %s (Failed to get details: %v) \n", r.Kind, r.Name, err)
-				continue
-			}
-			pterm.FgGreen.Printfln("Service: %s \n", r.Name)
-			pterm.FgGreen.Printfln("- Type: %s \n", svc.Spec.Type)
-			pterm.FgGreen.Printfln("- ClusterIP: %s \n", svc.Spec.ClusterIP)
-			if len(svc.Spec.Ports) > 0 {
-				for _, p := range svc.Spec.Ports {
-					pterm.FgGreen.Printfln("- Port: %d (Protocol: %s, TargetPort: %v) \n", p.Port, p.Protocol, p.TargetPort)
-				}
-			}
-
-		case "ServiceAccount":
-			sa, err := clientset.CoreV1().ServiceAccounts(rel.Namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
-			if err != nil {
-				pterm.Warning.Printfln("%s: %s (Failed to get details: %v) \n", r.Kind, r.Name, err)
-				continue
-			}
-			pterm.FgGreen.Printfln("ServiceAccount: %s \n", r.Name)
-			pterm.FgGreen.Printfln("- CreationTimestamp: %s \n", sa.CreationTimestamp.String())
-
-		case "ConfigMap":
-			cm, err := clientset.CoreV1().ConfigMaps(rel.Namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
-			if err != nil {
-				pterm.Warning.Printfln("%s: %s (Failed to get details: %v) \n", r.Kind, r.Name, err)
-				continue
-			}
-			pterm.FgGreen.Printfln("ConfigMap: %s \n", r.Name)
-			pterm.FgGreen.Printfln("- Data keys: %d \n", len(cm.Data))
-
-		case "Secret":
-			secret, err := clientset.CoreV1().Secrets(rel.Namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
-			if err != nil {
-				pterm.Warning.Printfln("%s: %s (Failed to get details: %v) \n", r.Kind, r.Name, err)
-				continue
-			}
-			pterm.FgGreen.Printfln("Secret: %s \n", r.Name)
-			pterm.FgGreen.Printfln("- Type: %s \n", secret.Type)
-			pterm.FgGreen.Printfln("- Data keys: %d \n", len(secret.Data))
-
-		case "Namespace":
-			ns, err := clientset.CoreV1().Namespaces().Get(context.Background(), r.Name, metav1.GetOptions{})
-			if err != nil {
-				pterm.Warning.Printfln("%s: %s (Failed to get details: %v) \n", r.Kind, r.Name, err)
-				continue
-			}
-			pterm.FgGreen.Printfln("Namespace: %s \n", r.Name)
-			pterm.FgGreen.Printfln("- Status: %s \n", ns.Status.Phase)
-
-		default:
-			pterm.FgGreen.Printfln("%s: %s \n", r.Kind, r.Name)
-		}
-	}
-
-	pterm.FgCyan.Print("----- PODS ASSOCIATED WITH THE RELEASE ----- \n")
-	podList, err := clientset.CoreV1().Pods(rel.Namespace).List(context.Background(), metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("app.kubernetes.io/instance=%s", rel.Name),
-	})
-	if err != nil {
-		pterm.Error.Printfln("Error listing pods for release '%s': %v \n", rel.Name, err)
-	} else if len(podList.Items) == 0 {
-		pterm.FgYellow.Printfln("No pods found for release '%s' \n", rel.Name)
-	} else {
-		for _, pod := range podList.Items {
-			pterm.FgGreen.Printfln("Pod: %s \n", pod.Name)
-			pterm.FgGreen.Printfln("- Phase: %s \n", pod.Status.Phase)
-			ready := false
-			for _, cond := range pod.Status.Conditions {
-				if cond.Type == corev1.PodReady && cond.Status == corev1.ConditionTrue {
-					ready = true
-					break
-				}
-			}
-			pterm.FgGreen.Printfln("- Ready: %v \n", ready)
-			pterm.FgGreen.Printfln("- IP: %s \n", pod.Status.PodIP)
-			for _, cs := range pod.Status.ContainerStatuses {
-				pterm.FgGreen.Printfln("  Container: %s \n", cs.Name)
-				if cs.State.Waiting != nil {
-					pterm.FgRed.Printfln("    State: Waiting \n")
-					pterm.FgRed.Printfln("    Reason: %s \n", cs.State.Waiting.Reason)
-					pterm.FgRed.Printfln("    Message: %s \n", cs.State.Waiting.Message)
-				}
-				if cs.State.Terminated != nil {
-					pterm.FgRed.Printfln("    State: Terminated \n")
-					pterm.FgRed.Printfln("    Reason: %s \n", cs.State.Terminated.Reason)
-					pterm.FgRed.Printfln("    Message: %s \n", cs.State.Terminated.Message)
-				}
-				if cs.State.Running != nil {
-					pterm.FgGreen.Printfln("    State: Running \n")
-					pterm.FgGreen.Printfln("    Started at: %s \n", cs.State.Running.StartedAt)
-				}
-				pterm.FgGreen.Printfln("    Ready: %v \n", cs.Ready)
-				pterm.FgGreen.Printfln("    Restart Count: %d \n", cs.RestartCount)
-			}
-			pterm.FgGreen.Printfln("- Node Name: %s \n", pod.Spec.NodeName)
-			pterm.FgGreen.Printfln("- Host IP: %s \n", pod.Status.HostIP)
-			pterm.FgGreen.Printfln("- Pod IP: %s \n", pod.Status.PodIP)
-			pterm.FgGreen.Printfln("- Start Time: %s \n", pod.Status.StartTime.String())
-
-			evts, err := clientset.CoreV1().Events(rel.Namespace).List(context.Background(), metav1.ListOptions{
-				FieldSelector: fmt.Sprintf("involvedObject.name=%s", pod.Name),
-			})
-			if err != nil {
-				pterm.FgYellow.Printfln("  Error fetching events for pod %s: %v \n", pod.Name, err)
-				continue
-			}
-
-			if len(evts.Items) == 0 {
-				pterm.FgYellow.Printfln("  No events found for pod %s \n", pod.Name)
-			} else {
-				pterm.FgGreen.Printfln("  Events for pod %s: \n", pod.Name)
-				for _, evt := range evts.Items {
-					pterm.FgGreen.Printfln("    %s: %s \n", evt.Reason, evt.Message)
-				}
-			}
-			pterm.FgCyan.Print("------------------------------------------------------- \n")
-		}
-	}
-	pterm.FgCyan.Print("----------------------------------------------- \n")
 }
 
 // monitorResources monitors the resources created by the Helm release until they are all ready.
@@ -584,4 +370,381 @@ func describeFailedResources(namespace, releaseName string) {
 // Helper functions
 func isNotFound(err error) bool {
 	return err != nil && (errors.Is(err, os.ErrNotExist) || strings.Contains(err.Error(), "not found"))
+}
+
+// Helper function to get external IP for services
+func getExternalIP(svc *corev1.Service) string {
+	if svc.Spec.Type == corev1.ServiceTypeLoadBalancer {
+		for _, ing := range svc.Status.LoadBalancer.Ingress {
+			if ing.IP != "" {
+				return ing.IP
+			}
+			if ing.Hostname != "" {
+				return ing.Hostname
+			}
+		}
+		return "<pending>"
+	}
+	return "<none>"
+}
+
+// printResourcesFromRelease prints detailed information about the Kubernetes resources created by the Helm release.
+// It fetches detailed information about the resources from the Kubernetes API and prints it to the console.
+func printResourcesFromRelease(rel *release.Release) {
+	resources, err := parseResourcesFromManifest(rel.Manifest)
+	if err != nil {
+		pterm.Error.WithShowLineNumber(false).Printfln("Error parsing manifest: %v", err)
+		return
+	}
+
+	if len(resources) == 0 {
+		pterm.Info.Println("No Kubernetes resources were created by this release.")
+		return
+	}
+
+	// Print resources section
+	pterm.DefaultSection.Println("RESOURCES")
+
+	clientset, getClientErr := getKubeClient()
+	if getClientErr != nil {
+		pterm.Error.WithShowLineNumber(false).Printfln("Error getting kube client for detailed resource info: %v", getClientErr)
+
+		// Fallback table with basic info
+		tableData := pterm.TableData{{"Kind", "Name"}}
+		for _, r := range resources {
+			tableData = append(tableData, []string{r.Kind, r.Name})
+		}
+
+		pterm.DefaultTable.WithHasHeader(true).WithData(tableData).Render()
+		return
+	}
+
+	// Print resources in tables grouped by kind
+	for _, r := range resources {
+		switch r.Kind {
+		case "Deployment":
+			dep, err := clientset.AppsV1().Deployments(rel.Namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
+			if err != nil {
+				pterm.Warning.Printfln("%s/%s: Failed to get details: %v", r.Kind, r.Name, err)
+				continue
+			}
+
+			pterm.DefaultSection.Printf("%s: %s", r.Kind, r.Name)
+
+			tableData := pterm.TableData{
+				{"REPLICAS", fmt.Sprint(*dep.Spec.Replicas)},
+				{"DESIRED", fmt.Sprint(dep.Status.Replicas)},
+				{"READY", fmt.Sprint(dep.Status.ReadyReplicas)},
+				{"UPDATED", fmt.Sprint(dep.Status.UpdatedReplicas)},
+				{"AVAILABLE", fmt.Sprint(dep.Status.AvailableReplicas)},
+			}
+
+			pterm.DefaultTable.WithHasHeader(false).WithBoxed(true).WithData(tableData).Render()
+
+		case "ReplicaSet":
+			rs, err := clientset.AppsV1().ReplicaSets(rel.Namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
+			if err != nil {
+				pterm.Warning.Printfln("%s/%s: Failed to get details: %v", r.Kind, r.Name, err)
+				continue
+			}
+
+			pterm.DefaultSection.Printf("%s: %s", r.Kind, r.Name)
+
+			tableData := pterm.TableData{
+				{"REPLICAS", fmt.Sprint(*rs.Spec.Replicas)},
+				{"DESIRED", fmt.Sprint(rs.Status.Replicas)},
+				{"READY", fmt.Sprint(rs.Status.ReadyReplicas)},
+			}
+
+			pterm.DefaultTable.WithHasHeader(false).WithBoxed(true).WithData(tableData).Render()
+
+		case "StatefulSet":
+			ss, err := clientset.AppsV1().StatefulSets(rel.Namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
+			if err != nil {
+				pterm.Warning.Printfln("%s/%s: Failed to get details: %v", r.Kind, r.Name, err)
+				continue
+			}
+
+			pterm.DefaultSection.Printf("%s: %s", r.Kind, r.Name)
+
+			tableData := pterm.TableData{
+				{"REPLICAS", fmt.Sprint(*ss.Spec.Replicas)},
+				{"CURRENT", fmt.Sprint(ss.Status.CurrentReplicas)},
+				{"READY", fmt.Sprint(ss.Status.ReadyReplicas)},
+			}
+
+			pterm.DefaultTable.WithHasHeader(false).WithBoxed(true).WithData(tableData).Render()
+
+		case "DaemonSet":
+			ds, err := clientset.AppsV1().DaemonSets(rel.Namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
+			if err != nil {
+				pterm.Warning.Printfln("%s/%s: Failed to get details: %v", r.Kind, r.Name, err)
+				continue
+			}
+
+			pterm.DefaultSection.Printf("%s: %s", r.Kind, r.Name)
+
+			tableData := pterm.TableData{
+				{"DESIRED", fmt.Sprint(ds.Status.DesiredNumberScheduled)},
+				{"CURRENT", fmt.Sprint(ds.Status.CurrentNumberScheduled)},
+				{"READY", fmt.Sprint(ds.Status.NumberReady)},
+				{"UPDATED", fmt.Sprint(ds.Status.UpdatedNumberScheduled)},
+				{"AVAILABLE", fmt.Sprint(ds.Status.NumberAvailable)},
+			}
+
+			pterm.DefaultTable.WithHasHeader(false).WithBoxed(true).WithData(tableData).Render()
+
+		case "Pod":
+			pod, err := clientset.CoreV1().Pods(rel.Namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
+			if err != nil {
+				pterm.Warning.Printfln("%s/%s: Failed to get details: %v", r.Kind, r.Name, err)
+				continue
+			}
+
+			pterm.DefaultSection.Printf("%s: %s", r.Kind, r.Name)
+
+			ready := false
+			for _, cond := range pod.Status.Conditions {
+				if cond.Type == corev1.PodReady && cond.Status == corev1.ConditionTrue {
+					ready = true
+					break
+				}
+			}
+
+			podTable := pterm.TableData{
+				{"PHASE", string(pod.Status.Phase)},
+				{"READY", fmt.Sprint(ready)},
+				{"NODE", pod.Spec.NodeName},
+				{"POD IP", pod.Status.PodIP},
+				{"START TIME", pod.Status.StartTime.Format(time.RFC1123)},
+			}
+
+			pterm.DefaultTable.WithHasHeader(false).WithBoxed(true).WithData(podTable).Render()
+
+			// Containers table
+			if len(pod.Status.ContainerStatuses) > 0 {
+				pterm.Println()
+				pterm.Info.Println("Containers:")
+
+				for _, cs := range pod.Status.ContainerStatuses {
+					state := ""
+					if cs.State.Waiting != nil {
+						state = fmt.Sprintf("Waiting (%s)", cs.State.Waiting.Reason)
+					} else if cs.State.Terminated != nil {
+						state = fmt.Sprintf("Terminated (%s)", cs.State.Terminated.Reason)
+					} else if cs.State.Running != nil {
+						state = fmt.Sprintf("Running (since %s)", cs.State.Running.StartedAt.Format(time.RFC1123))
+					}
+
+					containerTable := pterm.TableData{
+						{"NAME", cs.Name},
+						{"READY", fmt.Sprint(cs.Ready)},
+						{"STATE", state},
+						{"RESTARTS", fmt.Sprint(cs.RestartCount)},
+						{"IMAGE", cs.Image},
+					}
+
+					pterm.DefaultTable.WithHasHeader(false).WithBoxed(true).WithData(containerTable).Render()
+				}
+			}
+
+		case "Service":
+			svc, err := clientset.CoreV1().Services(rel.Namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
+			if err != nil {
+				pterm.Warning.Printfln("%s/%s: Failed to get details: %v", r.Kind, r.Name, err)
+				continue
+			}
+
+			pterm.DefaultSection.Printf("%s: %s", r.Kind, r.Name)
+
+			serviceTable := pterm.TableData{
+				{"TYPE", string(svc.Spec.Type)},
+				{"CLUSTER-IP", svc.Spec.ClusterIP},
+				{"EXTERNAL-IP", getExternalIP(svc)},
+				{"AGE", time.Since(svc.CreationTimestamp.Time).Round(time.Second).String()},
+			}
+
+			pterm.DefaultTable.WithHasHeader(false).WithBoxed(true).WithData(serviceTable).Render()
+
+			// Ports
+			if len(svc.Spec.Ports) > 0 {
+				pterm.Println()
+				pterm.Info.Println("Ports:")
+
+				for _, p := range svc.Spec.Ports {
+					nodePort := ""
+					if p.NodePort > 0 {
+						nodePort = fmt.Sprint(p.NodePort)
+					}
+
+					portsTable := pterm.TableData{
+						{"NAME", p.Name},
+						{"PORT", fmt.Sprint(p.Port)},
+						{"TARGET PORT", p.TargetPort.String()},
+						{"PROTOCOL", string(p.Protocol)},
+						{"NODE PORT", nodePort},
+					}
+
+					pterm.DefaultTable.WithHasHeader(false).WithBoxed(true).WithData(portsTable).Render()
+				}
+			}
+
+		case "ServiceAccount":
+			sa, err := clientset.CoreV1().ServiceAccounts(rel.Namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
+			if err != nil {
+				pterm.Warning.Printfln("%s/%s: Failed to get details: %v", r.Kind, r.Name, err)
+				continue
+			}
+
+			pterm.DefaultSection.Printf("%s: %s", r.Kind, r.Name)
+
+			tableData := pterm.TableData{
+				{"SECRETS", fmt.Sprint(len(sa.Secrets))},
+				{"AGE", time.Since(sa.CreationTimestamp.Time).Round(time.Second).String()},
+			}
+
+			pterm.DefaultTable.WithHasHeader(false).WithBoxed(true).WithData(tableData).Render()
+
+		case "ConfigMap":
+			cm, err := clientset.CoreV1().ConfigMaps(rel.Namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
+			if err != nil {
+				pterm.Warning.Printfln("%s/%s: Failed to get details: %v", r.Kind, r.Name, err)
+				continue
+			}
+
+			pterm.DefaultSection.Printf("%s: %s", r.Kind, r.Name)
+
+			tableData := pterm.TableData{
+				{"DATA", fmt.Sprint(len(cm.Data))},
+				{"BINARY DATA", fmt.Sprint(len(cm.BinaryData))},
+				{"AGE", time.Since(cm.CreationTimestamp.Time).Round(time.Second).String()},
+			}
+
+			pterm.DefaultTable.WithHasHeader(false).WithBoxed(true).WithData(tableData).Render()
+
+		case "Secret":
+			secret, err := clientset.CoreV1().Secrets(rel.Namespace).Get(context.Background(), r.Name, metav1.GetOptions{})
+			if err != nil {
+				pterm.Warning.Printfln("%s/%s: Failed to get details: %v", r.Kind, r.Name, err)
+				continue
+			}
+
+			pterm.DefaultSection.Printf("%s: %s", r.Kind, r.Name)
+
+			tableData := pterm.TableData{
+				{"TYPE", string(secret.Type)},
+				{"DATA", fmt.Sprint(len(secret.Data))},
+				{"AGE", time.Since(secret.CreationTimestamp.Time).Round(time.Second).String()},
+			}
+
+			pterm.DefaultTable.WithHasHeader(false).WithBoxed(true).WithData(tableData).Render()
+
+		case "Namespace":
+			ns, err := clientset.CoreV1().Namespaces().Get(context.Background(), r.Name, metav1.GetOptions{})
+			if err != nil {
+				pterm.Warning.Printfln("%s/%s: Failed to get details: %v", r.Kind, r.Name, err)
+				continue
+			}
+
+			pterm.DefaultSection.Printf("%s: %s", r.Kind, r.Name)
+
+			tableData := pterm.TableData{
+				{"STATUS", string(ns.Status.Phase)},
+				{"AGE", time.Since(ns.CreationTimestamp.Time).Round(time.Second).String()},
+			}
+
+			pterm.DefaultTable.WithHasHeader(false).WithBoxed(true).WithData(tableData).Render()
+
+		default:
+			pterm.DefaultSection.Printf("%s: %s", r.Kind, r.Name)
+			pterm.Info.Println("No additional details available for this resource type")
+		}
+
+		pterm.Println()
+	}
+
+	// Print pods section
+	pterm.DefaultSection.Println("PODS ASSOCIATED WITH THE RELEASE")
+
+	podList, err := clientset.CoreV1().Pods(rel.Namespace).List(context.Background(), metav1.ListOptions{
+		LabelSelector: fmt.Sprintf("app.kubernetes.io/instance=%s", rel.Name),
+	})
+	if err != nil {
+		pterm.Error.WithShowLineNumber(false).Printfln("Error listing pods for release '%s': %v", rel.Name, err)
+	} else if len(podList.Items) == 0 {
+		pterm.Warning.Printf("No pods found for release '%s'\n", rel.Name)
+	} else {
+		for _, pod := range podList.Items {
+			pterm.DefaultSection.Printf("Pod: %s", pod.Name)
+
+			ready := false
+			for _, cond := range pod.Status.Conditions {
+				if cond.Type == corev1.PodReady && cond.Status == corev1.ConditionTrue {
+					ready = true
+					break
+				}
+			}
+
+			podTable := pterm.TableData{
+				{"PHASE", string(pod.Status.Phase)},
+				{"READY", fmt.Sprint(ready)},
+				{"NODE", pod.Spec.NodeName},
+				{"POD IP", pod.Status.PodIP},
+				{"START TIME", pod.Status.StartTime.Format(time.RFC1123)},
+			}
+
+			pterm.DefaultTable.WithHasHeader(false).WithBoxed(true).WithData(podTable).Render()
+
+			// Containers
+			if len(pod.Status.ContainerStatuses) > 0 {
+				pterm.Println()
+				pterm.Info.Println("Containers:")
+
+				for _, cs := range pod.Status.ContainerStatuses {
+					state := ""
+					if cs.State.Waiting != nil {
+						state = fmt.Sprintf("Waiting (%s)", cs.State.Waiting.Reason)
+					} else if cs.State.Terminated != nil {
+						state = fmt.Sprintf("Terminated (%s)", cs.State.Terminated.Reason)
+					} else if cs.State.Running != nil {
+						state = fmt.Sprintf("Running (since %s)", cs.State.Running.StartedAt.Format(time.RFC1123))
+					}
+
+					containerTable := pterm.TableData{
+						{"NAME", cs.Name},
+						{"READY", fmt.Sprint(cs.Ready)},
+						{"STATE", state},
+						{"RESTARTS", fmt.Sprint(cs.RestartCount)},
+						{"IMAGE", cs.Image},
+					}
+
+					pterm.DefaultTable.WithHasHeader(false).WithBoxed(true).WithData(containerTable).Render()
+				}
+			}
+
+			// Events
+			evts, err := clientset.CoreV1().Events(rel.Namespace).List(context.Background(), metav1.ListOptions{
+				FieldSelector: fmt.Sprintf("involvedObject.name=%s", pod.Name),
+			})
+			if err != nil {
+				pterm.Warning.Printf("Error fetching events for pod %s: %v\n", pod.Name, err)
+			} else if len(evts.Items) > 0 {
+				pterm.Println()
+				pterm.Info.Println("Events:")
+
+				for _, evt := range evts.Items {
+					eventsTable := pterm.TableData{
+						{"LAST SEEN", time.Since(evt.LastTimestamp.Time).Round(time.Second).String() + " ago"},
+						{"TYPE", evt.Type},
+						{"REASON", evt.Reason},
+						{"MESSAGE", evt.Message},
+					}
+
+					pterm.DefaultTable.WithHasHeader(false).WithBoxed(true).WithData(eventsTable).Render()
+				}
+			}
+
+			pterm.Println()
+		}
+	}
 }
