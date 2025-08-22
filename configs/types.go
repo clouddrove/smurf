@@ -22,24 +22,25 @@ var (
 
 // types for SELM
 var (
-	Directory  string
-	File       []string
-	Namespace  string
-	Timeout    int
-	Atomic     bool
-	Debug      bool
-	Set        []string
-	SetLiteral []string
-	Force      bool
-	Wait       bool
-	CaFile     string // --ca-file
-	CertFile   string // --cert-file
-	KeyFile    string // --key-file
-	Password   string // --password
-	RepoURL    string // --repo
-	Username   string // --username
-	Verify     bool   // --verify
-	Version    string // --version
+	Directory     string
+	File          []string
+	Namespace     string
+	Timeout       int
+	Atomic        bool
+	Debug         bool
+	Set           []string
+	SetLiteral    []string
+	Force         bool
+	Wait          bool
+	CaFile        string // --ca-file
+	CertFile      string // --cert-file
+	KeyFile       string // --key-file
+	Password      string // --password
+	RepoURL       string // --repo
+	Username      string // --username
+	Verify        bool   // --verify
+	Version       string // --version
+	HelmConfigDir string
 )
 
 // Config struct to hold the configuration for the SDKR and SELM
