@@ -77,9 +77,8 @@ func Pull(chartRef, version, destination string, untar bool, untarDir string,
 		return err
 	}
 
-	// Find chart URL
-	chartURL, err := findChartURL(chartRef, repoURL, repoFile, settings, username, password,
-		certFile, keyFile, caFile, insecure, plainHttp, passCredentials)
+	// Find chart URL using Helm's proper chart reference resolution
+	chartURL, err := resolveChartURL(chartRef, version, repoURL, repoFile, settings)
 	if err != nil {
 		return err
 	}
@@ -117,11 +116,43 @@ func Pull(chartRef, version, destination string, untar bool, untarDir string,
 	return nil
 }
 
+func resolveChartURL(chartRef, version, repoURL string, repoFile *repo.File, settings *helmCLI.EnvSettings) (string, error) {
+	// If repo URL is provided directly, use Helm's chart reference resolution
+	if repoURL != "" {
+		// Use the same logic as Helm CLI for direct repo URLs
+		return fmt.Sprintf("%s/%s", strings.TrimSuffix(repoURL, "/"), chartRef), nil
+	}
+
+	// Parse chart reference (format: repo/chart)
+	parts := strings.SplitN(chartRef, "/", 2)
+	if len(parts) != 2 {
+		pterm.Error.Printfln("✗ Invalid chart reference: %s. Use format 'repo/chart' or provide --repo URL", chartRef)
+		return "", fmt.Errorf("invalid chart reference format")
+	}
+
+	repoName, chartName := parts[0], parts[1]
+
+	// Find the repository
+	repository := repoFile.Get(repoName)
+	if repository == nil {
+		pterm.Error.Printfln("✗ Repository '%s' not found", repoName)
+		pterm.Info.Printfln("Available repositories: %v", getRepositoryNames(repoFile))
+		return "", fmt.Errorf("repository '%s' not found", repoName)
+	}
+
+	// Build the proper chart URL - this is the key fix!
+	// Helm repositories typically have charts at baseURL/chartName/
+	chartURL := fmt.Sprintf("%s/%s", strings.TrimSuffix(repository.URL, "/"), chartName)
+
+	pterm.Debug.Printfln("Resolved chart URL: %s", chartURL)
+	return chartURL, nil
+}
+
 func downloadChartWithVerification(downloader *downloader.ChartDownloader, chartURL, version, destination string, verificationMode int) (string, error) {
-	// For all modes, use DownloadTo which handles the basic download
+	// Use the proper chart download method
 	chartPath, _, err := downloader.DownloadTo(chartURL, version, destination)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to download chart from %s: %v", chartURL, err)
 	}
 
 	// Handle verification after download
@@ -177,36 +208,6 @@ func pullFromURL(chartURL, version, destination string, untar bool, untarDir str
 	}
 
 	return nil
-}
-
-func findChartURL(chartRef, repoURL string, repoFile *repo.File, settings *helmCLI.EnvSettings,
-	username, password, certFile, keyFile, caFile string, insecure, plainHttp, passCredentials bool) (string, error) {
-
-	// If repo URL is provided directly, use it
-	if repoURL != "" {
-		return fmt.Sprintf("%s/%s", strings.TrimSuffix(repoURL, "/"), chartRef), nil
-	}
-
-	// Parse chart reference (format: repo/chart)
-	parts := strings.SplitN(chartRef, "/", 2)
-	if len(parts) != 2 {
-		pterm.Error.Printfln("✗ Invalid chart reference: %s. Use format 'repo/chart' or provide --repo URL", chartRef)
-		return "", fmt.Errorf("invalid chart reference format")
-	}
-
-	repoName, chartName := parts[0], parts[1]
-
-	// Find the repository
-	repository := repoFile.Get(repoName)
-	if repository == nil {
-		pterm.Error.Printfln("✗ Repository '%s' not found", repoName)
-		pterm.Info.Printfln("Available repositories: %v", getRepositoryNames(repoFile))
-		return "", fmt.Errorf("repository '%s' not found", repoName)
-	}
-
-	// Build the chart URL
-	chartURL := fmt.Sprintf("%s/%s", strings.TrimSuffix(repository.URL, "/"), chartName)
-	return chartURL, nil
 }
 
 func untarChart(chartPath, untarDir string) error {
