@@ -25,13 +25,16 @@ Examples:
   smurf selm pull repo/chart-name --destination ./charts
   
   # Pull and untar
-  smurf selm pull repo/chart-name --untar --untar-dir ./my-charts
+  smurf selm pull repo/chart-name --untar --untardir ./my-charts
   
   # Pull with authentication
   smurf selm pull repo/chart-name --username user --password pass
   
   # Pull from specific URL (bypass repo config)
-  smurf selm pull https://example.com/charts/mychart-1.2.3.tgz`,
+  smurf selm pull https://example.com/charts/mychart-1.2.3.tgz
+  
+  # Pull with provenance verification
+  smurf selm pull repo/chart-name --prov --keyring ~/.gnupg/pubring.gpg`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		chartRef := args[0]
@@ -39,18 +42,18 @@ Examples:
 			configs.UntarDir, configs.Verify, configs.Keyring, configs.RepoURL,
 			configs.Username, configs.Password, configs.CertFile, configs.KeyFile,
 			configs.CaFile, configs.Insecure, configs.PlainHttp, configs.PassCredentials,
-			configs.Devel, configs.HelmConfigDir)
+			configs.Devel, configs.Prov, configs.HelmConfigDir)
 	},
 }
 
 func init() {
-	// Add all pull command flags
-	pullCmd.Flags().StringVar(&configs.Version, "version", "", "Specify a version constraint for the chart version to use. This constraint can be a specific tag (e.g. 1.1.1) or it may reference a valid range (e.g. ^2.0.0). If this is not specified, the latest version is used")
-	pullCmd.Flags().StringVar(&configs.Destination, "destination", ".", "Location to write the chart. If this and --untar are specified, untars the chart into the directory")
+	// Add all pull command flags with proper names
+	pullCmd.Flags().StringVarP(&configs.Version, "version", "v", "", "Specify the version constraint for the chart")
+	pullCmd.Flags().StringVarP(&configs.Destination, "destination", "d", ".", "Location to write the chart")
 	pullCmd.Flags().BoolVar(&configs.Untar, "untar", false, "If set to true, will untar the chart after downloading it")
-	pullCmd.Flags().StringVar(&configs.UntarDir, "untar-dir", ".", "If --untar is specified, this flag specifies the name of the directory into which the chart is expanded")
-	pullCmd.Flags().BoolVar(&configs.Verify, "verify", false, "Verify the package before using it")
-	pullCmd.Flags().StringVar(&configs.Keyring, "keyring", defaultKeyring(), "Location of public keys used for verification. Used only if --verify is true")
+	pullCmd.Flags().StringVar(&configs.UntarDir, "untardir", ".", "If untar is specified, this flag specifies the name of the directory into which the chart is expanded")
+	pullCmd.Flags().BoolVar(&configs.Verify, "verify", false, "Verify the package against its signature")
+	pullCmd.Flags().StringVar(&configs.Keyring, "keyring", defaultKeyring(), "Location of public keys used for verification")
 	pullCmd.Flags().StringVar(&configs.RepoURL, "repo", "", "Chart repository URL where to locate the requested chart")
 	pullCmd.Flags().StringVar(&configs.Username, "username", "", "Chart repository username")
 	pullCmd.Flags().StringVar(&configs.Password, "password", "", "Chart repository password")
@@ -60,7 +63,8 @@ func init() {
 	pullCmd.Flags().BoolVar(&configs.Insecure, "insecure-skip-tls-verify", false, "Skip tls certificate checks for the chart download")
 	pullCmd.Flags().BoolVar(&configs.PlainHttp, "plain-http", false, "Use HTTP instead of HTTPS for chart download")
 	pullCmd.Flags().BoolVar(&configs.PassCredentials, "pass-credentials", false, "Pass credentials to all domains")
-	pullCmd.Flags().BoolVar(&configs.Devel, "devel", false, "Use development versions, too. Equivalent to version '>0.0.0-0'. If --version is set, this is ignored")
+	pullCmd.Flags().BoolVar(&configs.Devel, "devel", false, "Use development versions (alpha, beta, and release candidate releases)")
+	pullCmd.Flags().BoolVar(&configs.Prov, "prov", false, "Fetch the provenance file, but don't perform verification")
 	pullCmd.Flags().StringVar(&configs.HelmConfigDir, "helm-config", "", "Helm configuration directory")
 
 	// Add to selm command

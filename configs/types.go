@@ -49,6 +49,7 @@ var (
 	PlainHttp       bool
 	PassCredentials bool
 	Devel           bool
+	Prov            bool
 )
 
 // Config struct to hold the configuration for the SDKR and SELM
