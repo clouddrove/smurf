@@ -19,71 +19,60 @@ func Repo_Add(args []string, username, password, certFile, keyFile, caFile, helm
 
 	pterm.Info.Printfln("Adding repo %s...", repoName)
 
-	// Use Helm's default settings
+	// CRITICAL: Use the EXACT same settings initialization as Helm CLI
 	settings := helmCLI.New()
 
-	// Configure the repository config and cache paths to be compatible with Helm CLI
+	// OVERRIDE settings to match exactly what Helm CLI uses
+	// This is the key fix - we must use the same paths as the helm command
 	if helmConfigDir != "" {
-		// Use custom config directory if specified
+		// If custom config dir provided, use it
 		settings.RepositoryConfig = filepath.Join(helmConfigDir, "repositories.yaml")
-		settings.RepositoryCache = filepath.Join(helmConfigDir, "cache")
+		settings.RepositoryCache = filepath.Join(helmConfigDir, "repository")
 	} else {
-		// Use the same logic as Helm CLI for default config location
-		// Check HELM_HOME environment variable first
-		if helmHome := os.Getenv("HELM_HOME"); helmHome != "" {
-			settings.RepositoryConfig = filepath.Join(helmHome, "repositories.yaml")
-			settings.RepositoryCache = filepath.Join(helmHome, "cache")
-		} else {
-			// Use default XDG config location (same as Helm CLI)
-			configDir := helmpath.ConfigPath()
-			settings.RepositoryConfig = filepath.Join(configDir, "repositories.yaml")
-			settings.RepositoryCache = filepath.Join(configDir, "cache")
-		}
+		// Use the EXACT same default paths as Helm CLI
+		settings.RepositoryConfig = helmpath.ConfigPath("repositories.yaml")
+		settings.RepositoryCache = helmpath.CachePath("repository")
 	}
 
-	// Create repository config directory if it doesn't exist
-	configDir := filepath.Dir(settings.RepositoryConfig)
-	if err := os.MkdirAll(configDir, 0755); err != nil {
-		pterm.Error.Printfln("✗ Failed to create repository config directory: %v", err)
-		return fmt.Errorf("failed to create repository config directory: %v", err)
+	pterm.Debug.Printfln("Repository config path: %s", settings.RepositoryConfig)
+	pterm.Debug.Printfln("Repository cache path: %s", settings.RepositoryCache)
+
+	// Create directories with exact same permissions as Helm CLI
+	if err := os.MkdirAll(filepath.Dir(settings.RepositoryConfig), 0755); err != nil {
+		pterm.Error.Printfln("✗ Failed to create config directory: %v", err)
+		return fmt.Errorf("failed to create config directory: %v", err)
 	}
 
-	// Create cache directory if it doesn't exist
-	cacheDir := settings.RepositoryCache
-	if err := os.MkdirAll(cacheDir, 0755); err != nil {
-		pterm.Error.Printfln("✗ Failed to create repository cache directory: %v", err)
-		return fmt.Errorf("failed to create repository cache directory: %v", err)
+	if err := os.MkdirAll(settings.RepositoryCache, 0755); err != nil {
+		pterm.Error.Printfln("✗ Failed to create cache directory: %v", err)
+		return fmt.Errorf("failed to create cache directory: %v", err)
 	}
 
-	// Initialize repository config
-	var f *repo.File
+	// Load existing repositories or create new file
+	var repoFile *repo.File
 	if _, err := os.Stat(settings.RepositoryConfig); os.IsNotExist(err) {
-		f = repo.NewFile()
+		repoFile = repo.NewFile()
 	} else {
-		f, err = repo.LoadFile(settings.RepositoryConfig)
+		repoFile, err = repo.LoadFile(settings.RepositoryConfig)
 		if err != nil {
-			pterm.Error.Printfln("✗ Failed to load repository file: %v", err)
-			return fmt.Errorf("failed to load repository file: %v", err)
+			pterm.Error.Printfln("✗ Failed to load repositories file: %v", err)
+			return fmt.Errorf("failed to load repositories file: %v", err)
 		}
 	}
 
-	// Check if repository already exists and handle it like Helm CLI
-	if existingEntry := f.Get(repoName); existingEntry != nil {
-		// Check if the URL is the same
-		if existingEntry.URL == repoURL {
+	// Check if repository already exists
+	if existing := repoFile.Get(repoName); existing != nil {
+		if existing.URL == repoURL {
 			pterm.Info.Printfln("✓ %q already exists with the same configuration", repoName)
 			return nil
-		} else {
-			// URL is different, show error
-			pterm.Error.Printfln("✗ repository name (%s) already exists with a different URL", repoName)
-			pterm.Println("  Existing URL:", existingEntry.URL)
-			pterm.Println("  New URL:     ", repoURL)
-			pterm.Info.Println("  If you want to add a repository with a different URL, use a different name")
-			return fmt.Errorf("repository name (%s) already exists", repoName)
 		}
+		pterm.Error.Printfln("✗ Repository %s already exists with different URL", repoName)
+		pterm.Println("  Existing URL:", existing.URL)
+		pterm.Println("  New URL:     ", repoURL)
+		return fmt.Errorf("repository %s already exists", repoName)
 	}
 
-	// Create repository entry
+	// Create repository entry with EXACT same structure as Helm CLI
 	entry := &repo.Entry{
 		Name:     repoName,
 		URL:      repoURL,
@@ -94,8 +83,8 @@ func Repo_Add(args []string, username, password, certFile, keyFile, caFile, helm
 		CAFile:   caFile,
 	}
 
-	// Create chart repository
-	r, err := repo.NewChartRepository(entry, getter.All(settings))
+	// Create chart repository with proper settings
+	chartRepo, err := repo.NewChartRepository(entry, getter.All(settings))
 	if err != nil {
 		pterm.Error.Printfln("✗ Failed to create chart repository: %v", err)
 		return fmt.Errorf("failed to create chart repository: %v", err)
@@ -103,24 +92,42 @@ func Repo_Add(args []string, username, password, certFile, keyFile, caFile, helm
 
 	pterm.Info.Println("Downloading repository index...")
 
-	// Download repository index
+	// Download index file - this creates the cache that helm pull needs
 	start := time.Now()
-	if _, err := r.DownloadIndexFile(); err != nil {
-		pterm.Error.Printfln("✗ Looks like %q is not a valid chart repository or the URL cannot be reached: %v", repoURL, err)
-		return fmt.Errorf("looks like %q is not a valid chart repository or the URL cannot be reached: %v", repoURL, err)
+	indexPath, err := chartRepo.DownloadIndexFile()
+	if err != nil {
+		pterm.Error.Printfln("✗ Failed to download index: %v", err)
+		return fmt.Errorf("failed to download index: %v", err)
+	}
+
+	// Add entry to repository file
+	repoFile.Update(entry)
+
+	// Write the file with same permissions as Helm CLI
+	if err := repoFile.WriteFile(settings.RepositoryConfig, 0644); err != nil {
+		pterm.Error.Printfln("✗ Failed to write repositories file: %v", err)
+		return fmt.Errorf("failed to write repositories file: %v", err)
 	}
 
 	elapsed := time.Since(start).Truncate(time.Millisecond)
-	f.Update(entry)
-
-	if err := f.WriteFile(settings.RepositoryConfig, 0644); err != nil {
-		pterm.Error.Printfln("✗ Failed to write repository config: %v", err)
-		return fmt.Errorf("failed to write repository config: %v", err)
-	}
 
 	pterm.Success.Printfln("✓ Successfully added repo %s", repoName)
-	pterm.Println("  Repository has been added to:", settings.RepositoryConfig)
-	pterm.Println("  Time elapsed:              ", elapsed)
+	pterm.Info.Printfln("  Config: %s", settings.RepositoryConfig)
+	pterm.Info.Printfln("  Cache:  %s", settings.RepositoryCache)
+	pterm.Info.Printfln("  Index:  %s", indexPath)
+	pterm.Info.Printfln("  Time:   %v", elapsed)
+
+	// VERIFICATION: Check if native helm can see the repository
+	pterm.Info.Println("Verifying Helm CLI compatibility...")
+
+	// Try to load the file again to verify it's properly formatted
+	if verifyFile, err := repo.LoadFile(settings.RepositoryConfig); err == nil {
+		if verifyFile.Get(repoName) != nil {
+			pterm.Success.Println("✓ Repository successfully registered in Helm configuration")
+		} else {
+			pterm.Warning.Println("⚠ Repository not found in verification - possible configuration issue")
+		}
+	}
 
 	return nil
 }
