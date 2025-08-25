@@ -13,11 +13,6 @@ var repoAddCmd = &cobra.Command{
 The repository can be accessed by its name in other commands.`,
 	Args: cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// Check if debug flag is set
-		if configs.Debug {
-			helm.DebugHelmPaths()
-		}
-
 		var username, password, certFile, keyFile, caFile, helmConfigDir string
 		username = configs.Username
 		password = configs.Password
@@ -35,10 +30,7 @@ The repository can be accessed by its name in other commands.`,
   smurf selm repo add myrepo https://charts.example.com --username myuser --password mypass
   
   # Add a repository with custom Helm config directory
-  smurf selm repo add myrepo https://charts.example.com --helm-config /custom/path
-  
-  # Debug Helm paths
-  smurf selm repo add myrepo https://charts.example.com --debug`,
+  smurf selm repo add myrepo https://charts.example.com --helm-config /custom/path`,
 }
 
 func init() {
@@ -49,7 +41,6 @@ func init() {
 	repoAddCmd.Flags().StringVar(&configs.KeyFile, "key-file", "", "Identify HTTPS client using this SSL key file")
 	repoAddCmd.Flags().StringVar(&configs.CaFile, "ca-file", "", "Verify certificates of HTTPS-enabled servers using this CA bundle")
 	repoAddCmd.Flags().StringVar(&configs.HelmConfigDir, "helm-config", "", "Helm configuration directory (default: $HELM_HOME or ~/.config/helm)")
-	repoAddCmd.Flags().BoolVar(&configs.Debug, "debug", false, "Enable debug output")
 
 	// Add commands to root
 	repoCmd.AddCommand(repoAddCmd)
