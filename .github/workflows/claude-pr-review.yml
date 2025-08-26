@@ -1,0 +1,17 @@
+name: PR Checks Caller
+
+on:
+  pull_request:
+    branches: ["master"]
+    types: [opened, reopened, synchronize]
+
+permissions:
+  id-token: write
+  contents: read
+  actions: read
+
+jobs:
+  claude-feedback:
+    uses: clouddrove/github-shared-workflows/.github/workflows/claude-pr-review.yml@master
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
