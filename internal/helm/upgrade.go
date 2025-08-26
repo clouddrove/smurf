@@ -19,8 +19,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// HelmUpgrade performs a Helm upgrade operation with comprehensive debug logging
-func HelmUpgrade(releaseName, chartRef, namespace string, setValues []string, valuesFiles []string, setLiteral []string, createNamespace, atomic bool, timeout time.Duration, debug bool, repoURL string, version string) error {
+// HelmUpgrade performs a Helm upgrade operation with repo + local support
+func HelmUpgrade(
+	releaseName, chartRef, namespace string,
+	setValues []string, valuesFiles []string, setLiteral []string,
+	createNamespace, atomic bool,
+	timeout time.Duration, debug bool,
+	repoURL string, version string,
+) error {
 	startTime := time.Now()
 
 	if debug {
@@ -34,6 +40,8 @@ func HelmUpgrade(releaseName, chartRef, namespace string, setValues []string, va
 		pterm.Printf("Set values: %v\n", setValues)
 		pterm.Printf("Values files: %v\n", valuesFiles)
 		pterm.Printf("Set literal: %v\n", setLiteral)
+		pterm.Printf("Repo URL: %s\n", repoURL)
+		pterm.Printf("Version: %s\n", version)
 	}
 
 	// Handle namespace creation
@@ -42,33 +50,23 @@ func HelmUpgrade(releaseName, chartRef, namespace string, setValues []string, va
 			pterm.Println("Creating namespace if not exists...")
 		}
 		if err := ensureNamespace(namespace, debug); err != nil {
-			logDetailedError("namespace creation", err, namespace, releaseName)
 			return fmt.Errorf("namespace creation failed: %w", err)
 		}
 	}
 
 	// Initialize action config
-	if debug {
-		pterm.Println("Initializing Helm action configuration...")
-	}
 	actionConfig, err := initActionConfig(namespace, debug)
 	if err != nil {
 		return fmt.Errorf("failed to initialize helm: %w", err)
 	}
 
 	// Verify release exists
-	if debug {
-		pterm.Println("Verifying release exists...")
-	}
 	if err := verifyReleaseExists(actionConfig, releaseName, namespace, debug); err != nil {
 		return fmt.Errorf("release verification failed: %w", err)
 	}
 
-	// Load chart
-	if debug {
-		pterm.Println("Loading chart...")
-	}
-	chart, err := loadChart(chartRef, debug)
+	// Load chart (supports repo + local)
+	chart, err := loadChart(chartRef, repoURL, version, debug)
 	if err != nil {
 		return fmt.Errorf("failed to load chart: %w", err)
 	}
@@ -77,21 +75,12 @@ func HelmUpgrade(releaseName, chartRef, namespace string, setValues []string, va
 	}
 
 	// Load and merge values
-	if debug {
-		pterm.Println("Loading and merging values...")
-	}
 	vals, err := loadAndMergeValuesWithSets(valuesFiles, setValues, setLiteral, debug)
 	if err != nil {
 		return fmt.Errorf("failed to load values: %w", err)
 	}
-	if debug {
-		pterm.Println("Values merged successfully")
-	}
 
 	// Create upgrade client
-	if debug {
-		pterm.Println("Setting up upgrade client...")
-	}
 	client := action.NewUpgrade(actionConfig)
 	client.Namespace = namespace
 	client.Atomic = atomic
@@ -104,40 +93,27 @@ func HelmUpgrade(releaseName, chartRef, namespace string, setValues []string, va
 		pterm.Printf("  - Namespace: %s\n", client.Namespace)
 		pterm.Printf("  - Atomic: %t\n", client.Atomic)
 		pterm.Printf("  - Timeout: %v\n", client.Timeout)
-		pterm.Printf("  - Wait: %t\n", client.Wait)
-		pterm.Printf("  - WaitForJobs: %t\n", client.WaitForJobs)
 	}
 
 	// Execute upgrade
-	if debug {
-		pterm.Println("Executing upgrade...")
-	}
 	rel, err := client.Run(releaseName, chart, vals)
 	if err != nil {
-		if debug {
-			pterm.Println("Upgrade failed, gathering debug information...")
-		}
 		pterm.Error.Printf("Helm upgrade failed: %v\n", err)
 
-		// Get pod details for debugging
+		// Debug pod info if upgrade fails
 		if debug {
 			pods, err := getPods(namespace, releaseName)
-			if err != nil {
-				pterm.Printf("Failed to get pods: %v\n", err)
-			} else {
+			if err == nil {
 				pterm.Printf("Found %d pods for release %s\n", len(pods), releaseName)
 				for _, pod := range pods {
 					printPodDetails(pod)
 				}
 			}
 		}
-
 		return fmt.Errorf("upgrade failed: %w", err)
 	}
 
-	if debug {
-		pterm.Println("Upgrade completed, verifying readiness...")
-	}
+	// Verify readiness
 	if err := verifyFinalReadiness(namespace, releaseName, 30*time.Second, debug); err != nil {
 		return fmt.Errorf("readiness verification failed: %w", err)
 	}
@@ -154,6 +130,46 @@ func HelmUpgrade(releaseName, chartRef, namespace string, setValues []string, va
 	printReleaseInfo(rel, debug)
 	printResourcesFromRelease(rel)
 	return nil
+}
+
+// loadChart resolves both local and repo-based charts
+func loadChart(chartRef, repoURL, version string, debug bool) (*chart.Chart, error) {
+	if debug {
+		pterm.Printf("Resolving chart: %s\n", chartRef)
+	}
+
+	// Local path (./chart or /path/to/chart)
+	if strings.HasPrefix(chartRef, "./") || strings.HasPrefix(chartRef, "/") {
+		absPath, err := filepath.Abs(chartRef)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve chart path: %w", err)
+		}
+		if debug {
+			pterm.Printf("Loading local chart from: %s\n", absPath)
+		}
+		return loader.Load(absPath)
+	}
+
+	// Repo chart (repo/chart)
+	settings := cli.New()
+	chartPathOptions := action.ChartPathOptions{
+		RepoURL: repoURL,
+		Version: version,
+	}
+
+	if debug {
+		pterm.Printf("Fetching chart %s from repo (version=%s, repo=%s)\n", chartRef, version, repoURL)
+	}
+	cp, err := chartPathOptions.LocateChart(chartRef, settings)
+	if err != nil {
+		return nil, fmt.Errorf("failed to locate chart %s: %w", chartRef, err)
+	}
+
+	if debug {
+		pterm.Printf("Chart resolved to local path: %s\n", cp)
+	}
+
+	return loader.Load(cp)
 }
 
 func initActionConfig(namespace string, debug bool) (*action.Configuration, error) {
@@ -231,39 +247,6 @@ func verifyReleaseExists(actionConfig *action.Configuration, releaseName, namesp
 	}
 
 	return nil
-}
-
-func loadChart(chartRef string, debug bool) (*chart.Chart, error) {
-	if debug {
-		pterm.Printf("Loading chart from: %s\n", chartRef)
-	}
-
-	absPath, err := filepath.Abs(chartRef)
-	if err != nil {
-		if debug {
-			pterm.Printf("Path resolution failed: %v\n", err)
-		}
-		return nil, fmt.Errorf("failed to resolve chart path: %w", err)
-	}
-
-	if debug {
-		pterm.Printf("Resolved absolute path: %s\n", absPath)
-	}
-
-	chart, err := loader.Load(absPath)
-	if err != nil {
-		if debug {
-			pterm.Printf("Chart loading failed: %v\n", err)
-		}
-		return nil, err
-	}
-
-	if debug {
-		pterm.Printf("Chart loaded successfully: %s v%s\n",
-			chart.Metadata.Name, chart.Metadata.Version)
-	}
-
-	return chart, nil
 }
 
 func loadAndMergeValuesWithSets(valuesFiles, setValues, setLiteralValues []string, debug bool) (map[string]interface{}, error) {
