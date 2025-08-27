@@ -60,6 +60,7 @@ func HelmProvision(releaseName, chartPath, namespace string) error {
 			true,          // dry-run
 			"",            // repoURL
 			"",            // version
+			true,
 		)
 
 		if dryRunErr != nil {
@@ -80,6 +81,7 @@ func HelmProvision(releaseName, chartPath, namespace string) error {
 			false,         // dry-run
 			"",            // repoURL
 			"",            // version
+			true,
 		)
 	} else {
 		pterm.Info.Printfln("Release %s does not exist, performing install...", releaseName)
