@@ -1,0 +1,33 @@
+name: 'Setup Smurf'
+description: 'Install the Smurf CLI tool for GitHub Actions'
+branding:
+  icon: 'package'
+  color: 'blue'
+inputs:
+  version:
+    description: 'The version of Smurf to install'
+    required: false
+    default: 'v0.0.3'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install Smurf
+      shell: bash
+      run: |
+        echo "Installing Smurf ${{ inputs.version }}"
+        
+        # Download the binary
+        curl -sSL -o /tmp/smurf \
+          "https://github.com/clouddrove/smurf/releases/download/${{ inputs.version }}/smurf-linux-amd64"
+        
+        # Make it executable
+        chmod +x /tmp/smurf
+        
+        # Move to a directory in PATH
+        sudo mv /tmp/smurf /usr/local/bin/smurf
+        
+        # Verify installation
+        smurf --version
+        
+        echo "Smurf ${{ inputs.version }} installed successfully"
