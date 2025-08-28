@@ -26,6 +26,7 @@ func HelmUpgrade(
 	createNamespace, atomic bool,
 	timeout time.Duration, debug bool,
 	repoURL string, version string,
+	wait bool,
 ) error {
 	startTime := time.Now()
 
@@ -37,6 +38,7 @@ func HelmUpgrade(
 		pterm.Printf("Create Namespace: %t\n", createNamespace)
 		pterm.Printf("Atomic: %t\n", atomic)
 		pterm.Printf("Timeout: %v\n", timeout)
+		pterm.Printf("Wait: %t\n", wait)
 		pterm.Printf("Set values: %v\n", setValues)
 		pterm.Printf("Values files: %v\n", valuesFiles)
 		pterm.Printf("Set literal: %v\n", setLiteral)
@@ -85,8 +87,8 @@ func HelmUpgrade(
 	client.Namespace = namespace
 	client.Atomic = atomic
 	client.Timeout = timeout
-	client.Wait = true
-	client.WaitForJobs = true
+	client.Wait = wait
+	client.WaitForJobs = wait
 
 	if debug {
 		pterm.Printf("Upgrade client configured:\n")

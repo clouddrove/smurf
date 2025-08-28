@@ -15,6 +15,7 @@ import (
 var (
 	createNamespace     bool
 	installIfNotPresent bool
+	wait                bool
 )
 
 // upgradeCmd facilitates upgrading an existing Helm release or installing it if it's not present
@@ -96,6 +97,7 @@ var upgradeCmd = &cobra.Command{
 			pterm.Printf("  - Atomic: %t\n", configs.Atomic)
 			pterm.Printf("  - Create Namespace: %t\n", createNamespace)
 			pterm.Printf("  - Install if not present: %t\n", installIfNotPresent)
+			pterm.Printf("  - Wait: %t\n", wait)
 			pterm.Printf("  - Set values: %v\n", configs.Set)
 			pterm.Printf("  - Values files: %v\n", configs.File)
 			pterm.Printf("  - Set literal: %v\n", configs.SetLiteral)
@@ -167,6 +169,7 @@ var upgradeCmd = &cobra.Command{
 			configs.Debug,
 			RepoURL,
 			Version,
+			wait,
 		)
 		if err != nil {
 			return err
@@ -183,6 +186,7 @@ smurf selm upgrade my-release ./mychart -f values.yaml --timeout 600 --atomic --
 smurf selm upgrade my-release ./mychart --repo-url https://charts.example.com --version 1.2.3
 smurf selm upgrade my-release ./mychart --set key1=val1 --set key2=val2
 smurf selm upgrade my-release ./mychart --set-literal myPassword='MySecurePass!'
+smurf selm upgrade my-release ./mychart --wait=false
 smurf selm upgrade
 # In the last example, it will read RELEASE and CHART from the config file
 `,
@@ -200,5 +204,6 @@ func init() {
 	upgradeCmd.Flags().BoolVar(&installIfNotPresent, "install", false, "Install the chart if it is not already installed")
 	upgradeCmd.Flags().StringVar(&RepoURL, "repo-url", "", "Helm repository URL")
 	upgradeCmd.Flags().StringVar(&Version, "version", "", "Helm chart version")
+	upgradeCmd.Flags().BoolVar(&wait, "wait", true, "Wait until all Pods, PVCs, Services, and minimum number of Pods of a Deployment are ready before marking success")
 	selmCmd.AddCommand(upgradeCmd)
 }
