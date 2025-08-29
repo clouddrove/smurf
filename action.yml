@@ -1,96 +1,24 @@
-name: 'Setup Smurf'
-description: 'Install the Smurf CLI tool in GitHub Actions workflows'
-author: 'CloudDrove'
+name: Smurf Action
+description: Automate Docker, Terraform, and Helm with Smurf GitHub Actions
 branding:
-  icon: 'terminal'
-  color: 'blue'
+  color: black
+  icon: anchor
 
 inputs:
-  version:
-    description: 'Version of smurf to install (e.g., v0.0.1, latest)'
+  path:
+    description: Path to the Terraform configuration
     required: false
-    default: 'latest'
-  token:
-    description: 'GitHub token for accessing releases'
-    required: false
+    default: .
+  tool:
+    description: 'Tool to use (e.g., stf)'
+    required: true
+  command:
+    description: "Command to run (e.g., init)"
+    required: true
 
 runs:
-  using: 'composite'
-  steps:
-    - name: Determine OS and Architecture
-      shell: bash
-      id: platform
-      run: |
-        OS=$(echo "$RUNNER_OS" | tr '[:upper:]' '[:lower:]')
-        ARCH="amd64"
-        
-        # Convert macOS to darwin
-        if [ "$OS" = "macos" ]; then
-          OS="darwin"
-        fi
-        
-        # Detect ARM architecture
-        if [ "$(uname -m)" = "arm64" ] || [ "$(uname -m)" = "aarch64" ]; then
-          ARCH="arm64"
-        fi
-        
-        echo "os=$OS" >> $GITHUB_OUTPUT
-        echo "arch=$ARCH" >> $GITHUB_OUTPUT
-        echo "runner_os=$RUNNER_OS" >> $GITHUB_OUTPUT
-
-    - name: Determine Download URL
-      shell: bash
-      id: url
-      run: |
-        if [ "${{ inputs.version }}" = "latest" ]; then
-          echo "url=https://github.com/clouddrove/smurf/releases/latest/download/smurf-${{ steps.platform.outputs.os }}-${{ steps.platform.outputs.arch }}.tar.gz" >> $GITHUB_OUTPUT
-        else
-          echo "url=https://github.com/clouddrove/smurf/releases/download/v${{ inputs.version }}/smurf-${{ steps.platform.outputs.os }}-${{ steps.platform.outputs.arch }}.tar.gz" >> $GITHUB_OUTPUT
-        fi
-        echo "Download URL: $url"
-
-    - name: Download and Install Smurf
-      shell: bash
-      run: |
-        echo "📦 Installing smurf ${{ inputs.version }} for ${{ steps.platform.outputs.os }}/${{ steps.platform.outputs.arch }}..."
-        
-        # Download the binary
-        curl -sSLo smurf.tar.gz "${{ steps.url.outputs.url }}"
-        
-        # Extract and install
-        tar -xzf smurf.tar.gz
-        chmod +x smurf
-        sudo mv smurf /usr/local/bin/
-        rm smurf.tar.gz
-        
-        echo "✅ smurf installed successfully!"
-
-    - name: Verify Installation
-      shell: bash
-      run: |
-        smurf --version
-
-# name: Smurf Action
-# description: Automate Docker, Terraform, and Helm with Smurf GitHub Actions
-# branding:
-#   color: black
-#   icon: anchor
-
-# inputs:
-#   path:
-#     description: Path to the Terraform configuration
-#     required: false
-#     default: .
-#   tool:
-#     description: 'Tool to use (e.g., stf)'
-#     required: true
-#   command:
-#     description: "Command to run (e.g., init)"
-#     required: true
-
-# runs:
-#   using: "docker"
-#   image: 'Dockerfile'
-#   args:
-#     - ${{ inputs.tool }}
-#     - ${{ inputs.command }}
+  using: "docker"
+  image: 'docker://ghcr.io/clouddrove/smurf:v0.0.3'
+  args:
+    - ${{ inputs.tool }}
+    - ${{ inputs.command }}
