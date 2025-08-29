@@ -7,7 +7,7 @@ branding:
 
 inputs:
   version:
-    description: 'Version of smurf to install (e.g., 0.0.4-beta, latest)'
+    description: 'Version of smurf to install (e.g., v0.0.4-beta, latest)'
     required: false
     default: 'latest'
 
@@ -37,18 +37,12 @@ runs:
       id: version
       run: |
         if [ "${{ inputs.version }}" = "latest" ]; then
-          # Get latest tag (already includes 'v' prefix)
+          # Get latest tag
           LATEST_TAG=$(curl -s https://api.github.com/repos/clouddrove/smurf/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
           echo "tag=${LATEST_TAG}" >> $GITHUB_OUTPUT
-          echo "version=${LATEST_TAG#v}" >> $GITHUB_OUTPUT  # Remove 'v' prefix for filename
         else
-          # For specific versions, ensure proper formatting
-          VERSION="${{ inputs.version }}"
-          if [[ "$VERSION" != v* ]]; then
-            VERSION="v$VERSION"
-          fi
-          echo "tag=${VERSION}" >> $GITHUB_OUTPUT
-          echo "version=${VERSION#v}" >> $GITHUB_OUTPUT  # Remove 'v' prefix for filename
+          # Use the provided version as-is (it already includes 'v')
+          echo "tag=${{ inputs.version }}" >> $GITHUB_OUTPUT
         fi
 
     - name: Download and Install Smurf
@@ -56,8 +50,8 @@ runs:
       run: |
         echo "📦 Installing smurf ${{ steps.version.outputs.tag }} for ${{ steps.platform.outputs.os }}/${{ steps.platform.outputs.arch }}..."
         
-        # Correct URL format without double 'v'
-        URL="https://github.com/clouddrove/smurf/releases/download/${{ steps.version.outputs.tag }}/smurf-${{ steps.version.outputs.version }}-${{ steps.platform.outputs.os }}-${{ steps.platform.outputs.arch }}.tar.gz"
+        # CORRECT URL: Includes 'v' in both path and filename
+        URL="https://github.com/clouddrove/smurf/releases/download/${{ steps.version.outputs.tag }}/smurf-${{ steps.version.outputs.tag }}-${{ steps.platform.outputs.os }}-${{ steps.platform.outputs.arch }}.tar.gz"
         
         echo "Downloading from: $URL"
         
