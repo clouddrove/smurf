@@ -56,3 +56,4 @@ jobs:
 | `plan` | Generate and show an execution plan for Terraform          |
 | `provision` | Its the combination of init, plan, apply, output for Terraform |
 | `validate` | Validate  Terraform changes |
+   
