@@ -1,70 +1,24 @@
-name: 'Setup Smurf CLI'
-description: 'Install the Smurf CLI tool in GitHub Actions workflows'
-author: 'CloudDrove'
+name: Smurf Action
+description: Automate Docker, Terraform, and Helm with Smurf GitHub Actions
 branding:
-  icon: 'terminal'
-  color: 'blue'
+  color: black
+  icon: anchor
 
 inputs:
-  version:
-    description: 'Version of smurf to install (e.g., v0.0.4-beta, latest)'
+  path:
+    description: Path to the Terraform configuration
     required: false
-    default: 'latest'
+    default: .
+  tool:
+    description: 'Tool to use (e.g., stf)'
+    required: true
+  command:
+    description: "Command to run (e.g., init)"
+    required: true
 
 runs:
-  using: 'composite'
-  steps:
-    - name: Determine OS and Architecture
-      shell: bash
-      id: platform
-      run: |
-        OS=$(echo "$RUNNER_OS" | tr '[:upper:]' '[:lower:]')
-        ARCH="amd64"
-        
-        if [ "$OS" = "macos" ]; then
-          OS="darwin"
-        fi
-        
-        if [ "$(uname -m)" = "arm64" ] || [ "$(uname -m)" = "aarch64" ]; then
-          ARCH="arm64"
-        fi
-        
-        echo "os=$OS" >> $GITHUB_OUTPUT
-        echo "arch=$ARCH" >> $GITHUB_OUTPUT
-
-    - name: Get correct version format
-      shell: bash
-      id: version
-      run: |
-        if [ "${{ inputs.version }}" = "latest" ]; then
-          # Get latest tag
-          LATEST_TAG=$(curl -s https://api.github.com/repos/clouddrove/smurf/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-          echo "tag=${LATEST_TAG}" >> $GITHUB_OUTPUT
-        else
-          # Use the provided version as-is (it already includes 'v')
-          echo "tag=${{ inputs.version }}" >> $GITHUB_OUTPUT
-        fi
-
-    - name: Download and Install Smurf
-      shell: bash
-      run: |
-        echo "📦 Installing smurf ${{ steps.version.outputs.tag }} for ${{ steps.platform.outputs.os }}/${{ steps.platform.outputs.arch }}..."
-        
-        # CORRECT URL: Includes 'v' in both path and filename
-        URL="https://github.com/clouddrove/smurf/releases/download/${{ steps.version.outputs.tag }}/smurf-${{ steps.version.outputs.tag }}-${{ steps.platform.outputs.os }}-${{ steps.platform.outputs.arch }}.tar.gz"
-        
-        echo "Downloading from: $URL"
-        
-        # Download and extract
-        curl -sSLo smurf.tar.gz "$URL"
-        tar -xzf smurf.tar.gz
-        chmod +x smurf
-        sudo mv smurf /usr/local/bin/
-        rm smurf.tar.gz
-        
-        echo "✅ smurf installed successfully!"
-
-    - name: Verify Installation
-      shell: bash
-      run: |
-        smurf --version
+  using: "docker"
+  image: 'docker://ghcr.io/clouddrove/smurf:v0.0.3'
+  args:
+    - ${{ inputs.tool }}
+    - ${{ inputs.command }}
