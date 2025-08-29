@@ -1,71 +1,40 @@
-name: 'Setup Smurf'
-description: 'Install the Smurf CLI tool in GitHub Actions workflows'
+name: 'Setup Smurf CLI'
+description: 'Install the Smurf CLI tool'
 author: 'CloudDrove'
-branding:
-  icon: 'terminal'
-  color: 'blue'
 
 inputs:
   version:
-    description: 'Version of smurf to install (e.g., v0.0.1, latest)'
-    required: false
+    description: 'Version to install (e.g., 0.0.4-beta)'
+    required: true
     default: 'latest'
-  token:
-    description: 'GitHub token for accessing releases'
-    required: false
 
 runs:
   using: 'composite'
   steps:
-    - name: Determine OS and Architecture
+    - name: Install Smurf
       shell: bash
-      id: platform
       run: |
         OS=$(echo "$RUNNER_OS" | tr '[:upper:]' '[:lower:]')
-        ARCH="amd64"
-        
-        # Convert macOS to darwin
         if [ "$OS" = "macos" ]; then
           OS="darwin"
         fi
         
-        # Detect ARM architecture
-        if [ "$(uname -m)" = "arm64" ] || [ "$(uname -m)" = "aarch64" ]; then
+        ARCH="amd64"
+        if [ "$(uname -m)" = "arm64" ]; then
           ARCH="arm64"
         fi
         
-        echo "os=$OS" >> $GITHUB_OUTPUT
-        echo "arch=$ARCH" >> $GITHUB_OUTPUT
-        echo "runner_os=$RUNNER_OS" >> $GITHUB_OUTPUT
-
-    - name: Determine Download URL
-      shell: bash
-      id: url
-      run: |
         if [ "${{ inputs.version }}" = "latest" ]; then
-          echo "url=https://github.com/clouddrove/smurf/releases/latest/download/smurf-${{ steps.platform.outputs.os }}-${{ steps.platform.outputs.arch }}.tar.gz" >> $GITHUB_OUTPUT
+          # Get latest version
+          VERSION=$(curl -s https://api.github.com/repos/clouddrove/smurf/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' | sed 's/v//')
+          URL="https://github.com/clouddrove/smurf/releases/latest/download/smurf-v${VERSION}-${OS}-${ARCH}.tar.gz"
         else
-          echo "url=https://github.com/clouddrove/smurf/releases/download/v${{ inputs.version }}/smurf-${{ steps.platform.outputs.os }}-${{ steps.platform.outputs.arch }}.tar.gz" >> $GITHUB_OUTPUT
+          VERSION="${{ inputs.version }}"
+          URL="https://github.com/clouddrove/smurf/releases/download/v${VERSION}/smurf-v${VERSION}-${OS}-${ARCH}.tar.gz"
         fi
-        echo "Download URL: $url"
-
-    - name: Download and Install Smurf
-      shell: bash
-      run: |
-        echo "📦 Installing smurf ${{ inputs.version }} for ${{ steps.platform.outputs.os }}/${{ steps.platform.outputs.arch }}..."
         
-        # Download the binary
-        curl -sSLo smurf.tar.gz "${{ steps.url.outputs.url }}"
-        
-        # Extract and install
-        tar -xzf smurf.tar.gz
+        echo "Downloading from: $URL"
+        curl -sSL $URL | tar xz
         chmod +x smurf
         sudo mv smurf /usr/local/bin/
-        rm smurf.tar.gz
-        
-        echo "✅ smurf installed successfully!"
-
-    - name: Verify Installation
-      shell: bash
-      run: |
-        smurf --version
+        echo "✅ smurf v${VERSION} installed!"
