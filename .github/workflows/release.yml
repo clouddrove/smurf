@@ -5,6 +5,8 @@ on:
 env:
   GO_VERSION: 1.24
   REPO: ${{ github.repository }}
+  APP_PACKAGE: github.com/clouddrove/smurf/cmd
+  BINARY_NAME: smurf
 
 jobs:
   build:
@@ -18,35 +20,78 @@ jobs:
             ext: .exe
     steps:
     - uses: actions/checkout@v5
+      with:
+        fetch-depth: 0
 
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
         go-version: ${{ env.GO_VERSION }}
 
-    - name: Get Version  # version handling
+    - name: Get Version from Tag
       id: version
       run: |
-        # Use the exact tag that triggered this workflow
         echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
         echo "Building version: ${GITHUB_REF#refs/tags/}"
 
-    - name: Repo Name
-      id: repo-name
-      run: echo name=$(basename ${{ github.repository }}) >> $GITHUB_OUTPUT
-
-    # - name: Test
-    #   run: go test -v ./...
-
-    - name: Build
+    - name: Get Build Info
+      id: buildinfo
       run: |
-        make package \
-          PROGRAM=${{ env.GOOS }}-${{ env.GOARCH }}/${{ steps.repo-name.outputs.name }}${{ matrix.ext }} \
-          PACKAGE=dist/${{ steps.repo-name.outputs.name }}-${{ matrix.GOOS }}-${{ matrix.GOARCH }}.zip \
-          VERSION=${{ steps.version.outputs.version }}  # <<< Pass version to make
-      env:
-        GOOS: ${{ matrix.GOOS }}
-        GOARCH: ${{ matrix.GOARCH }}
+        set -euo pipefail
+        echo "Collecting build information..."
+        
+        VERSION="${{ steps.version.outputs.version }}"
+        COMMIT=$(git rev-parse --short HEAD)
+        DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+        
+        echo "Version: $VERSION"
+        echo "Commit: $COMMIT"
+        echo "Build Date: $DATE"
+        
+        echo "version=${VERSION}" >> $GITHUB_OUTPUT
+        echo "commit=${COMMIT}" >> $GITHUB_OUTPUT
+        echo "date=${DATE}" >> $GITHUB_OUTPUT
+
+    - name: Build Binary with Version Injection
+      run: |
+        echo "Building ${{ env.BINARY_NAME }} for ${{ matrix.GOOS }}/${{ matrix.GOARCH }}"
+        echo "Package: ${{env.APP_PACKAGE}}"
+        echo "Version: ${{steps.buildinfo.outputs.version}}"
+        
+        OUTPUT_NAME="${{ env.BINARY_NAME }}"
+        if [ "${{ matrix.GOOS }}" = "windows" ]; then
+          OUTPUT_NAME="$OUTPUT_NAME.exe"
+        fi
+        
+        # Create output directory
+        mkdir -p "bin/${{ matrix.GOOS }}-${{ matrix.GOARCH }}"
+        
+        # CORRECTED BUILD COMMAND - using current directory (.)
+        GOOS=${{ matrix.GOOS }} GOARCH=${{ matrix.GOARCH }} go build -a \
+          -ldflags "\
+            -X '${{env.APP_PACKAGE}}.version=${{steps.buildinfo.outputs.version}}' \
+            -X '${{env.APP_PACKAGE}}.commit=${{steps.buildinfo.outputs.commit}}' \
+            -X '${{env.APP_PACKAGE}}.date=${{steps.buildinfo.outputs.date}}'" \
+          -o "bin/${{ matrix.GOOS }}-${{ matrix.GOARCH }}/$OUTPUT_NAME" .
+
+    - name: Create Distribution Archive
+      run: |
+        mkdir -p dist
+        
+        ARCHIVE_NAME="${{ env.BINARY_NAME }}-${{ steps.buildinfo.outputs.version }}-${{ matrix.GOOS }}-${{ matrix.GOARCH }}"
+        
+        if [ "${{ matrix.GOOS }}" = "windows" ]; then
+          # For Windows: create zip with .exe binary
+          zip -j "dist/$ARCHIVE_NAME.zip" "bin/${{ matrix.GOOS }}-${{ matrix.GOARCH }}/${{ env.BINARY_NAME }}.exe"
+          echo "Created Windows archive: dist/$ARCHIVE_NAME.zip"
+        else
+          # For Linux/macOS: create tar.gz
+          tar -czf "dist/$ARCHIVE_NAME.tar.gz" -C "bin/${{ matrix.GOOS }}-${{ matrix.GOARCH }}" "${{ env.BINARY_NAME }}"
+          echo "Created Unix archive: dist/$ARCHIVE_NAME.tar.gz"
+        fi
+        
+        echo "Distribution archives:"
+        ls -la dist/
 
     - name: 'Upload Artifact'
       uses: actions/upload-artifact@v4
@@ -60,12 +105,14 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - build
+    permissions:
+      contents: write
     steps:
     - uses: actions/checkout@v5
       with:
         fetch-depth: 0
 
-    - name: Download Artifacts
+    - name: Download All Artifacts
       uses: actions/download-artifact@v5
       with:
         path: artifacts
@@ -76,6 +123,7 @@ jobs:
       run: |
         wget https://github.com/git-chglog/git-chglog/releases/download/v0.15.1/git-chglog_0.15.1_linux_amd64.tar.gz
         tar xzf git-chglog*.tar.gz git-chglog
+        
     - name: "Get Last Release"
       id: last_release
       uses: InsonusK/get-latest-release@v1.1.0
@@ -83,46 +131,97 @@ jobs:
         myToken: ${{ github.token }}
         exclude_types: "draft|prerelease"
 
-    - name: Generate Changelog for ${{ github.ref_name }}
+    - name: Generate Changelog
       id: generate-changelog
       run: PATH="${PATH}:." make CHANGELOG.md
 
-    - name: Generate checksum
+    - name: Generate checksums
       run: |
         cd artifacts
-        for file in *; do shasum -a 256 "$file" >> checksum.txt; done
-    
-    - name: Create Release
-      id: create_release
+        echo "Files available for checksum generation:"
+        ls -la
+        
+        # Create checksums for all archive files
+        for file in *.tar.gz *.zip; do
+          if [ -f "$file" ]; then
+            sha256sum "$file" >> checksums.txt
+            echo "Added checksum for: $file"
+          fi
+        done
+        
+        echo "Generated checksums:"
+        cat checksums.txt
+
+    - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:
         files: |
-          ./artifacts/*
+          artifacts/*.tar.gz
+          artifacts/*.zip
+          artifacts/checksums.txt
         body_path: ./CHANGELOG.md
+        generate_release_notes: true
         draft: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Verify Release
+      run: |
+        echo "✅ Release created successfully!"
+        echo "📦 Binaries available in GitHub Releases:"
+        echo "   https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}"
 
   docker-build:
     runs-on: ubuntu-latest
     name: Build the docker image
+    needs: build
     steps:
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Build Image
-        run: make image IMAGE=ghcr.io/${{env.REPO}}:${{ github.ref_name }}
+      - name: Download Linux Binary for Docker
+        uses: actions/download-artifact@v5
+        with:
+          name: artifacts-linux-amd64
+          path: downloaded-artifacts
+
+      - name: Extract Binary for Docker
+        run: |
+          mkdir -p docker-bin
+          cd downloaded-artifacts
+          
+          # Extract the binary from the archive
+          for file in *.tar.gz; do
+            if [ -f "$file" ]; then
+              tar -xzf "$file" -C ../docker-bin/
+              echo "Extracted binary from: $file"
+              break
+            fi
+          done
+          
+          echo "Binary ready for Docker:"
+          ls -la ../docker-bin/
+
+      - name: Build Docker Image
+        run: |
+          # Use the extracted binary
+          cp docker-bin/${{ env.BINARY_NAME }} /usr/local/bin/ || true
+          chmod +x /usr/local/bin/${{ env.BINARY_NAME }}
+          
+          make image IMAGE=ghcr.io/${{env.REPO}}:${{ github.ref_name }}
 
       - name: Tag latest
         run: docker tag ghcr.io/${{env.REPO}}:${{ github.ref_name }} ghcr.io/${{env.REPO}}:latest
 
-      - name: Push
+      - name: Push Docker Image
         run: docker push ghcr.io/${{env.REPO}}:${{ github.ref_name }}
 
-      - name: Push Latest
+      - name: Push Latest Tag
         run: docker push ghcr.io/${{env.REPO}}:latest
