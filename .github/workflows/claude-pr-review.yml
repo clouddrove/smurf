@@ -6,9 +6,9 @@ on:
     types: [opened, reopened, synchronize]
 
 permissions:
-  id-token: write
   contents: read
-  actions: read
+  pull-requests: write
+  id-token: write
 
 jobs:
 
