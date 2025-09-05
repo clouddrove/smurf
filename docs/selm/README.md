@@ -32,7 +32,7 @@ jobs:
 
       - name: Smurf selm create
         run: |
-           smurf selm create test-smurf
+          smurf selm create test-smurf
 
       - name: Smurf selm Template
         run: |
