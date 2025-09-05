@@ -29,19 +29,16 @@ jobs:
      - name: Checkout repository
        uses: actions/checkout@v3
       
+      - name: Setup Smurf
+        uses: clouddrove/smurf@v0.0.4
+
       - name: Smurf sdkr build
-        uses: clouddrove/smurf@v1.0.0
-        with:
-          path: 
-          tool: sdkr
-          command: build image_name:tag
+        run: |
+          smurf sdkr build image_name:tag -f Dockerfile
 
       - name: Smurf sdkr push image
-        uses: clouddrove/smurf@v1.0.0
-        with:
-            path: 
-            tool: sdkr
-            command: push hub USERNAME/image_name:tag
+        run: |
+          smurf sdkr push hub USERNAME/image_name:tag
 ```
 
 ### All available commands in Smurf SDKR

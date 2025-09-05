@@ -32,27 +32,52 @@
 </a>
 </p>
 
+<p align="center">
 Smurf is a command-line interface (CLI) application built using Golang leveraging technology specific SDKs, designed to simplify and automate commands for essential tools like Terraform and Docker. It provides intuitive, unified commands to execute Terraform plans, Docker container management, and other DevOps tasks seamlessly from one interface. Whether you need to spin up environments, manage containers, or apply infrastructure as code, this CLI streamlines multi-tool operations, boosting productivity and reducing context-switching.
-## Features
+</p>
 
-- **Terraform Command Wrapper (stf):** Run `init`, `plan`, `apply`, `output`, `drift`, `validate`, `destroy`, `format` commands, and `provision`, a combined operation of `init`, `validate`, and `apply`.
-- **Helm Command Wrapper (selm):** Run `create`, `install`, `lint`, `list`, `status`, `template`, `upgrade`, `uninstall` commands, and `provision`, a combination of `install`, `upgrade`, `lint`, and `template`.
-- **Docker Command Wrapper (sdkr):** Run `build`, `scan`, `tag`, `publish`, `push` commands, and `provision`, a combination of `build`, `scan`, and `publish`.
-- **Multicloud Container registry :** Push images from multiple cloud registries like AWS ECR, GCP GCR, Azure ACR, and Docker Hub.Run `smurf sdkr push --help` to push images from the specified registry.
-- **Git Integration:** *(Yet to come)*
-- **Unified CLI Interface:** Manage multi-tool operations from one interface, reducing the need for multiple command sets.
+## Installation ⚙️
+- [Smurf tool CLI Installation Guide](docs/sm/docs/installation.md)
+- Integrate in GitHub Actions
+  ```yaml
+    - name: Setup Smurf
+      uses: clouddrove/smurf@v0.0.4
+  ```
 
-## Installation
-[Smurf tool Installation Guide](docs/sm/docs/installation.md)
+## Features 🚀
 
-## Usage
+### 🐳 Docker Command Wrapper (`sdkr`)
+Streamline Docker image workflows:
+- `build`, `scan`, `tag`, `publish`, `push`
+- `provision` → runs (`build` ➝ `scan` ➝ `publish`)
+- [Docker with Smurf – Usage Guide](docs/sdkr/README.md)
 
-### Smurf SELM
-[Usage Guide for using helm commands via smurf tool](docs/selm/README.md)
-### Smurf SDKR
-[Usage Guide for using docker commands via smurf tool](docs/sdkr/README.md)
-### Smurf STF
-[Usage Guide for using terraform commands via smurf tool](docs/stf/README.md)
+---
+
+### ⚓ Helm Command Wrapper (`selm`)
+Simplify Helm operations:
+- `create`, `install`, `lint`, `list`, `status`, `template`, `upgrade`, `uninstall`
+- `provision` → runs (`install` ➝ `upgrade` ➝ `lint` ➝ `template`)
+- [Helm with Smurf – Usage Guide](docs/selm/README.md)
+
+---
+
+### 🏗️ Terraform Command Wrapper (`stf`)
+Easily manage Terraform workflows:
+- `init`, `plan`, `apply`, `output`, `drift`, `validate`, `destroy`, `format`
+- `provision` → runs (`init` ➝ `validate` ➝ `apply`)
+- [Terraform with Smurf – Usage Guide](docs/stf/README.md)
+
+---
+
+### ☁️ Multicloud Container Registry
+Push images to multiple registries from one CLI:
+- Supported: **AWS ECR**, **GCP GCR**, **Azure ACR**, **Docker Hub**
+- Example:
+  ```bash
+  smurf sdkr push --help
+  ```
+
 
 ## Contributors ✨ 
 

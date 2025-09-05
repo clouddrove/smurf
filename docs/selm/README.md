@@ -27,17 +27,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      - name: Setup Smurf
+        uses: clouddrove/smurf@v0.0.4
+
       - name: Smurf selm create
-        uses: clouddrove/smurf@v1.0.0
-        with:
-          tool: selm
-          command: create test-smurf
+        run: |
+          smurf selm create test-smurf
 
       - name: Smurf selm Template
-        uses: clouddrove/smurf@v1.0.0
-        with:
-          tool: selm
-          command: template my-release ./test-smurf
+        run: |
+          smurf selm template my-release ./test-smurf
 ```
 
 ### All available commands in Smurf SELM
@@ -54,3 +53,8 @@ jobs:
 | `template` |  Render chart templates           |
 | `uninstall` | Uninstall a Helm release  |
 | `upgrade` | Upgrade a deployed Helm chart  |
+| `repo add` | Add a chart repository |
+| `repo update` | Update chart repositories |
+| `pull` | Download a chart from a repository |
+| `plugin install` | Install one or more Helm plugins (comma-separated). |
+| `history` | Show revision history for a release |
