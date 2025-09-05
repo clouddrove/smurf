@@ -28,7 +28,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Setup Smurf
-        uses:  clouddrove/smurf@v0.0.4
+        uses: clouddrove/smurf@v0.0.4
 
       - name: Smurf selm create
         run: |
