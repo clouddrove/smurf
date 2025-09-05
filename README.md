@@ -38,7 +38,7 @@ Smurf is a command-line interface (CLI) application built using Golang leveragin
 
 ## Installation ⚙️
 - [Smurf tool CLI Installation Guide](docs/sm/docs/installation.md)
-- Integrate in Github-Actions
+- Integrate in GitHub Actions
   ```yaml
     - name: Setup Smurf
       uses: clouddrove/smurf@v0.0.4
