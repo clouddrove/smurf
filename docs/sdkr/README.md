@@ -32,7 +32,7 @@ jobs:
       - name: Setup Smurf
         uses: clouddrove/smurf@v0.0.4
 
-      - name : Smurf sdkr build
+      - name: Smurf sdkr build
         run: |
           smurf sdkr build image_name:tag -f Dockerfile
 
