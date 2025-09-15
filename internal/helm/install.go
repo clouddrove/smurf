@@ -94,6 +94,7 @@ func HelmInstall(
 	duration time.Duration, atomic, debug bool,
 	setValues, setLiteralValues []string, repoURL, version string,
 ) error {
+	fmt.Println("HIIIIIIII")
 	if err := ensureNamespace(namespace, true); err != nil {
 		logDetailedError("namespace creation", err, namespace, releaseName)
 		return err
