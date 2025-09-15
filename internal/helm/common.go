@@ -102,7 +102,6 @@ func ensureNamespace(namespace string, create bool) error {
 				pterm.Error.Printf("Failed to create namespace '%s': %v\n", namespace, err)
 				return fmt.Errorf("failed to create namespace '%s': %v", namespace, err)
 			}
-			pterm.Success.Printf("Namespace '%s' created successfully.\n", namespace)
 			return nil
 		}
 		pterm.Error.Printf("namespace '%v' does not exist and was not created\n", namespace)

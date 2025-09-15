@@ -94,12 +94,13 @@ func HelmInstall(
 	duration time.Duration, atomic, debug bool,
 	setValues, setLiteralValues []string, repoURL, version string,
 ) error {
-	fmt.Println("HIIIIIIII")
+	fmt.Printf("📦 Ensuring namespace '%s' exists...\n", namespace)
 	if err := ensureNamespace(namespace, true); err != nil {
 		logDetailedError("namespace creation", err, namespace, releaseName)
 		return err
 	}
 
+	fmt.Printf("⚙️  Initializing Helm configuration...\n")
 	settings := cli.New()
 	settings.SetNamespace(namespace)
 	actionConfig := new(action.Configuration)
@@ -113,6 +114,8 @@ func HelmInstall(
 	if err := actionConfig.Init(settings.RESTClientGetter(), namespace, os.Getenv("HELM_DRIVER"), logFn); err != nil {
 		return fmt.Errorf("❌ Helm configuration failed: %w", err)
 	}
+
+	fmt.Printf(" 🛠️  Setting up install action...\n")
 	client := action.NewInstall(actionConfig)
 	client.ReleaseName = releaseName
 	client.Namespace = namespace
@@ -121,6 +124,7 @@ func HelmInstall(
 	client.Timeout = duration
 	client.CreateNamespace = true
 
+	fmt.Printf("📊 Loading chart '%s'...\n", chartRef)
 	var chartObj *chart.Chart
 	var err error
 
@@ -130,11 +134,13 @@ func HelmInstall(
 	}
 
 	// Load and merge values
+	fmt.Printf("📝 Processing values and configurations...\n")
 	vals, err := loadAndMergeValuesWithSets(valuesFiles, setValues, setLiteralValues, debug)
 	if err != nil {
 		return fmt.Errorf("❌ Values processing failed: %w", err)
 	}
 
+	fmt.Printf("🚀 Installing release '%s'...\n", releaseName)
 	rel, err := client.Run(chartObj, vals)
 	if err != nil {
 		errorLock(err)
@@ -142,6 +148,7 @@ func HelmInstall(
 	}
 
 	// Monitor resources and get detailed information
+	fmt.Printf("👀 Monitoring resources...\n")
 	err = monitorEssentialResources(rel, namespace)
 	if err != nil {
 		return fmt.Errorf("❌ Resource monitoring failed: %w", err)
@@ -571,13 +578,16 @@ func getKubernetesClient() (*kubernetes.Clientset, error) {
 // LoadChart determines the chart source and loads it appropriately
 func LoadChart(chartRef, repoURL, version string, settings *cli.EnvSettings) (*chart.Chart, error) {
 	if repoURL != "" {
+		fmt.Printf("🌐 Loading remote chart from repository...\n")
 		return LoadRemoteChart(chartRef, repoURL, version, settings)
 	}
 
 	if strings.Contains(chartRef, "/") && !strings.HasPrefix(chartRef, ".") && !filepath.IsAbs(chartRef) {
+		fmt.Printf("📂 Loading chart from local repository...\n")
 		return LoadFromLocalRepo(chartRef, version, settings)
 	}
 
+	fmt.Printf("📄 Loading local chart...\n")
 	return loader.Load(chartRef)
 }
 
@@ -608,6 +618,7 @@ func LoadFromLocalRepo(chartRef, version string, settings *cli.EnvSettings) (*ch
 
 // LoadRemoteChart downloads and loads a chart from a remote repository
 func LoadRemoteChart(chartName, repoURL string, version string, settings *cli.EnvSettings) (*chart.Chart, error) {
+	fmt.Printf("🔗 Connecting to repository %s...\n", repoURL)
 	repoEntry := &repo.Entry{
 		Name: "temp-repo",
 		URL:  repoURL,
@@ -618,15 +629,18 @@ func LoadRemoteChart(chartName, repoURL string, version string, settings *cli.En
 		return nil, fmt.Errorf("failed to create chart repository: %v", err)
 	}
 
+	fmt.Printf("📥 Downloading repository index...\n")
 	if _, err := chartRepo.DownloadIndexFile(); err != nil {
 		return nil, fmt.Errorf("failed to download index file: %v", err)
 	}
 
+	fmt.Printf("🔍 Finding chart %s in repository...\n", chartName)
 	chartURL, err := repo.FindChartInRepoURL(repoURL, chartName, version, "", "", "", getter.All(settings))
 	if err != nil {
 		return nil, fmt.Errorf("failed to find chart in repository: %v", err)
 	}
 
+	fmt.Printf("⬇️  Downloading chart...\n")
 	chartDownloader := downloader.ChartDownloader{
 		Out:     os.Stdout,
 		Getters: getter.All(settings),
@@ -638,5 +652,6 @@ func LoadRemoteChart(chartName, repoURL string, version string, settings *cli.En
 		return nil, fmt.Errorf("failed to download chart: %v", err)
 	}
 
+	fmt.Printf("📦 Loading chart into memory...\n")
 	return loader.Load(chartPath)
 }
