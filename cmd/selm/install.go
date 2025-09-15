@@ -7,7 +7,6 @@ import (
 
 	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/helm"
-	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 )
 
@@ -30,7 +29,7 @@ var installCmd = &cobra.Command{
 		if releaseName == "" || chartPath == "" {
 			data, err := configs.LoadConfig(configs.FileName)
 			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
+				return fmt.Errorf("❌ Failed to load config: %w", err)
 			}
 
 			if releaseName == "" {
@@ -44,7 +43,7 @@ var installCmd = &cobra.Command{
 			}
 
 			if releaseName == "" || chartPath == "" {
-				return fmt.Errorf("both RELEASE and CHART must be provided either as arguments or in the config")
+				return fmt.Errorf("❌ Both RELEASE and CHART must be provided either as arguments or in the config")
 			}
 
 			if configs.Namespace == "" && data.Selm.Namespace != "" {
@@ -59,19 +58,21 @@ var installCmd = &cobra.Command{
 		}
 
 		if configs.Debug {
-			pterm.EnableDebugMessages()
-			pterm.Debug.Printfln("Starting Helm install with configuration:")
-			pterm.Debug.Printfln("  Release: %s", releaseName)
-			pterm.Debug.Printfln("  Chart: %s", chartPath)
-			pterm.Debug.Printfln("  Namespace: %s", configs.Namespace)
-			pterm.Debug.Printfln("  Timeout: %v", timeoutDuration)
-			pterm.Debug.Printfln("  Values files: %v", configs.File)
-			pterm.Debug.Printfln("  Set values: %v", configs.Set)
-			pterm.Debug.Printfln("  Set literal values: %v", configs.SetLiteral)
-			pterm.Debug.Printfln("  Repo URL: %s", RepoURL)
-			pterm.Debug.Printfln("  Version: %s", Version)
+			fmt.Printf("🔍 Debug: Starting Helm install with configuration:\n")
+			fmt.Printf("  Release: %s\n", releaseName)
+			fmt.Printf("  Chart: %s\n", chartPath)
+			fmt.Printf("  Namespace: %s\n", configs.Namespace)
+			fmt.Printf("  Timeout: %v\n", timeoutDuration)
+			fmt.Printf("  Values files: %v\n", configs.File)
+			fmt.Printf("  Set values: %v\n", configs.Set)
+			fmt.Printf("  Set literal values: %v\n", configs.SetLiteral)
+			fmt.Printf("  Repo URL: %s\n", RepoURL)
+			fmt.Printf("  Version: %s\n", Version)
 		}
 
+		fmt.Printf("🚀 Installing release '%s' in namespace '%s'\n", releaseName, configs.Namespace)
+
+		// Create progress tracker
 		err := helm.HelmInstall(
 			releaseName,
 			chartPath,
@@ -86,10 +87,10 @@ var installCmd = &cobra.Command{
 			Version,
 		)
 		if err != nil {
-			return fmt.Errorf("installation failed: %w", err)
+			return fmt.Errorf("❌ Installation failed: %w", err)
 		}
 
-		pterm.Success.Printfln("Release '%s' successfully installed", releaseName)
+		fmt.Printf("✅ Release '%s' successfully installed in namespace '%s'\n", releaseName, configs.Namespace)
 		return nil
 	},
 	Example: `
