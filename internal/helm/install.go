@@ -141,7 +141,7 @@ func HelmInstall(
 	}
 
 	// Monitor resources and get detailed information
-	err = monitorEssentialResources(rel, namespace, duration)
+	err = monitorEssentialResources(rel, namespace)
 	if err != nil {
 		return fmt.Errorf("❌ Resource monitoring failed: %w", err)
 	}
@@ -155,10 +155,10 @@ func errorLock(err error) {
 }
 
 // monitorEssentialResources monitors resources and prints detailed information
-func monitorEssentialResources(rel *release.Release, namespace string, timeout time.Duration) error {
+func monitorEssentialResources(rel *release.Release, namespace string) error {
 	details := &ResourceDetails{}
 
-	clientset, err := getKubernetesClient()
+	clientset, err := getKubeClient()
 	if err != nil {
 		return err
 	}
