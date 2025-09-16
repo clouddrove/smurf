@@ -16,6 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
@@ -24,10 +25,24 @@ func getKubeClient() (*kubernetes.Clientset, error) {
 	if kubeClientset != nil {
 		return kubeClientset, nil
 	}
-	config, err := clientcmd.BuildConfigFromFlags("", settings.KubeConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build Kubernetes configuration: %v", err)
+
+	// Try in-cluster first
+	config, err := rest.InClusterConfig()
+	if err == nil {
+		return kubernetes.NewForConfig(config)
 	}
+
+	// Otherwise use KUBECONFIG or ~/.kube/config
+	kubeconfigPath := clientcmd.RecommendedHomeFile // expands to $HOME/.kube/config
+	if envKube := os.Getenv("KUBECONFIG"); envKube != "" {
+		kubeconfigPath = envKube
+	}
+
+	config, err = clientcmd.BuildConfigFromFlags("", kubeconfigPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build Kubernetes configuration from %s: %v", kubeconfigPath, err)
+	}
+
 	kubeClientset, err = kubernetes.NewForConfig(config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Kubernetes clientset: %v", err)
