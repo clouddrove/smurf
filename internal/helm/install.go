@@ -96,8 +96,15 @@ func HelmInstall(
 ) error {
 	fmt.Printf("📦 Ensuring namespace '%s' exists...\n", namespace)
 	if err := ensureNamespace(namespace, true); err != nil {
-		logDetailedError("namespace creation", err, namespace, releaseName)
-		return err
+		return NewInstallationError(
+			"Namespace Preparation",
+			"ensure namespace exists",
+			err,
+			map[string]string{
+				"namespace": namespace,
+				"action":    "createIfNotExist",
+			},
+		)
 	}
 
 	fmt.Printf("⚙️  Initializing Helm configuration...\n")
@@ -112,10 +119,19 @@ func HelmInstall(
 	}
 
 	if err := actionConfig.Init(settings.RESTClientGetter(), namespace, os.Getenv("HELM_DRIVER"), logFn); err != nil {
-		return fmt.Errorf("❌ Helm configuration failed: %w", err)
+		return NewInstallationError(
+			"Helm Configuration",
+			"initialize action configuration",
+			err,
+			map[string]string{
+				"namespace": namespace,
+				"driver":    os.Getenv("HELM_DRIVER"),
+			},
+		)
+
 	}
 
-	fmt.Printf(" 🛠️  Setting up install action...\n")
+	fmt.Printf("🛠️  Setting up install action...\n")
 	client := action.NewInstall(actionConfig)
 	client.ReleaseName = releaseName
 	client.Namespace = namespace
@@ -130,36 +146,67 @@ func HelmInstall(
 
 	chartObj, err = LoadChart(chartRef, repoURL, version, settings)
 	if err != nil {
-		return fmt.Errorf("❌ Chart loading failed: %w", err)
+		return NewInstallationError(
+			"Chart Loading",
+			"load chart",
+			err,
+			map[string]string{
+				"chart":   chartRef,
+				"repoURL": repoURL,
+				"version": version,
+			},
+		)
 	}
 
 	// Load and merge values
 	fmt.Printf("📝 Processing values and configurations...\n")
 	vals, err := loadAndMergeValuesWithSets(valuesFiles, setValues, setLiteralValues, debug)
 	if err != nil {
-		return fmt.Errorf("❌ Values processing failed: %w", err)
+		return NewInstallationError(
+			"Values Processing",
+			"process values",
+			err,
+			map[string]string{
+				"valuesFiles":      fmt.Sprintf("%v", valuesFiles),
+				"setValues":        fmt.Sprintf("%v", setValues),
+				"setLiteralValues": fmt.Sprintf("%v", setLiteralValues),
+			},
+		)
+
 	}
 
 	fmt.Printf("🚀 Installing release '%s'...\n", releaseName)
 	rel, err := client.Run(chartObj, vals)
 	if err != nil {
-		errorLock(err)
-		return fmt.Errorf("❌ Helm install failed: %w", err)
+		return NewInstallationError(
+			"Chart Installation",
+			"install chart",
+			err,
+			map[string]string{
+				"release": releaseName,
+				"chart":   chartRef,
+				"atomic":  fmt.Sprintf("%v", atomic),
+			},
+		)
 	}
 
 	// Monitor resources and get detailed information
 	fmt.Printf("👀 Monitoring resources...\n")
+	fmt.Printf("✅ Successfully installed...")
 	err = monitorEssentialResources(rel, namespace)
 	if err != nil {
-		return fmt.Errorf("❌ Resource monitoring failed: %w", err)
+		return NewInstallationError(
+			"Resource Monitoring",
+			"monitor resources",
+			err,
+			map[string]string{
+				"release":   rel.Name,
+				"namespace": rel.Namespace,
+			},
+		)
 	}
 
 	return nil
-}
-
-func errorLock(err error) {
-	fmt.Println(pterm.Red("❌ Installation failed..."))
-	fmt.Println(pterm.Red("Error : ", err))
 }
 
 // monitorEssentialResources monitors resources and prints detailed information
@@ -587,7 +634,6 @@ func LoadChart(chartRef, repoURL, version string, settings *cli.EnvSettings) (*c
 		return LoadFromLocalRepo(chartRef, version, settings)
 	}
 
-	fmt.Printf("📄 Loading local chart...\n")
 	return loader.Load(chartRef)
 }
 

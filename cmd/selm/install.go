@@ -3,10 +3,12 @@ package selm
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/helm"
+	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 )
 
@@ -14,9 +16,10 @@ var RepoURL string
 var Version string
 
 var installCmd = &cobra.Command{
-	Use:   "install [RELEASE] [CHART]",
-	Short: "Install a Helm chart into a Kubernetes cluster.",
-	Args:  cobra.MaximumNArgs(2),
+	Use:          "install [RELEASE] [CHART]",
+	Short:        "Install a Helm chart into a Kubernetes cluster.",
+	Args:         cobra.MaximumNArgs(2),
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var releaseName, chartPath string
 		if len(args) >= 1 {
@@ -87,10 +90,25 @@ var installCmd = &cobra.Command{
 			Version,
 		)
 		if err != nil {
-			return fmt.Errorf("❌ Installation failed: %w", err)
+			// Use the structured error formatting
+			fmt.Print(helm.FormatError(err))
+
+			// Provide troubleshooting tips based on error type
+			if strings.Contains(err.Error(), "TLS handshake timeout") {
+				fmt.Println(pterm.Cyan("💡 Troubleshooting Tips:"))
+				fmt.Println("├── Check if your Kubernetes cluster is running")
+				fmt.Println("├── Verify your kubeconfig context is correct")
+				fmt.Println("└── Ensure network connectivity to the cluster")
+			} else if strings.Contains(err.Error(), "not found") {
+				fmt.Println(pterm.Cyan("💡 Troubleshooting Tips:"))
+				fmt.Println("├── Verify the chart name or repository URL")
+				fmt.Println("├── Check if the chart version exists")
+				fmt.Println("└── Ensure you have access to the repository")
+			}
+
+			return fmt.Errorf("installation failed")
 		}
 
-		fmt.Printf("✅ Release '%s' successfully installed in namespace '%s'\n", releaseName, configs.Namespace)
 		return nil
 	},
 	Example: `

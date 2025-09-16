@@ -22,7 +22,6 @@ import (
 // getKubeClient returns a Kubernetes clientset using the kubeconfig file specified in the settings.
 func getKubeClient() (*kubernetes.Clientset, error) {
 	if kubeClientset != nil {
-		pterm.Info.Println("Successfuly Kubernetes client set")
 		return kubeClientset, nil
 	}
 	config, err := clientcmd.BuildConfigFromFlags("", settings.KubeConfig)
@@ -99,17 +98,14 @@ func ensureNamespace(namespace string, create bool) error {
 			}
 			_, err = clientset.CoreV1().Namespaces().Create(context.Background(), ns, metav1.CreateOptions{})
 			if err != nil {
-				pterm.Error.Printf("Failed to create namespace '%s': %v\n", namespace, err)
 				return fmt.Errorf("failed to create namespace '%s': %v", namespace, err)
 			}
 			return nil
 		}
-		pterm.Error.Printf("namespace '%v' does not exist and was not created\n", namespace)
 		return fmt.Errorf("namespace '%s' does not exist and was not created", namespace)
 	}
 
 	// Unknown error
-	pterm.Error.Printf("namespace '%v' does not exist and was not created\n", namespace)
 	return fmt.Errorf("error checking namespace '%s': %v", namespace, err)
 }
 
