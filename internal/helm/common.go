@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -16,7 +17,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/util/homedir"
 )
 
 // getKubeClient returns a Kubernetes clientset using the kubeconfig file specified in the settings.
@@ -24,16 +27,44 @@ func getKubeClient() (*kubernetes.Clientset, error) {
 	if kubeClientset != nil {
 		return kubeClientset, nil
 	}
-	config, err := clientcmd.BuildConfigFromFlags("", settings.KubeConfig)
+
+	var config *rest.Config
+	var err error
+
+	// 1. Try in-cluster config (for pods running inside Kubernetes)
+	config, err = rest.InClusterConfig()
 	if err != nil {
-		return nil, fmt.Errorf("failed to build Kubernetes configuration: %v", err)
+		// 2. Fallback to kubeconfig file (for local dev or CI/CD)
+		kubeconfig := filepath.Join(homedir.HomeDir(), ".kube", "config")
+		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load kubeconfig: %v", err)
+		}
 	}
+
+	// 3. Create clientset
 	kubeClientset, err = kubernetes.NewForConfig(config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Kubernetes clientset: %v", err)
 	}
+
 	return kubeClientset, nil
 }
+
+// func getKubeClient() (*kubernetes.Clientset, error) {
+// 	if kubeClientset != nil {
+// 		return kubeClientset, nil
+// 	}
+// 	config, err := clientcmd.BuildConfigFromFlags("", settings.KubeConfig)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("failed to build Kubernetes configuration: %v", err)
+// 	}
+// 	kubeClientset, err = kubernetes.NewForConfig(config)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("failed to create Kubernetes clientset: %v", err)
+// 	}
+// 	return kubeClientset, nil
+// }
 
 // logDetailedError prints a detailed error message based on the error type and provides suggestions for troubleshooting.
 // It also prints the resources that failed to be created or updated.
