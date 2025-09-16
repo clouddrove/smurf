@@ -31,22 +31,32 @@ func getKubeClient() (*kubernetes.Clientset, error) {
 	var config *rest.Config
 	var err error
 
-	// 1. Try in-cluster config
+	// 1. Try in-cluster (works inside Pods)
 	config, err = rest.InClusterConfig()
-	if err != nil {
-		// 2. Try KUBECONFIG env var
-		kubeconfig := os.Getenv("KUBECONFIG")
-		if kubeconfig == "" {
-			// 3. Default to ~/.kube/config
-			kubeconfig = filepath.Join(homedir.HomeDir(), ".kube", "config")
-		}
-		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load kubeconfig: %v", err)
+	if err == nil {
+		goto buildClient
+	}
+
+	// 2. Try KUBECONFIG env var
+	if envPath := os.Getenv("KUBECONFIG"); envPath != "" {
+		config, err = clientcmd.BuildConfigFromFlags("", envPath)
+		if err == nil {
+			goto buildClient
 		}
 	}
 
-	// 4. Build clientset
+	// 3. Fallback to ~/.kube/config
+	if home := homedir.HomeDir(); home != "" {
+		kubeconfig := filepath.Join(home, ".kube", "config")
+		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
+		if err == nil {
+			goto buildClient
+		}
+	}
+
+	return nil, fmt.Errorf("could not find a valid Kubernetes configuration")
+
+buildClient:
 	kubeClientset, err = kubernetes.NewForConfig(config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Kubernetes clientset: %v", err)
