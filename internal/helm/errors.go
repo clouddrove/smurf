@@ -46,7 +46,7 @@ func FormatError(err error) string {
 		sb.WriteString(pterm.Red("📛 INSTALLATION FAILED\n"))
 		sb.WriteString("├── Stage:     " + ie.Stage + "\n")
 		sb.WriteString("├── Operation: " + ie.Operation + "\n")
-		sb.WriteString("├──" + pterm.LightRed("Error:     "+ie.Err.Error()+"\n"))
+		sb.WriteString("├── " + pterm.LightRed("Error:     "+ie.Err.Error()+"\n"))
 
 		if len(ie.Context) > 0 {
 			sb.WriteString("└── Context:\n")

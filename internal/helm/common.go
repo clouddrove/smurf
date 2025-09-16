@@ -26,12 +26,10 @@ func getKubeClient() (*kubernetes.Clientset, error) {
 	}
 	config, err := clientcmd.BuildConfigFromFlags("", settings.KubeConfig)
 	if err != nil {
-		pterm.Error.Println("Failed to build Kubernetes configuration: ", err)
 		return nil, fmt.Errorf("failed to build Kubernetes configuration: %v", err)
 	}
 	kubeClientset, err = kubernetes.NewForConfig(config)
 	if err != nil {
-		pterm.Error.Println("Failed to create Kubernetes clientset: ", err)
 		return nil, fmt.Errorf("failed to create Kubernetes clientset: %v", err)
 	}
 	return kubeClientset, nil
