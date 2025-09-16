@@ -31,23 +31,26 @@ func getKubeClient() (*kubernetes.Clientset, error) {
 	var config *rest.Config
 	var err error
 
-	// 1. Try in-cluster config (for pods running inside Kubernetes)
+	// 1. Try in-cluster config
 	config, err = rest.InClusterConfig()
 	if err != nil {
-		// 2. Fallback to kubeconfig file (for local dev or CI/CD)
-		kubeconfig := filepath.Join(homedir.HomeDir(), ".kube", "config")
+		// 2. Try KUBECONFIG env var
+		kubeconfig := os.Getenv("KUBECONFIG")
+		if kubeconfig == "" {
+			// 3. Default to ~/.kube/config
+			kubeconfig = filepath.Join(homedir.HomeDir(), ".kube", "config")
+		}
 		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load kubeconfig: %v", err)
 		}
 	}
 
-	// 3. Create clientset
+	// 4. Build clientset
 	kubeClientset, err = kubernetes.NewForConfig(config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Kubernetes clientset: %v", err)
 	}
-
 	return kubeClientset, nil
 }
 
