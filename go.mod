@@ -7,7 +7,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerregistry/armcontainerregistry v1.2.0
 	github.com/aws/aws-sdk-go v1.55.8
 	github.com/docker/docker v28.4.0+incompatible
-	github.com/hashicorp/terraform-exec v0.23.1
+	github.com/hashicorp/terraform-exec v0.24.0
 	github.com/hashicorp/terraform-json v0.27.2
 	github.com/pterm/pterm v0.12.81
 	github.com/spf13/cobra v1.10.1
