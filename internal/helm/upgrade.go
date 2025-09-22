@@ -63,7 +63,7 @@ func HelmUpgrade(
 		return fmt.Errorf("failed to initialize helm: %w", err)
 	}
 
-	// Verify release exists
+	// Verify release exists or not
 	if err := verifyReleaseExists(actionConfig, releaseName, namespace, debug); err != nil {
 		return fmt.Errorf("release verification failed: %w", err)
 	}
