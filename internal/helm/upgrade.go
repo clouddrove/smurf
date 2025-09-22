@@ -17,6 +17,7 @@ import (
 	"helm.sh/helm/v3/pkg/strvals"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 )
 
 // HelmUpgrade performs a Helm upgrade operation with repo + local support
@@ -115,9 +116,17 @@ func HelmUpgrade(
 		return fmt.Errorf("upgrade failed: %w", err)
 	}
 
-	// Verify readiness
-	if err := verifyFinalReadiness(namespace, releaseName, 30*time.Second, debug); err != nil {
-		return fmt.Errorf("readiness verification failed: %w", err)
+	// Verify readiness only if wait is enabled
+	if wait {
+		readinessTimeout := 5 * time.Minute
+		if debug {
+			pterm.Printf("Waiting for resources to be ready (timeout: %v)\n", readinessTimeout)
+		}
+		if err := verifyFinalReadiness(namespace, releaseName, readinessTimeout, debug); err != nil {
+			return fmt.Errorf("readiness verification failed: %w", err)
+		}
+	} else if debug {
+		pterm.Println("Skipping readiness verification (wait=false)")
 	}
 
 	duration := time.Since(startTime)
@@ -360,62 +369,172 @@ func verifyFinalReadiness(namespace, releaseName string, timeout time.Duration, 
 	}
 
 	deadline := time.Now().Add(timeout)
-	pollInterval := 2 * time.Second
+	pollInterval := 5 * time.Second // Increased from 2 to 5 seconds
+
+	clientset, err := getKubeClient()
+	if err != nil {
+		return fmt.Errorf("failed to get kube client: %w", err)
+	}
 
 	for attempt := 1; ; attempt++ {
 		if time.Now().After(deadline) {
-			return fmt.Errorf("readiness verification timed out after %s", timeout)
+			// Provide detailed timeout information
+			pods, _ := getPods(namespace, releaseName)
+			return fmt.Errorf("readiness verification timed out after %s. %d pods found. Check pod logs for details",
+				timeout, len(pods))
 		}
 
 		if debug {
 			pterm.Printf("Readiness check attempt %d\n", attempt)
 		}
 
+		// Check deployments, statefulsets, daemonsets first
+		allWorkloadsReady, workloadStatus, err := checkWorkloadReadiness(clientset, namespace, releaseName, debug)
+		if err != nil {
+			if debug {
+				pterm.Printf("Error checking workloads: %v\n", err)
+			}
+			continue // Retry on API errors
+		}
+
+		if !allWorkloadsReady {
+			if debug {
+				pterm.Printf("Workloads not ready: %s\n", workloadStatus)
+			}
+			time.Sleep(pollInterval)
+			continue
+		}
+
+		// Then check pods
 		pods, err := getPods(namespace, releaseName)
 		if err != nil {
 			if debug {
 				pterm.Printf("Failed to get pods: %v\n", err)
 			}
-			return fmt.Errorf("failed to get pods: %w", err)
+			time.Sleep(pollInterval)
+			continue
 		}
 
-		if debug {
-			pterm.Printf("Found %d pods\n", len(pods))
+		if len(pods) == 0 {
+			if debug {
+				pterm.Printf("No pods found for release %s\n", releaseName)
+			}
+			time.Sleep(pollInterval)
+			continue
 		}
 
-		allReady := true
-		for _, pod := range pods {
-			if pod.Status.Phase != corev1.PodRunning {
-				if debug {
-					pterm.Printf("Pod %s not running (status: %s)\n", pod.Name, pod.Status.Phase)
-				}
-				allReady = false
-				break
-			}
-			for _, cond := range pod.Status.Conditions {
-				if cond.Type == corev1.PodReady && cond.Status != corev1.ConditionTrue {
-					if debug {
-						pterm.Printf("Pod %s not ready (condition: %s=%s)\n",
-							pod.Name, cond.Type, cond.Status)
-					}
-					allReady = false
-					break
-				}
-			}
-			if !allReady {
-				break
-			}
-		}
-
+		allReady, notReadyPods := checkPodReadiness(pods, debug)
 		if allReady {
 			if debug {
-				pterm.Println("All pods are ready")
+				pterm.Println("All pods and workloads are ready")
 			}
 			return nil
 		}
 
+		if debug {
+			pterm.Printf("Pods not ready: %v\n", notReadyPods)
+			// Print pod details for debugging
+			for _, pod := range pods {
+				if !isPodReady(pod) {
+					printPodDetails(pod)
+				}
+			}
+		}
+
 		time.Sleep(pollInterval)
 	}
+}
+
+func checkWorkloadReadiness(clientset *kubernetes.Clientset, namespace, releaseName string, debug bool) (bool, string, error) {
+	labelSelector := fmt.Sprintf("app.kubernetes.io/instance=%s", releaseName)
+
+	// Check Deployments
+	deployments, err := clientset.AppsV1().Deployments(namespace).List(context.Background(), metav1.ListOptions{
+		LabelSelector: labelSelector,
+	})
+	if err != nil {
+		return false, "", err
+	}
+
+	for _, dep := range deployments.Items {
+		if dep.Status.ReadyReplicas != *dep.Spec.Replicas {
+			status := fmt.Sprintf("Deployment/%s: %d/%d ready",
+				dep.Name, dep.Status.ReadyReplicas, *dep.Spec.Replicas)
+			return false, status, nil
+		}
+	}
+
+	// Check StatefulSets
+	statefulsets, err := clientset.AppsV1().StatefulSets(namespace).List(context.Background(), metav1.ListOptions{
+		LabelSelector: labelSelector,
+	})
+	if err != nil {
+		return false, "", err
+	}
+
+	for _, ss := range statefulsets.Items {
+		if ss.Status.ReadyReplicas != *ss.Spec.Replicas {
+			status := fmt.Sprintf("StatefulSet/%s: %d/%d ready",
+				ss.Name, ss.Status.ReadyReplicas, *ss.Spec.Replicas)
+			return false, status, nil
+		}
+	}
+
+	// Check DaemonSets
+	daemonsets, err := clientset.AppsV1().DaemonSets(namespace).List(context.Background(), metav1.ListOptions{
+		LabelSelector: labelSelector,
+	})
+	if err != nil {
+		return false, "", err
+	}
+
+	for _, ds := range daemonsets.Items {
+		if ds.Status.NumberReady != ds.Status.DesiredNumberScheduled {
+			status := fmt.Sprintf("DaemonSet/%s: %d/%d ready",
+				ds.Name, ds.Status.NumberReady, ds.Status.DesiredNumberScheduled)
+			return false, status, nil
+		}
+	}
+
+	return true, "all workloads ready", nil
+}
+
+func checkPodReadiness(pods []corev1.Pod, debug bool) (bool, []string) {
+	var notReadyPods []string
+	allReady := true
+
+	for _, pod := range pods {
+		if !isPodReady(pod) {
+			allReady = false
+			status := fmt.Sprintf("Pod/%s: %s", pod.Name, pod.Status.Phase)
+			if pod.Status.Phase == corev1.PodRunning {
+				// If running but not ready, check container statuses
+				for _, cs := range pod.Status.ContainerStatuses {
+					if !cs.Ready {
+						status = fmt.Sprintf("Pod/%s: container %s not ready", pod.Name, cs.Name)
+						break
+					}
+				}
+			}
+			notReadyPods = append(notReadyPods, status)
+		}
+	}
+
+	return allReady, notReadyPods
+}
+
+func isPodReady(pod corev1.Pod) bool {
+	if pod.Status.Phase != corev1.PodRunning {
+		return false
+	}
+
+	for _, cond := range pod.Status.Conditions {
+		if cond.Type == corev1.PodReady && cond.Status == corev1.ConditionTrue {
+			return true
+		}
+	}
+
+	return false
 }
 
 // Helper function to print pod details

@@ -25,6 +25,7 @@ func HelmInstall(
 	releaseName, chartRef, namespace string, valuesFiles []string,
 	duration time.Duration, atomic, debug bool,
 	setValues, setLiteralValues []string, repoURL, version string,
+	wait bool, // Add wait parameter
 ) error {
 	if err := ensureNamespace(namespace, true); err != nil {
 		logDetailedError("namespace creation", err, namespace, releaseName)
@@ -51,7 +52,7 @@ func HelmInstall(
 	client.ReleaseName = releaseName
 	client.Namespace = namespace
 	client.Atomic = atomic
-	client.Wait = true
+	client.Wait = wait // Set the wait flag
 	client.Timeout = duration
 	client.CreateNamespace = true
 
@@ -80,13 +81,18 @@ func HelmInstall(
 	printReleaseInfo(rel, debug)
 	printResourcesFromRelease(rel)
 
-	err = monitorResources(rel, namespace, client.Timeout)
-	if err != nil {
-		logDetailedError("resource monitoring", err, namespace, releaseName)
-		return err
+	// Only monitor resources if wait is enabled
+	if wait {
+		err = monitorResources(rel, namespace, client.Timeout)
+		if err != nil {
+			logDetailedError("resource monitoring", err, namespace, releaseName)
+			return err
+		}
+		pterm.Success.Printfln("All resources for release '%s' are ready and running.\n", releaseName)
+	} else {
+		pterm.Success.Printfln("Release '%s' installed successfully (without waiting for resources to be ready).\n", releaseName)
 	}
 
-	pterm.Success.Printfln("All resources for release '%s' are ready and running.\n", releaseName)
 	return nil
 }
 

@@ -22,7 +22,6 @@ import (
 // getKubeClient returns a Kubernetes clientset using the kubeconfig file specified in the settings.
 func getKubeClient() (*kubernetes.Clientset, error) {
 	if kubeClientset != nil {
-		pterm.Info.Println("Successfuly Kubernetes client set")
 		return kubeClientset, nil
 	}
 	config, err := clientcmd.BuildConfigFromFlags("", settings.KubeConfig)

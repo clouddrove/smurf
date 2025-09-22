@@ -69,6 +69,7 @@ image:
 		repoURL     string
 		version     string
 		wantErr     bool
+		wait        bool
 	}{
 		{
 			name:        "Local chart installation",
@@ -98,6 +99,7 @@ image:
 				[]string{},
 				tt.repoURL,
 				tt.version,
+				tt.wait,
 			)
 
 			if tt.wantErr {
