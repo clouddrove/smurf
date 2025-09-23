@@ -18,7 +18,7 @@ func HelmTemplate(releaseName, chartPath, namespace, repoURL string, valuesFiles
 	actionConfig := new(action.Configuration)
 
 	if err := actionConfig.Init(settings.RESTClientGetter(), namespace, os.Getenv("HELM_DRIVER"), nil); err != nil {
-		pterm.Error.Printfln("Failed to initialize action configuration: %v \n", err)
+		pterm.Error.Printfln("Failed to initialize action configuration: %v", err)
 		return err
 	}
 
@@ -30,45 +30,48 @@ func HelmTemplate(releaseName, chartPath, namespace, repoURL string, valuesFiles
 	client.ClientOnly = true
 	client.ChartPathOptions.RepoURL = repoURL // Set repo URL if provided
 
-	var chartPathFinal string
-	var err error
-
-	if repoURL != "" {
-		chartPathFinal, err = client.ChartPathOptions.LocateChart(chartPath, settings)
-		if err != nil {
-			pterm.Error.Printfln("Failed to locate chart in repository '%s': %v \n", repoURL, err)
-			return err
-		}
-	} else {
-		chartPathFinal = chartPath
+	spinner, _ := pterm.DefaultSpinner.Start("Locating chart...")
+	
+	// ALWAYS use LocateChart to resolve the chart reference
+	chartPathFinal, err := client.ChartPathOptions.LocateChart(chartPath, settings)
+	if err != nil {
+		spinner.Fail(fmt.Sprintf("Failed to locate chart '%s': %v", chartPath, err))
+		return err
 	}
+	spinner.Success(fmt.Sprintf("Chart located: %s", chartPathFinal))
 
+	spinner, _ = pterm.DefaultSpinner.Start("Loading chart...")
 	chart, err := loader.Load(chartPathFinal)
 	if err != nil {
-		pterm.Error.Printfln("Failed to load chart '%s': %v \n", chartPathFinal, err)
+		spinner.Fail(fmt.Sprintf("Failed to load chart: %v", err))
 		return err
 	}
+	spinner.Success("Chart loaded successfully")
 
+	// Process values files - CORRECTED VERSION
 	vals := make(map[string]interface{})
-	// Process values files
 	for _, f := range valuesFiles {
+		spinner, _ = pterm.DefaultSpinner.Start(fmt.Sprintf("Reading values file: %s", f))
 		additionalVals, err := chartutil.ReadValuesFile(f)
 		if err != nil {
-			pterm.Error.Printfln("Error reading values file '%s': %v \n", f, err)
+			spinner.Fail(fmt.Sprintf("Error reading values file '%s': %v", f, err))
 			return err
 		}
-		for key, value := range additionalVals {
-			vals[key] = value
-		}
+		
+		// CORRECT: Merge the values maps properly
+		// chartutil.CoalesceTables merges two maps[string]interface{}
+		vals = chartutil.CoalesceTables(vals, additionalVals)
+		
+		spinner.Success(fmt.Sprintf("Values file processed: %s", f))
 	}
 
-	spinner, _ := pterm.DefaultSpinner.Start("Rendering Helm templates...\n")
+	spinner, _ = pterm.DefaultSpinner.Start("Rendering Helm templates...")
 	rel, err := client.Run(chart, vals)
 	if err != nil {
-		spinner.Fail(fmt.Sprintf("Failed to render templates: %v \n", err))
+		spinner.Fail(fmt.Sprintf("Failed to render templates: %v", err))
 		return err
 	}
-	spinner.Success("Templates rendered successfully \n")
+	spinner.Success("Templates rendered successfully")
 
 	pterm.FgGreen.Println(rel.Manifest)
 	return nil
