@@ -33,7 +33,6 @@ func HelmTemplate(releaseName, chartPath, namespace, repoURL string, valuesFiles
 	spinner, _ := pterm.DefaultSpinner.Start("Locating chart...")
 	
 	// ALWAYS use LocateChart to resolve the chart reference
-	// This handles both local paths and repository references
 	chartPathFinal, err := client.ChartPathOptions.LocateChart(chartPath, settings)
 	if err != nil {
 		spinner.Fail(fmt.Sprintf("Failed to locate chart '%s': %v", chartPath, err))
@@ -49,7 +48,7 @@ func HelmTemplate(releaseName, chartPath, namespace, repoURL string, valuesFiles
 	}
 	spinner.Success("Chart loaded successfully")
 
-	// Process values files
+	// Process values files - CORRECTED VERSION
 	vals := make(map[string]interface{})
 	for _, f := range valuesFiles {
 		spinner, _ = pterm.DefaultSpinner.Start(fmt.Sprintf("Reading values file: %s", f))
@@ -58,12 +57,11 @@ func HelmTemplate(releaseName, chartPath, namespace, repoURL string, valuesFiles
 			spinner.Fail(fmt.Sprintf("Error reading values file '%s': %v", f, err))
 			return err
 		}
-		// Use proper merging
-		vals, err = chartutil.MergeValues(vals, additionalVals)
-		if err != nil {
-			spinner.Fail(fmt.Sprintf("Error merging values from file '%s': %v", f, err))
-			return err
-		}
+		
+		// CORRECT: Merge the values maps properly
+		// chartutil.CoalesceTables merges two maps[string]interface{}
+		vals = chartutil.CoalesceTables(vals, additionalVals)
+		
 		spinner.Success(fmt.Sprintf("Values file processed: %s", f))
 	}
 
