@@ -70,6 +70,7 @@ var installCmd = &cobra.Command{
 			pterm.Debug.Printfln("  Set literal values: %v", configs.SetLiteral)
 			pterm.Debug.Printfln("  Repo URL: %s", RepoURL)
 			pterm.Debug.Printfln("  Version: %s", Version)
+			pterm.Debug.Printfln("  Wait: %v", configs.Wait)
 		}
 
 		err := helm.HelmInstall(
@@ -84,6 +85,7 @@ var installCmd = &cobra.Command{
 			configs.SetLiteral,
 			RepoURL,
 			Version,
+			configs.Wait,
 		)
 		if err != nil {
 			return fmt.Errorf("installation failed: %w", err)
@@ -101,6 +103,7 @@ var installCmd = &cobra.Command{
   smurf selm install prometheus prometheus-community/prometheus
   smurf selm install my-release ./mychart --set key1=val1 --set key2=val2
   smurf selm install my-release ./mychart --set-literal myPassword='MySecurePass!'
+  smurf selm install --wait  # Wait for resources to be ready
   smurf selm install
   # In the last example, it will read RELEASE and CHART from the config file
   `,
@@ -116,5 +119,6 @@ func init() {
 	installCmd.Flags().StringSliceVar(&configs.SetLiteral, "set-literal", []string{}, "Set literal values on the command line")
 	installCmd.Flags().StringVar(&RepoURL, "repo", "", "Specify the chart repository URL for remote charts")
 	installCmd.Flags().StringVar(&Version, "version", "", "Specify the chart version to install")
+	installCmd.Flags().BoolVar(&configs.Wait, "wait", false, "Wait for all resources to be ready before marking the release as successful") // Default to false
 	selmCmd.AddCommand(installCmd)
 }

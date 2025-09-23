@@ -105,19 +105,18 @@ var upgradeCmd = &cobra.Command{
 			pterm.Printf("  - Version: %s\n", Version)
 		}
 
-		if installIfNotPresent {
-			if configs.Debug {
-				pterm.Println("Checking if release exists (--install flag enabled)...")
-			}
-			exists, err := helm.HelmReleaseExists(releaseName, configs.Namespace, configs.Debug)
-			if err != nil {
-				return err
-			}
-			if !exists {
+		// Check if release exists
+		exists, err := helm.HelmReleaseExists(releaseName, configs.Namespace, configs.Debug)
+		if err != nil {
+			return err
+		}
+
+		if !exists {
+			if installIfNotPresent {
 				if configs.Debug {
 					pterm.Println("Release not found, installing...")
 				}
-				if err := helm.HelmInstall(releaseName, chartPath, configs.Namespace, configs.File, timeoutDuration, configs.Atomic, configs.Debug, configs.Set, configs.SetLiteral, RepoURL, Version); err != nil {
+				if err := helm.HelmInstall(releaseName, chartPath, configs.Namespace, configs.File, timeoutDuration, configs.Atomic, configs.Debug, configs.Set, configs.SetLiteral, RepoURL, Version, wait); err != nil {
 					return err
 				}
 				if configs.Debug {
@@ -125,24 +124,13 @@ var upgradeCmd = &cobra.Command{
 				}
 				pterm.Success.Println("Helm chart installed successfully.")
 				return nil
-			}
-			if configs.Debug {
-				pterm.Println("Release exists, proceeding with upgrade")
-			}
-		} else {
-			if configs.Debug {
-				pterm.Println("Checking if release exists (--install flag not enabled)...")
-			}
-			exists, err := helm.HelmReleaseExists(releaseName, configs.Namespace, configs.Debug)
-			if err != nil {
-				return err
-			}
-			if !exists {
+			} else {
 				return fmt.Errorf("release %s not found in namespace %s. Use --install flag to install it", releaseName, configs.Namespace)
 			}
-			if configs.Debug {
-				pterm.Println("Release exists, proceeding with upgrade")
-			}
+		}
+
+		if configs.Debug {
+			pterm.Println("Release exists, proceeding with upgrade")
 		}
 
 		if configs.Namespace == "" {
@@ -156,7 +144,7 @@ var upgradeCmd = &cobra.Command{
 			pterm.Println("Starting Helm upgrade...")
 		}
 
-		err := helm.HelmUpgrade(
+		err = helm.HelmUpgrade(
 			releaseName,
 			chartPath,
 			configs.Namespace,
@@ -179,16 +167,20 @@ var upgradeCmd = &cobra.Command{
 		return nil
 	},
 	Example: `
+# Upgrade without waiting (default behavior)
 smurf selm upgrade my-release ./mychart
-smurf selm upgrade my-release ./mychart -n my-namespace
-smurf selm upgrade my-release ./mychart --set key1=val1,key2=val2
-smurf selm upgrade my-release ./mychart -f values.yaml --timeout 600 --atomic --debug --install
-smurf selm upgrade my-release ./mychart --repo-url https://charts.example.com --version 1.2.3
-smurf selm upgrade my-release ./mychart --set key1=val1 --set key2=val2
-smurf selm upgrade my-release ./mychart --set-literal myPassword='MySecurePass!'
-smurf selm upgrade my-release ./mychart --wait=false
-smurf selm upgrade
-# In the last example, it will read RELEASE and CHART from the config file
+
+# Upgrade and wait for resources to be ready
+smurf selm upgrade my-release ./mychart --wait
+
+# Upgrade with custom timeout and waiting
+smurf selm upgrade my-release ./mychart --timeout 600 --wait
+
+# Install if not present without waiting (default)
+smurf selm upgrade my-release ./mychart --install
+
+# Install if not present with waiting
+smurf selm upgrade my-release ./mychart --install --wait
 `,
 }
 
@@ -204,6 +196,6 @@ func init() {
 	upgradeCmd.Flags().BoolVar(&installIfNotPresent, "install", false, "Install the chart if it is not already installed")
 	upgradeCmd.Flags().StringVar(&RepoURL, "repo-url", "", "Helm repository URL")
 	upgradeCmd.Flags().StringVar(&Version, "version", "", "Helm chart version")
-	upgradeCmd.Flags().BoolVar(&wait, "wait", true, "Wait until all Pods, PVCs, Services, and minimum number of Pods of a Deployment are ready before marking success")
+upgradeCmd.Flags().BoolVar(&configs.Wait, "wait", false, "Wait until all Pods, PVCs, Services, and minimum number of Pods of a Deployment are ready before marking success") // Changed default to false
 	selmCmd.AddCommand(upgradeCmd)
 }
