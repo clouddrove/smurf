@@ -470,7 +470,7 @@ func printResourcesFromRelease(rel *release.Release) {
 			if isFailed {
 				pterm.Error.Printf("• %s: %s - %s\n", pod.Name, status, failureReason)
 			} else {
-				pterm.Printf("• %s: %s%s", pod.Name, status)
+				pterm.Printf("• %s: %s", pod.Name, status)
 			}
 		}
 
