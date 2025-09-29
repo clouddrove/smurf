@@ -1,6 +1,7 @@
 package helm
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,6 +16,8 @@ import (
 	"helm.sh/helm/v3/pkg/downloader"
 	"helm.sh/helm/v3/pkg/getter"
 	"helm.sh/helm/v3/pkg/repo"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // HelmInstall handles chart installation with three possible sources:
@@ -25,84 +28,201 @@ func HelmInstall(
 	releaseName, chartRef, namespace string, valuesFiles []string,
 	duration time.Duration, atomic, debug bool,
 	setValues, setLiteralValues []string, repoURL, version string,
-	wait bool, // Add wait parameter
+	wait bool,
 ) error {
+	fmt.Printf("📦 Ensuring namespace '%s' exists...\n", namespace)
 	if err := ensureNamespace(namespace, true); err != nil {
-		logDetailedError("namespace creation", err, namespace, releaseName)
+		errorLock("Namespace Preparation", releaseName, namespace, chartRef, err)
 		return err
 	}
 
+	fmt.Printf("⚙️  Initializing Helm configuration...\n")
 	settings := cli.New()
 	settings.SetNamespace(namespace)
 	actionConfig := new(action.Configuration)
 
 	logFn := func(format string, v ...interface{}) {
 		if debug {
-			fmt.Printf(format, v...)
-			fmt.Println()
+			fmt.Printf("🔍 "+format+"\n", v...)
 		}
 	}
 
 	if err := actionConfig.Init(settings.RESTClientGetter(), namespace, os.Getenv("HELM_DRIVER"), logFn); err != nil {
-		logDetailedError("helm action configuration", err, namespace, releaseName)
+		errorLock("Helm Configuration", releaseName, namespace, chartRef, err)
 		return err
 	}
 
+	fmt.Printf("🛠️  Setting up install action...\n")
 	client := action.NewInstall(actionConfig)
 	client.ReleaseName = releaseName
 	client.Namespace = namespace
 	client.Atomic = atomic
-	client.Wait = wait // Set the wait flag
+	client.Wait = wait
 	client.Timeout = duration
 	client.CreateNamespace = true
 
+	fmt.Printf("📊 Loading chart '%s'...\n", chartRef)
 	var chartObj *chart.Chart
 	var err error
 
 	chartObj, err = LoadChart(chartRef, repoURL, version, settings)
 	if err != nil {
-		logDetailedError("chart loading", err, namespace, releaseName)
+		errorLock("Chart Loading", releaseName, namespace, chartRef, err)
 		return err
 	}
 
-	// Load and merge values from files, --set, and --set-literal
+	// Load and merge values
+	fmt.Printf("📝 Processing values and configurations...\n")
 	vals, err := loadAndMergeValuesWithSets(valuesFiles, setValues, setLiteralValues, debug)
 	if err != nil {
-		logDetailedError("values loading", err, namespace, releaseName)
+		errorLock("Values Processing", releaseName, namespace, chartRef, err)
 		return err
 	}
 
+	fmt.Printf("🚀 Installing release '%s'...\n", releaseName)
+
+	// Run Helm install
 	rel, err := client.Run(chartObj, vals)
 	if err != nil {
-		logDetailedError("helm install", err, namespace, releaseName)
+		printReleaseResources(namespace, releaseName)
+		errorLock("Chart Installation", releaseName, namespace, chartRef, err)
 		return err
 	}
 
-	printReleaseInfo(rel, debug)
-	printResourcesFromRelease(rel)
-
-	// Only monitor resources if wait is enabled
-	if wait {
-		err = monitorResources(rel, namespace, client.Timeout)
-		if err != nil {
-			logDetailedError("resource monitoring", err, namespace, releaseName)
-			return err
-		}
-		pterm.Success.Printfln("All resources for release '%s' are ready and running.\n", releaseName)
-	} else {
-		pterm.Success.Printfln("Release '%s' installed successfully (without waiting for resources to be ready).\n", releaseName)
+	// After Helm reports success, verify everything is actually healthy
+	fmt.Printf("🔍 Verifying installation health...\n")
+	if err := verifyInstallationHealth(namespace, releaseName, duration, debug); err != nil {
+		printReleaseResources(namespace, releaseName)
+		errorLock("Chart Installation", releaseName, namespace, chartRef, err)
+		return err
 	}
 
-	return nil
+	// Only if everything is healthy, print success
+	return handleInstallationSuccess(rel, namespace)
+}
+
+// Add this new function to verify pods are actually ready
+func verifyPodsAreReady(namespace, releaseName string, timeout time.Duration, debug bool) error {
+	clientset, err := getKubeClient()
+	if err != nil {
+		return fmt.Errorf("failed to get kube client: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	if debug {
+		fmt.Printf("🔍 Starting pod readiness verification for release '%s' in namespace '%s'\n", releaseName, namespace)
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("timeout waiting for pods to be ready")
+
+		case <-ticker.C:
+			// Get all pods for the release
+			pods, err := clientset.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{
+				LabelSelector: fmt.Sprintf("app.kubernetes.io/instance=%s", releaseName),
+			})
+			if err != nil {
+				if debug {
+					fmt.Printf("🔍 Error listing pods: %v\n", err)
+				}
+				continue
+			}
+
+			if len(pods.Items) == 0 {
+				if debug {
+					fmt.Printf("🔍 No pods found yet, waiting...\n")
+				}
+				continue
+			}
+
+			allReady := true
+			hasFailures := false
+			var failedPods []string
+
+			for _, pod := range pods.Items {
+				if debug {
+					fmt.Printf("🔍 Checking pod: %s, phase: %s\n", pod.Name, pod.Status.Phase)
+				}
+
+				// Check for pod failures
+				if isPodInFailureState(&pod) {
+					hasFailures = true
+					failedPods = append(failedPods, pod.Name)
+					if debug {
+						fmt.Printf("🔍 Pod %s is in failure state\n", pod.Name)
+					}
+					continue
+				}
+
+				// Check if pod is ready
+				if !isPodReadyInstall(&pod) {
+					allReady = false
+					if debug {
+						fmt.Printf("🔍 Pod %s is not ready yet\n", pod.Name)
+					}
+				}
+			}
+
+			// If any pods failed, return error immediately
+			if hasFailures {
+				return fmt.Errorf("one or more pods failed: %v", failedPods)
+			}
+
+			// If all pods are ready, return success
+			if allReady {
+				if debug {
+					fmt.Printf("🔍 All pods are ready!\n")
+				}
+				return nil
+			}
+
+			if debug {
+				fmt.Printf("🔍 Still waiting for pods to be ready...\n")
+			}
+		}
+	}
+}
+
+// Add this function to check if a pod is ready
+func isPodReadyInstall(pod *corev1.Pod) bool {
+	// If pod phase is not running, it's not ready
+	if pod.Status.Phase != corev1.PodRunning {
+		return false
+	}
+
+	// Check all containers are ready
+	for _, containerStatus := range pod.Status.ContainerStatuses {
+		if !containerStatus.Ready {
+			return false
+		}
+	}
+
+	// Check if pod has conditions
+	for _, condition := range pod.Status.Conditions {
+		if condition.Type == corev1.PodReady {
+			return condition.Status == corev1.ConditionTrue
+		}
+	}
+
+	return true
 }
 
 // loadChart determines the chart source and loads it appropriately
 func LoadChart(chartRef, repoURL, version string, settings *cli.EnvSettings) (*chart.Chart, error) {
 	if repoURL != "" {
+		fmt.Printf("🌐 Loading remote chart from repository...\n")
 		return LoadRemoteChart(chartRef, repoURL, version, settings)
 	}
 
 	if strings.Contains(chartRef, "/") && !strings.HasPrefix(chartRef, ".") && !filepath.IsAbs(chartRef) {
+		fmt.Printf("📂 Loading chart from local repository...\n")
 		return LoadFromLocalRepo(chartRef, version, settings)
 	}
 
@@ -138,6 +258,7 @@ func LoadFromLocalRepo(chartRef, version string, settings *cli.EnvSettings) (*ch
 
 // loadRemoteChart downloads and loads a chart from a remote repository
 func LoadRemoteChart(chartName, repoURL string, version string, settings *cli.EnvSettings) (*chart.Chart, error) {
+	fmt.Printf("🔗 Connecting to repository %s...\n", repoURL)
 	repoEntry := &repo.Entry{
 		Name: "temp-repo",
 		URL:  repoURL,
@@ -145,21 +266,21 @@ func LoadRemoteChart(chartName, repoURL string, version string, settings *cli.En
 
 	chartRepo, err := repo.NewChartRepository(repoEntry, getter.All(settings))
 	if err != nil {
-		pterm.Error.Printfln("failed to create chart repository: %v", err)
 		return nil, fmt.Errorf("failed to create chart repository: %v", err)
 	}
 
+	fmt.Printf("📥 Downloading repository index...\n")
 	if _, err := chartRepo.DownloadIndexFile(); err != nil {
-		pterm.Error.Printfln("failed to download index file: %v", err)
 		return nil, fmt.Errorf("failed to download index file: %v", err)
 	}
 
+	fmt.Printf("🔍 Finding chart %s in repository...\n", chartName)
 	chartURL, err := repo.FindChartInRepoURL(repoURL, chartName, version, "", "", "", getter.All(settings))
 	if err != nil {
-		pterm.Error.Printfln("failed to find chart in repository: %v", err)
 		return nil, fmt.Errorf("failed to find chart in repository: %v", err)
 	}
 
+	fmt.Printf("⬇️  Downloading chart...\n")
 	chartDownloader := downloader.ChartDownloader{
 		Out:     os.Stdout,
 		Getters: getter.All(settings),
@@ -168,10 +289,9 @@ func LoadRemoteChart(chartName, repoURL string, version string, settings *cli.En
 
 	chartPath, _, err := chartDownloader.DownloadTo(chartURL, version, settings.RepositoryCache)
 	if err != nil {
-		pterm.Error.Printfln("failed to download chart: %v", err)
 		return nil, fmt.Errorf("failed to download chart: %v", err)
 	}
 
-	pterm.Success.Print("Successfuly load remote chart...")
+	fmt.Printf("📦 Loading chart into memory...\n")
 	return loader.Load(chartPath)
 }
