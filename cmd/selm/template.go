@@ -2,6 +2,7 @@ package selm
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 
 	"github.com/clouddrove/smurf/configs"
@@ -14,9 +15,10 @@ import (
 var repoURL string
 
 var templateCmd = &cobra.Command{
-	Use:   "template [RELEASE] [CHART]",
-	Short: "Render chart templates",
-	Args:  cobra.MaximumNArgs(2),
+	Use:          "template [RELEASE] [CHART]",
+	Short:        "Render chart templates",
+	Args:         cobra.MaximumNArgs(2),
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var releaseName, chartPath string
 
@@ -59,7 +61,7 @@ var templateCmd = &cobra.Command{
 
 		err := helm.HelmTemplate(releaseName, chartPath, configs.Namespace, repoURL, configs.File)
 		if err != nil {
-			return err
+			os.Exit(1)
 		}
 		return nil
 	},

@@ -7,9 +7,10 @@ import (
 )
 
 var repoUpdateCmd = &cobra.Command{
-	Use:   "update [REPO]...",
-	Short: "Update chart repositories",
-	Long:  `Update all chart repositories or a specific one if provided.`,
+	Use:          "update [REPO]...",
+	Short:        "Update chart repositories",
+	Long:         `Update all chart repositories or a specific one if provided.`,
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var helmConfigDir string
 		helmConfigDir = configs.HelmConfigDir

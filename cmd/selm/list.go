@@ -18,7 +18,8 @@ var listCmd = &cobra.Command{
 	Short:   "List Helm releases",
 	Long: `List Helm releases across namespaces with various output formats.
 Defaults to showing releases in the default namespace unless specified.`,
-	Args: cobra.NoArgs,
+	Args:         cobra.NoArgs,
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if allNamespaces {
 			namespace = "" // Empty namespace means all namespaces

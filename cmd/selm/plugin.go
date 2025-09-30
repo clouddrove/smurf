@@ -12,9 +12,10 @@ import (
 
 // pluginInstallCmd is a subcommand that installs multiple Helm plugins.
 var pluginInstallCmd = &cobra.Command{
-	Use:   "plugin install [PLUGINS]",
-	Short: "Install one or more Helm plugins (comma-separated).",
-	Args:  cobra.MinimumNArgs(1),
+	Use:          "plugin install [PLUGINS]",
+	Short:        "Install one or more Helm plugins (comma-separated).",
+	Args:         cobra.MinimumNArgs(1),
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		pluginNames := strings.Join(args, ",")
 		if pluginNames == "" {

@@ -2,6 +2,8 @@
 package selm
 
 import (
+	"os"
+
 	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/helm"
 	"github.com/spf13/cobra"
@@ -9,9 +11,10 @@ import (
 
 // historyCmd shows the revision history of a Helm release
 var historyCmd = &cobra.Command{
-	Use:   "history [RELEASE]",
-	Short: "Show revision history for a release",
-	Args:  cobra.ExactArgs(1),
+	Use:          "history [RELEASE]",
+	Short:        "Show revision history for a release",
+	Args:         cobra.ExactArgs(1),
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		releaseName := args[0]
 		namespace := configs.Namespace
@@ -35,7 +38,7 @@ var historyCmd = &cobra.Command{
 
 		err = helm.HelmHistory(releaseName, namespace, max)
 		if err != nil {
-			return err
+			os.Exit(1)
 		}
 		return nil
 	},

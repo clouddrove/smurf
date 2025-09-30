@@ -2,6 +2,7 @@ package selm
 
 import (
 	"errors"
+	"os"
 
 	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/helm"
@@ -14,9 +15,10 @@ import (
 // It also supports specifying additional values via YAML files. Usage examples are provided below,
 // demonstrating how to set or omit command-line arguments and rely on config-based defaults.
 var createChartCmd = &cobra.Command{
-	Use:   "create [NAME]",
-	Short: "Create a new Helm chart in the specified directory.",
-	Args:  cobra.MaximumNArgs(1),
+	Use:          "create [NAME]",
+	Short:        "Create a new Helm chart in the specified directory.",
+	Args:         cobra.MaximumNArgs(1),
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var name string
 
@@ -44,7 +46,7 @@ var createChartCmd = &cobra.Command{
 
 		err := helm.CreateChart(name, configs.Directory)
 		if err != nil {
-			return err
+			os.Exit(1)
 		}
 		return nil
 	},

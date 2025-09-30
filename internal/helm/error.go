@@ -562,6 +562,7 @@ func printResourceSummaryHorizontal(details *ResourceDetails) {
 	)
 
 	fmt.Printf("%s%s📁 RESOURCES%s%s\n", Bold, Green, Reset, Reset)
+
 	// Helper function to find pods for a deployment
 	getPodsForDeployment := func(deploymentName string) []PodInfo {
 		var pods []PodInfo
@@ -572,6 +573,48 @@ func printResourceSummaryHorizontal(details *ResourceDetails) {
 			}
 		}
 		return pods
+	}
+
+	// Calculate dynamic column widths based on actual data (only NAME and STATUS now)
+	calculatePodColumnWidths := func(pods []PodInfo) (int, int) {
+		// Minimum widths
+		maxPodNameWidth := 20
+		maxStatusWidth := 8
+
+		for _, pod := range pods {
+			if len(pod.Name) > maxPodNameWidth {
+				maxPodNameWidth = len(pod.Name)
+			}
+			if len(pod.Status) > maxStatusWidth {
+				maxStatusWidth = len(pod.Status)
+			}
+		}
+
+		// Add padding and set reasonable maximums
+		maxPodNameWidth = min(maxPodNameWidth+2, 60)
+		maxStatusWidth = min(maxStatusWidth+2, 20)
+
+		return maxPodNameWidth, maxStatusWidth
+	}
+
+	// Calculate service column widths
+	calculateServiceColumnWidths := func() (int, int) {
+		maxServiceNameWidth := 20
+		maxTypeWidth := 10
+
+		for _, svc := range details.Services {
+			if len(svc.Name) > maxServiceNameWidth {
+				maxServiceNameWidth = len(svc.Name)
+			}
+			if len(svc.Type) > maxTypeWidth {
+				maxTypeWidth = len(svc.Type)
+			}
+		}
+
+		maxServiceNameWidth = min(maxServiceNameWidth+2, 50)
+		maxTypeWidth = min(maxTypeWidth+2, 20)
+
+		return maxServiceNameWidth, maxTypeWidth
 	}
 
 	// Deployments with their pods
@@ -587,12 +630,23 @@ func printResourceSummaryHorizontal(details *ResourceDetails) {
 				if len(deploymentPods) > 0 {
 					fmt.Printf("        └── %sPODS%s\n", Magenta, Reset)
 
-					// Print table headers with proper spacing
-					fmt.Printf("            %-40s%-15s%-10s%-15s\n", "NAME", "STATUS", "READY", "NODE")
+					// Calculate column widths for this specific deployment's pods
+					podNameWidth, statusWidth := calculatePodColumnWidths(deploymentPods)
+
+					// Print table headers with dynamic spacing (only NAME and STATUS)
+					fmt.Printf("            %-*s %-*s\n",
+						podNameWidth, "NAME",
+						statusWidth, "STATUS")
+
+					// Print separator line
+					totalWidth := podNameWidth + statusWidth + 1
+					fmt.Printf("            %s\n", strings.Repeat("─", totalWidth))
 
 					for _, pod := range deploymentPods {
-						// Format the pod information in a table row
-						fmt.Printf("            %-40s%-15s%-10s%-15s\n", pod.Name, pod.Status, pod.Ready, pod.Node)
+						// Format the pod information with dynamic column widths (only NAME and STATUS)
+						fmt.Printf("            %-*s %-*s\n",
+							podNameWidth, pod.Name,
+							statusWidth, pod.Status)
 					}
 				}
 			} else {
@@ -602,33 +656,47 @@ func printResourceSummaryHorizontal(details *ResourceDetails) {
 				if len(deploymentPods) > 0 {
 					fmt.Printf("    │   └── %sPODS%s\n", Magenta, Reset)
 
-					// Print table headers with proper spacing
-					fmt.Printf("    │       %-40s%-15s%-10s%-15s\n", "NAME", "STATUS", "READY", "NODE")
+					// Calculate column widths for this specific deployment's pods
+					podNameWidth, statusWidth := calculatePodColumnWidths(deploymentPods)
+
+					// Print table headers with dynamic spacing (only NAME and STATUS)
+					fmt.Printf("    │       %-*s %-*s\n",
+						podNameWidth, "NAME",
+						statusWidth, "STATUS")
+
+					// Print separator line
+					totalWidth := podNameWidth + statusWidth + 1
+					fmt.Printf("    │       %s\n", strings.Repeat("─", totalWidth))
 
 					for _, pod := range deploymentPods {
-						// Format the pod information in a table row
-						fmt.Printf("    │       %-40s%-15s%-10s%-15s\n", pod.Name, pod.Status, pod.Ready, pod.Node)
+						// Format the pod information with dynamic column widths (only NAME and STATUS)
+						fmt.Printf("    │       %-*s %-*s\n",
+							podNameWidth, pod.Name,
+							statusWidth, pod.Status)
 					}
 				}
 			}
 		}
 	}
 
-	// Services
+	// Services with dynamic column widths
 	if len(details.Services) > 0 {
 		fmt.Println("└── SERVICES")
-		fmt.Printf("     └── %-40s%-15s%-10s\n", "NAME", "TYPE", "PORTS")
-		for i, svc := range details.Services {
+		serviceNameWidth, typeWidth := calculateServiceColumnWidths()
+
+		fmt.Printf("     └── %-*s %-*s %s\n", serviceNameWidth, "NAME", typeWidth, "TYPE", "PORTS")
+
+		// Calculate total width for separator
+		totalServiceWidth := serviceNameWidth + typeWidth + 20
+		fmt.Printf("         %s\n", strings.Repeat("─", totalServiceWidth))
+
+		for _, svc := range details.Services {
 			ports := strings.Join(svc.Ports, ", ")
 			if ports == "" {
 				ports = "No ports"
 			}
 
-			if i == len(details.Services)-1 {
-				fmt.Printf("         %-40s%-15s%-10s\n", svc.Name, svc.Type, svc.Ports)
-			} else {
-				fmt.Printf("         %-40s%-15s%-10s\n", svc.Name, svc.Type, svc.Ports)
-			}
+			fmt.Printf("         %-*s %-*s %s\n", serviceNameWidth, svc.Name, typeWidth, svc.Type, ports)
 		}
 	}
 
@@ -658,10 +726,8 @@ func printResourceSummaryHorizontal(details *ResourceDetails) {
 		for i, secret := range details.Secrets {
 			if i == len(details.Secrets)-1 {
 				fmt.Printf("    └── %s%s%s\n", Yellow, secret.Name, Reset)
-				fmt.Printf("        └── %sType:%s %s\n", Cyan, Reset, secret.Type)
 			} else {
 				fmt.Printf("    ├── %s%s%s\n", Yellow, secret.Name, Reset)
-				fmt.Printf("    │   └── %sType:%s %s\n", Cyan, Reset, secret.Type)
 			}
 		}
 	}
@@ -677,6 +743,14 @@ func printResourceSummaryHorizontal(details *ResourceDetails) {
 			}
 		}
 	}
+}
+
+// Helper function to get minimum of two integers
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // verifyInstallationHealth checks if all resources are actually healthy after Helm reports success

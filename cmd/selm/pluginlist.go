@@ -2,6 +2,7 @@ package selm
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 
@@ -30,14 +31,15 @@ func HelmPluginList() error {
 
 // pluginListCmd is a subcommand that lists installed Helm plugins.
 var pluginListCmd = &cobra.Command{
-	Use:     "plugin_list",
-	Short:   "List all installed Helm plugins.",
-	Example: `smurf selm plugin_list`,
+	Use:          "plugin_list",
+	Short:        "List all installed Helm plugins.",
+	Example:      `smurf selm plugin_list`,
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		fmt.Println("Listing Helm plugins...")
 		err := HelmPluginList()
 		if err != nil {
-			return err
+			os.Exit(1)
 		}
 
 		pterm.Success.Printfln("Helm plugins listed successfully.")

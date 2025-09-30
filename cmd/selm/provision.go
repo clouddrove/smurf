@@ -2,6 +2,7 @@ package selm
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 
 	"github.com/clouddrove/smurf/configs"
@@ -15,9 +16,10 @@ import (
 // It supports configurable arguments or fallback to values specified in the config file,
 // as well as an optional custom namespace.
 var provisionCmd = &cobra.Command{
-	Use:   "provision [RELEASE] [CHART]",
-	Short: "Combination of install, upgrade, lint, and template for Helm",
-	Args:  cobra.MaximumNArgs(2),
+	Use:          "provision [RELEASE] [CHART]",
+	Short:        "Combination of install, upgrade, lint, and template for Helm",
+	Args:         cobra.MaximumNArgs(2),
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var releaseName, chartPath string
 
@@ -66,7 +68,7 @@ var provisionCmd = &cobra.Command{
 
 		err := helm.HelmProvision(releaseName, chartPath, configs.Namespace)
 		if err != nil {
-			return err
+			os.Exit(1)
 		}
 		return nil
 	},

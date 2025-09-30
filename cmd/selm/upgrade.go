@@ -21,9 +21,10 @@ var (
 
 // upgradeCmd facilitates upgrading an existing Helm release or installing it if it's not present
 var upgradeCmd = &cobra.Command{
-	Use:   "upgrade [NAME] [CHART]",
-	Short: "Upgrade a deployed Helm chart.",
-	Args:  cobra.MaximumNArgs(2),
+	Use:          "upgrade [NAME] [CHART]",
+	Short:        "Upgrade a deployed Helm chart.",
+	Args:         cobra.MaximumNArgs(2),
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if configs.Debug {
 			pterm.EnableDebugMessages()
