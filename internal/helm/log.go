@@ -108,48 +108,52 @@ func printReleaseResources(namespace, release string) {
 		})
 
 		for _, pod := range pods.Items {
-			status := string(pod.Status.Phase)
-			statusColor := getPodStatusColor(status)
 			podColor := getResourceColor("pod")
 
-			// collect all errors
-			var errors []string
+			// Determine pod status from container statuses first, fall back to phase
+			status := string(pod.Status.Phase)
+			var messages []string
+
+			// Check container statuses for actual state
 			for _, cs := range pod.Status.ContainerStatuses {
 				if cs.State.Waiting != nil {
-					errors = append(errors, fmt.Sprintf("%s: %s", cs.State.Waiting.Reason, cs.State.Waiting.Message))
+					// Use Waiting reason as the main status (e.g., CrashLoopBackOff, ImagePullBackOff)
+					status = cs.State.Waiting.Reason
+					// Store the message for Info column
+					if cs.State.Waiting.Message != "" {
+						messages = append(messages, cs.State.Waiting.Message)
+					}
+				} else if cs.State.Terminated != nil {
+					status = cs.State.Terminated.Reason
+					// Store the message for Info column
+					if cs.State.Terminated.Message != "" {
+						messages = append(messages, cs.State.Terminated.Message)
+					}
 				}
-				if cs.State.Terminated != nil {
-					errors = append(errors, fmt.Sprintf("%s: %s", cs.State.Terminated.Reason, cs.State.Terminated.Message))
-				}
+
 			}
 
-			if len(errors) == 0 {
-				// no error - green status
+			statusColor := getPodStatusColor(status)
+
+			if len(messages) == 0 {
+				// no messages - just show status
 				fmt.Fprintf(w, "  └─ %sPod/ %s%s\t%s%s%s\t\n",
 					podColor, pod.Name, ColorReset,
 					statusColor, status, ColorReset)
 			} else {
-				// first error goes into Info column
-				wrapped := wrapText(errors[0], 70)
+				// Combine all messages into one string with line breaks
+				fullMessage := strings.Join(messages, "\n")
+				wrappedLines := wrapText(fullMessage, 70)
 
-				// print first line with error (red for errors)
+				// Print first line with pod info and first message line in Info column
 				fmt.Fprintf(w, "  └─ %sPod/ %s%s\t%s%s%s\t%s%s%s\n",
 					podColor, pod.Name, ColorReset,
 					statusColor, status, ColorReset,
-					ColorRed, wrapped[0], ColorReset)
+					ColorRed, wrappedLines[0], ColorReset)
 
-				// continuation lines -> same position as first line (aligned under Info column)
-				if len(wrapped) > 1 {
-					for _, l := range wrapped[1:] {
-						fmt.Fprintf(w, "\t\t%s%s%s\n", ColorRed, l, ColorReset)
-					}
-				}
-
-				// print additional errors
-				for _, e := range errors[1:] {
-					for _, l := range wrapText(e, 70) {
-						fmt.Fprintf(w, "\t\t%s%s%s\n", ColorRed, l, ColorReset)
-					}
+				// Print remaining message lines with manual spacing to align with Info column
+				for i := 1; i < len(wrappedLines); i++ {
+					fmt.Fprintf(w, "                                                                   %s%s%s\n", ColorRed, wrappedLines[i], ColorReset)
 				}
 			}
 		}
@@ -184,7 +188,6 @@ func printReleaseResources(namespace, release string) {
 
 	w.Flush()
 }
-
 func errorLock(stage, releaseName, namespace, chartName string, err error) {
 	fmt.Println("")
 	fmt.Println(pterm.Red("INSTALLATION FAILED"))
