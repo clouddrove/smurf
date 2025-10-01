@@ -1,7 +1,6 @@
 package helm
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -17,7 +16,6 @@ import (
 	"helm.sh/helm/v3/pkg/getter"
 	"helm.sh/helm/v3/pkg/repo"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // HelmInstall handles chart installation with three possible sources:
@@ -99,95 +97,6 @@ func HelmInstall(
 
 	// Only if everything is healthy, print success
 	return handleInstallationSuccess(rel, namespace)
-}
-
-// Add this new function to verify pods are actually ready
-func verifyPodsAreReady(namespace, releaseName string, timeout time.Duration, debug bool) error {
-	clientset, err := getKubeClient()
-	if err != nil {
-		return fmt.Errorf("failed to get kube client: %w", err)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
-
-	if debug {
-		fmt.Printf("🔍 Starting pod readiness verification for release '%s' in namespace '%s'\n", releaseName, namespace)
-	}
-
-	for {
-		select {
-		case <-ctx.Done():
-			return fmt.Errorf("timeout waiting for pods to be ready")
-
-		case <-ticker.C:
-			// Get all pods for the release
-			pods, err := clientset.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{
-				LabelSelector: fmt.Sprintf("app.kubernetes.io/instance=%s", releaseName),
-			})
-			if err != nil {
-				if debug {
-					fmt.Printf("🔍 Error listing pods: %v\n", err)
-				}
-				continue
-			}
-
-			if len(pods.Items) == 0 {
-				if debug {
-					fmt.Printf("🔍 No pods found yet, waiting...\n")
-				}
-				continue
-			}
-
-			allReady := true
-			hasFailures := false
-			var failedPods []string
-
-			for _, pod := range pods.Items {
-				if debug {
-					fmt.Printf("🔍 Checking pod: %s, phase: %s\n", pod.Name, pod.Status.Phase)
-				}
-
-				// Check for pod failures
-				if isPodInFailureState(&pod) {
-					hasFailures = true
-					failedPods = append(failedPods, pod.Name)
-					if debug {
-						fmt.Printf("🔍 Pod %s is in failure state\n", pod.Name)
-					}
-					continue
-				}
-
-				// Check if pod is ready
-				if !isPodReadyInstall(&pod) {
-					allReady = false
-					if debug {
-						fmt.Printf("🔍 Pod %s is not ready yet\n", pod.Name)
-					}
-				}
-			}
-
-			// If any pods failed, return error immediately
-			if hasFailures {
-				return fmt.Errorf("one or more pods failed: %v", failedPods)
-			}
-
-			// If all pods are ready, return success
-			if allReady {
-				if debug {
-					fmt.Printf("🔍 All pods are ready!\n")
-				}
-				return nil
-			}
-
-			if debug {
-				fmt.Printf("🔍 Still waiting for pods to be ready...\n")
-			}
-		}
-	}
 }
 
 // Add this function to check if a pod is ready
