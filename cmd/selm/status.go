@@ -2,6 +2,7 @@ package selm
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 
 	"github.com/clouddrove/smurf/configs"
@@ -53,7 +54,7 @@ var statusCmd = &cobra.Command{
 
 		err := helm.HelmStatus(releaseName, configs.Namespace)
 		if err != nil {
-			return err
+			os.Exit(1)
 		}
 		return nil
 	},
