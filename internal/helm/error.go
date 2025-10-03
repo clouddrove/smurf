@@ -79,59 +79,6 @@ type ConfigMapInfo struct {
 	Name string
 }
 
-// PodDetails contains comprehensive pod information for debugging
-type PodDetails struct {
-	Name              string
-	Namespace         string
-	Status            string
-	CreationTimestamp time.Time
-	Labels            map[string]string
-	Annotations       map[string]string
-	IP                string
-	Node              string
-	Containers        []ContainerDetails
-	InitContainers    []ContainerDetails
-	Conditions        []PodCondition
-	Events            []EventDetails
-	Volumes           []VolumeDetails
-}
-
-type ContainerDetails struct {
-	Name         string
-	Image        string
-	Ready        bool
-	RestartCount int32
-	State        ContainerState
-	LastState    ContainerState
-}
-
-type ContainerState struct {
-	Type    string
-	Reason  string
-	Message string
-	Started time.Time
-}
-
-type PodCondition struct {
-	Type    string
-	Status  string
-	Reason  string
-	Message string
-}
-
-type EventDetails struct {
-	Type    string
-	Reason  string
-	Message string
-	Count   int32
-	Age     time.Duration
-}
-
-type VolumeDetails struct {
-	Name string
-	Type string
-}
-
 // getPodFailureReason extracts the detailed reason for pod failure
 func getPodFailureReason(clientset *kubernetes.Clientset, pod *corev1.Pod) string {
 	// Check container statuses first
@@ -1116,10 +1063,6 @@ func NewInstallationError(stage, operation string, err error, context ...map[str
 	}
 
 	return errorObj
-}
-
-func ErrorLock(name, operation, state string, err error) {
-
 }
 
 // FormatError formats an error with clean tree structure
