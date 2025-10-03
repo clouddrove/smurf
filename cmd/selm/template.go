@@ -2,6 +2,7 @@ package selm
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 
 	"github.com/clouddrove/smurf/configs"
@@ -60,7 +61,7 @@ var templateCmd = &cobra.Command{
 
 		err := helm.HelmTemplate(releaseName, chartPath, configs.Namespace, repoURL, configs.File)
 		if err != nil {
-			return err
+			os.Exit(1)
 		}
 		return nil
 	},
