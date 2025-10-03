@@ -260,13 +260,34 @@ func monitorEssentialResources(rel *release.Release, namespace string) error {
 	}
 
 	// Get all resources
-	details.Deployments, _ = getDetailedDeployments(clientset, namespace, rel.Name)
-	details.ReplicaSets, _ = getDetailedReplicaSets(clientset, namespace, rel.Name)
-	details.Pods, _ = getDetailedPods(clientset, namespace, rel.Name)
-	details.Services, _ = getDetailedServices(clientset, namespace, rel.Name)
-	details.Ingresses, _ = getDetailedIngresses(clientset, namespace, rel.Name)
-	details.Secrets, _ = getDetailedSecrets(clientset, namespace, rel.Name)
-	details.ConfigMaps, _ = getDetailedConfigMaps(clientset, namespace, rel.Name)
+	details.Deployments, err = getDetailedDeployments(clientset, namespace, rel.Name)
+	if err != nil {
+		pterm.Warning.Printfln("Could not get deployment details: %v", err)
+	}
+	details.ReplicaSets, err = getDetailedReplicaSets(clientset, namespace, rel.Name)
+	if err != nil {
+		pterm.Warning.Printfln("Could not get replicaset details: %v", err)
+	}
+	details.Pods, err = getDetailedPods(clientset, namespace, rel.Name)
+	if err != nil {
+		pterm.Warning.Printfln("Could not get pod details: %v", err)
+	}
+	details.Services, err = getDetailedServices(clientset, namespace, rel.Name)
+	if err != nil {
+		pterm.Warning.Printfln("Could not get service details: %v", err)
+	}
+	details.Ingresses, err = getDetailedIngresses(clientset, namespace, rel.Name)
+	if err != nil {
+		pterm.Warning.Printfln("Could not get ingress details: %v", err)
+	}
+	details.Secrets, err = getDetailedSecrets(clientset, namespace, rel.Name)
+	if err != nil {
+		pterm.Warning.Printfln("Could not get secret details: %v", err)
+	}
+	details.ConfigMaps, err = getDetailedConfigMaps(clientset, namespace, rel.Name)
+	if err != nil {
+		pterm.Warning.Printfln("Could not get configmap details: %v", err)
+	}
 
 	// Print detailed resource summary
 	printResourceSummaryHorizontal(details)
