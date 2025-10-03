@@ -15,7 +15,6 @@ import (
 	"helm.sh/helm/v3/pkg/downloader"
 	"helm.sh/helm/v3/pkg/getter"
 	"helm.sh/helm/v3/pkg/repo"
-	corev1 "k8s.io/api/core/v1"
 )
 
 // HelmInstall handles chart installation with three possible sources:
@@ -97,30 +96,6 @@ func HelmInstall(
 
 	// Only if everything is healthy, print success
 	return handleInstallationSuccess(rel, namespace)
-}
-
-// Add this function to check if a pod is ready
-func isPodReadyInstall(pod *corev1.Pod) bool {
-	// If pod phase is not running, it's not ready
-	if pod.Status.Phase != corev1.PodRunning {
-		return false
-	}
-
-	// Check all containers are ready
-	for _, containerStatus := range pod.Status.ContainerStatuses {
-		if !containerStatus.Ready {
-			return false
-		}
-	}
-
-	// Check if pod has conditions
-	for _, condition := range pod.Status.Conditions {
-		if condition.Type == corev1.PodReady {
-			return condition.Status == corev1.ConditionTrue
-		}
-	}
-
-	return true
 }
 
 // loadChart determines the chart source and loads it appropriately

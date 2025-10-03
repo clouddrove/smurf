@@ -9,6 +9,7 @@ import (
 	"github.com/pterm/pterm"
 	"helm.sh/helm/v3/pkg/release"
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -79,6 +80,23 @@ type ConfigMapInfo struct {
 	Name string
 }
 
+// ResourceChecker provides generic resource checking functionality
+type ResourceChecker struct {
+	clientset   *kubernetes.Clientset
+	namespace   string
+	releaseName string
+	debug       bool
+}
+
+func NewResourceChecker(clientset *kubernetes.Clientset, namespace, releaseName string, debug bool) *ResourceChecker {
+	return &ResourceChecker{
+		clientset:   clientset,
+		namespace:   namespace,
+		releaseName: releaseName,
+		debug:       debug,
+	}
+}
+
 // getPodFailureReason extracts the detailed reason for pod failure
 func getPodFailureReason(clientset *kubernetes.Clientset, pod *corev1.Pod) string {
 	// Check container statuses first
@@ -87,10 +105,7 @@ func getPodFailureReason(clientset *kubernetes.Clientset, pod *corev1.Pod) strin
 			return fmt.Sprintf("%s: %s", status.State.Waiting.Reason, status.State.Waiting.Message)
 		}
 		if status.State.Terminated != nil {
-			return fmt.Sprintf("%s: exit code %d - %s",
-				status.State.Terminated.Reason,
-				status.State.Terminated.ExitCode,
-				status.State.Terminated.Message)
+			return fmt.Sprintf("%s: exit code %d - %s", status.State.Terminated.Reason, status.State.Terminated.ExitCode, status.State.Terminated.Message)
 		}
 	}
 
@@ -119,16 +134,13 @@ func isPodInFailureState(pod *corev1.Pod) bool {
 		if status.State.Waiting != nil {
 			reason := status.State.Waiting.Reason
 			// Critical errors that won't recover without intervention
-			if reason == "ImagePullBackOff" || reason == "ErrImagePull" ||
-				reason == "CreateContainerConfigError" || reason == "InvalidImageName" ||
-				reason == "CrashLoopBackOff" || reason == "CreateContainerError" {
+			if reason == "ImagePullBackOff" || reason == "ErrImagePull" || reason == "CreateContainerConfigError" || reason == "InvalidImageName" || reason == "CrashLoopBackOff" || reason == "CreateContainerError" {
 				return true
 			}
 		}
 		if status.State.Terminated != nil {
 			reason := status.State.Terminated.Reason
-			if reason == "Error" || reason == "ContainerCannotRun" ||
-				status.State.Terminated.ExitCode != 0 {
+			if reason == "Error" || reason == "ContainerCannotRun" || status.State.Terminated.ExitCode != 0 {
 				return true
 			}
 		}
@@ -166,14 +178,12 @@ func handleInstallationSuccess(rel *release.Release, namespace string) error {
 	} else {
 		fmt.Printf("✅ Installation completed successfully!\n")
 	}
-
 	return nil
 }
 
 // monitorEssentialResources monitors resources and prints detailed information
 func monitorEssentialResources(rel *release.Release, namespace string) error {
 	details := &ResourceDetails{}
-
 	clientset, err := getKubeClient()
 	if err != nil {
 		return err
@@ -205,26 +215,32 @@ func monitorEssentialResources(rel *release.Release, namespace string) error {
 	if err != nil {
 		pterm.Warning.Printfln("Could not get deployment details: %v", err)
 	}
+
 	details.ReplicaSets, err = getDetailedReplicaSets(clientset, namespace, rel.Name)
 	if err != nil {
 		pterm.Warning.Printfln("Could not get replicaset details: %v", err)
 	}
+
 	details.Pods, err = getDetailedPods(clientset, namespace, rel.Name)
 	if err != nil {
 		pterm.Warning.Printfln("Could not get pod details: %v", err)
 	}
+
 	details.Services, err = getDetailedServices(clientset, namespace, rel.Name)
 	if err != nil {
 		pterm.Warning.Printfln("Could not get service details: %v", err)
 	}
+
 	details.Ingresses, err = getDetailedIngresses(clientset, namespace, rel.Name)
 	if err != nil {
 		pterm.Warning.Printfln("Could not get ingress details: %v", err)
 	}
+
 	details.Secrets, err = getDetailedSecrets(clientset, namespace, rel.Name)
 	if err != nil {
 		pterm.Warning.Printfln("Could not get secret details: %v", err)
 	}
+
 	details.ConfigMaps, err = getDetailedConfigMaps(clientset, namespace, rel.Name)
 	if err != nil {
 		pterm.Warning.Printfln("Could not get configmap details: %v", err)
@@ -232,11 +248,10 @@ func monitorEssentialResources(rel *release.Release, namespace string) error {
 
 	// Print detailed resource summary
 	printResourceSummaryHorizontal(details)
-
 	return nil
 }
 
-// Detailed resource getter functions (keep the same implementations as before)
+// Detailed resource getter functions
 func getDetailedDeployments(clientset *kubernetes.Clientset, namespace, releaseName string) ([]DeploymentInfo, error) {
 	deployments, err := clientset.AppsV1().Deployments(namespace).List(context.TODO(), metav1.ListOptions{
 		LabelSelector: fmt.Sprintf("app.kubernetes.io/instance=%s", releaseName),
@@ -251,7 +266,6 @@ func getDetailedDeployments(clientset *kubernetes.Clientset, namespace, releaseN
 		if dep.Spec.Replicas != nil {
 			replicas = *dep.Spec.Replicas
 		}
-
 		deploymentInfos = append(deploymentInfos, DeploymentInfo{
 			Name:      dep.Name,
 			Replicas:  replicas,
@@ -277,7 +291,6 @@ func getDetailedReplicaSets(clientset *kubernetes.Clientset, namespace, releaseN
 		if rs.Spec.Replicas != nil {
 			replicas = *rs.Spec.Replicas
 		}
-
 		replicaSetInfos = append(replicaSetInfos, ReplicaSetInfo{
 			Name:              rs.Name,
 			DesiredReplicas:   replicas,
@@ -301,7 +314,6 @@ func getDetailedPods(clientset *kubernetes.Clientset, namespace, releaseName str
 		ready := "0/0"
 		totalContainers := len(pod.Spec.Containers)
 		readyContainers := 0
-
 		for _, status := range pod.Status.ContainerStatuses {
 			if status.Ready {
 				readyContainers++
@@ -642,12 +654,253 @@ func min(a, b int) int {
 	return b
 }
 
+// Generic resource health checking functions
+func (r *ResourceChecker) checkResourceHealth(
+	resourceType string,
+	listFunc func() (interface{}, error),
+	healthCheckFunc func(interface{}) (bool, error),
+) (bool, error) {
+
+	if r.debug {
+		fmt.Printf("🔍 Checking %s\n", resourceType)
+	}
+
+	resources, err := listFunc()
+	if err != nil {
+		return false, fmt.Errorf("failed to list %s: %w", resourceType, err)
+	}
+
+	return healthCheckFunc(resources)
+}
+
+// Specific health check implementations
+func (r *ResourceChecker) checkDeploymentsHealthy() (bool, error) {
+	return r.checkResourceHealth(
+		"deployments",
+		func() (interface{}, error) {
+			return r.clientset.AppsV1().Deployments(r.namespace).List(context.TODO(), metav1.ListOptions{
+				LabelSelector: fmt.Sprintf("app.kubernetes.io/instance=%s", r.releaseName),
+			})
+		},
+		func(resources interface{}) (bool, error) {
+			deployments := resources.(*appsv1.DeploymentList)
+
+			if len(deployments.Items) == 0 {
+				if r.debug {
+					fmt.Printf("🔍 No deployments found for release\n")
+				}
+				return true, nil
+			}
+
+			allHealthy := true
+			for _, dep := range deployments.Items {
+				if r.debug {
+					fmt.Printf("🔍 Checking deployment %s: %d/%d replicas ready\n", dep.Name, dep.Status.ReadyReplicas, dep.Status.Replicas)
+				}
+
+				// Check if deployment is available
+				if dep.Status.AvailableReplicas < dep.Status.Replicas {
+					if r.debug {
+						fmt.Printf("❌ Deployment %s not healthy: %d/%d replicas available\n", dep.Name, dep.Status.AvailableReplicas, dep.Status.Replicas)
+					}
+					allHealthy = false
+				}
+
+				// Check for deployment conditions that indicate failure
+				for _, condition := range dep.Status.Conditions {
+					if condition.Type == appsv1.DeploymentReplicaFailure && condition.Status == corev1.ConditionTrue {
+						return false, fmt.Errorf("deployment %s has replica failure: %s", dep.Name, condition.Message)
+					}
+				}
+			}
+			return allHealthy, nil
+		},
+	)
+}
+
+func (r *ResourceChecker) checkStatefulSetsHealthy() (bool, error) {
+	return r.checkResourceHealth(
+		"statefulsets",
+		func() (interface{}, error) {
+			return r.clientset.AppsV1().StatefulSets(r.namespace).List(context.TODO(), metav1.ListOptions{
+				LabelSelector: fmt.Sprintf("app.kubernetes.io/instance=%s", r.releaseName),
+			})
+		},
+		func(resources interface{}) (bool, error) {
+			statefulSets := resources.(*appsv1.StatefulSetList)
+
+			if len(statefulSets.Items) == 0 {
+				return true, nil
+			}
+
+			allHealthy := true
+			for _, sts := range statefulSets.Items {
+				if r.debug {
+					fmt.Printf("🔍 Checking statefulset %s: %d/%d replicas ready\n", sts.Name, sts.Status.ReadyReplicas, sts.Status.Replicas)
+				}
+
+				if sts.Status.ReadyReplicas < sts.Status.Replicas {
+					if r.debug {
+						fmt.Printf("❌ StatefulSet %s not healthy: %d/%d replicas ready\n", sts.Name, sts.Status.ReadyReplicas, sts.Status.Replicas)
+					}
+					allHealthy = false
+				}
+			}
+			return allHealthy, nil
+		},
+	)
+}
+
+func (r *ResourceChecker) checkDaemonSetsHealthy() (bool, error) {
+	return r.checkResourceHealth(
+		"daemonsets",
+		func() (interface{}, error) {
+			return r.clientset.AppsV1().DaemonSets(r.namespace).List(context.TODO(), metav1.ListOptions{
+				LabelSelector: fmt.Sprintf("app.kubernetes.io/instance=%s", r.releaseName),
+			})
+		},
+		func(resources interface{}) (bool, error) {
+			daemonSets := resources.(*appsv1.DaemonSetList)
+
+			if len(daemonSets.Items) == 0 {
+				return true, nil
+			}
+
+			allHealthy := true
+			for _, ds := range daemonSets.Items {
+				if r.debug {
+					fmt.Printf("🔍 Checking daemonset %s: %d/%d pods ready\n", ds.Name, ds.Status.NumberReady, ds.Status.DesiredNumberScheduled)
+				}
+
+				if ds.Status.NumberReady < ds.Status.DesiredNumberScheduled {
+					if r.debug {
+						fmt.Printf("❌ DaemonSet %s not healthy: %d/%d pods ready\n", ds.Name, ds.Status.NumberReady, ds.Status.DesiredNumberScheduled)
+					}
+					allHealthy = false
+				}
+			}
+			return allHealthy, nil
+		},
+	)
+}
+
+func (r *ResourceChecker) checkJobsHealthy() (bool, error) {
+	return r.checkResourceHealth(
+		"jobs",
+		func() (interface{}, error) {
+			return r.clientset.BatchV1().Jobs(r.namespace).List(context.TODO(), metav1.ListOptions{
+				LabelSelector: fmt.Sprintf("app.kubernetes.io/instance=%s", r.releaseName),
+			})
+		},
+		func(resources interface{}) (bool, error) {
+			jobs := resources.(*batchv1.JobList)
+
+			if len(jobs.Items) == 0 {
+				return true, nil
+			}
+
+			for _, job := range jobs.Items {
+				if r.debug {
+					fmt.Printf("🔍 Checking job %s: %d succeeded, %d failed\n", job.Name, job.Status.Succeeded, job.Status.Failed)
+				}
+
+				// Job is considered failed if it has any failures
+				if job.Status.Failed > 0 {
+					return false, fmt.Errorf("job %s has failed: %d failures", job.Name, job.Status.Failed)
+				}
+
+				// Job is still running if no successes yet
+				if job.Status.Succeeded == 0 {
+					if r.debug {
+						fmt.Printf("⏳ Job %s still running\n", job.Name)
+					}
+					return false, nil
+				}
+			}
+			return true, nil
+		},
+	)
+}
+
+func (r *ResourceChecker) checkCronJobsHealthy() (bool, error) {
+	return r.checkResourceHealth(
+		"cronjobs",
+		func() (interface{}, error) {
+			return r.clientset.BatchV1().CronJobs(r.namespace).List(context.TODO(), metav1.ListOptions{
+				LabelSelector: fmt.Sprintf("app.kubernetes.io/instance=%s", r.releaseName),
+			})
+		},
+		func(resources interface{}) (bool, error) {
+			cronJobs := resources.(*batchv1.CronJobList)
+
+			if len(cronJobs.Items) == 0 {
+				return true, nil
+			}
+
+			// For cronjobs, we just check that they exist and are scheduled properly
+			// Actual job execution will be checked by the Jobs check above
+			if r.debug {
+				for _, cj := range cronJobs.Items {
+					fmt.Printf("🔍 CronJob %s is scheduled\n", cj.Name)
+				}
+			}
+			return true, nil
+		},
+	)
+}
+
+func (r *ResourceChecker) checkPodsHealthy() (bool, error) {
+	return r.checkResourceHealth(
+		"pods",
+		func() (interface{}, error) {
+			return r.clientset.CoreV1().Pods(r.namespace).List(context.TODO(), metav1.ListOptions{
+				LabelSelector: fmt.Sprintf("app.kubernetes.io/instance=%s", r.releaseName),
+			})
+		},
+		func(resources interface{}) (bool, error) {
+			pods := resources.(*corev1.PodList)
+
+			if len(pods.Items) == 0 {
+				return true, nil
+			}
+
+			allHealthy := true
+			for _, pod := range pods.Items {
+				if r.debug {
+					fmt.Printf("🔍 Checking pod %s: %s\n", pod.Name, pod.Status.Phase)
+				}
+
+				// Check for pod failures
+				if isPodInFailureState(&pod) {
+					failureReason := getPodFailureReason(r.clientset, &pod)
+					return false, fmt.Errorf("pod %s failed: %s", pod.Name, failureReason)
+				}
+
+				// Check if pod is ready
+				if !isPodReadyInstall(&pod) {
+					if r.debug {
+						fmt.Printf("❌ Pod %s not ready: %s\n", pod.Name, getPodReadyStatus(&pod))
+					}
+					allHealthy = false
+				} else {
+					if r.debug {
+						fmt.Printf("✅ Pod %s is ready\n", pod.Name)
+					}
+				}
+			}
+			return allHealthy, nil
+		},
+	)
+}
+
 // verifyInstallationHealth checks if all resources are actually healthy after Helm reports success
 func verifyInstallationHealth(namespace, releaseName string, timeout time.Duration, debug bool) error {
 	clientset, err := getKubeClient()
 	if err != nil {
 		return fmt.Errorf("failed to get kube client: %w", err)
 	}
+
+	checker := NewResourceChecker(clientset, namespace, releaseName, debug)
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -666,14 +919,12 @@ func verifyInstallationHealth(namespace, releaseName string, timeout time.Durati
 		select {
 		case <-ctx.Done():
 			return checkFinalHealthStatus(clientset, namespace, releaseName, startTime, debug)
-
 		case <-ticker.C:
 			// Check all resource types
-			allHealthy, err := checkAllResourcesHealthy(clientset, namespace, releaseName, debug)
+			allHealthy, err := checkAllResourcesHealthy(checker)
 			if err != nil {
 				return err
 			}
-
 			if allHealthy {
 				if debug {
 					fmt.Printf("✅ All resources are healthy!\n")
@@ -687,17 +938,16 @@ func verifyInstallationHealth(namespace, releaseName string, timeout time.Durati
 			}
 
 			if debug {
-				fmt.Printf("🔍 Still waiting for resources to become healthy... (%v elapsed)\n",
-					time.Since(startTime).Round(time.Second))
+				fmt.Printf("🔍 Still waiting for resources to become healthy... (%v elapsed)\n", time.Since(startTime).Round(time.Second))
 			}
 		}
 	}
 }
 
-// checkAllResourcesHealthy checks all resource types for health
-func checkAllResourcesHealthy(clientset *kubernetes.Clientset, namespace, releaseName string, debug bool) (bool, error) {
+// checkAllResourcesHealthy checks all resource types for health using the ResourceChecker
+func checkAllResourcesHealthy(checker *ResourceChecker) (bool, error) {
 	// Check Deployments
-	deploymentsHealthy, err := checkDeploymentsHealthy(clientset, namespace, releaseName, debug)
+	deploymentsHealthy, err := checker.checkDeploymentsHealthy()
 	if err != nil {
 		return false, err
 	}
@@ -706,7 +956,7 @@ func checkAllResourcesHealthy(clientset *kubernetes.Clientset, namespace, releas
 	}
 
 	// Check StatefulSets
-	statefulSetsHealthy, err := checkStatefulSetsHealthy(clientset, namespace, releaseName, debug)
+	statefulSetsHealthy, err := checker.checkStatefulSetsHealthy()
 	if err != nil {
 		return false, err
 	}
@@ -715,7 +965,7 @@ func checkAllResourcesHealthy(clientset *kubernetes.Clientset, namespace, releas
 	}
 
 	// Check DaemonSets
-	daemonSetsHealthy, err := checkDaemonSetsHealthy(clientset, namespace, releaseName, debug)
+	daemonSetsHealthy, err := checker.checkDaemonSetsHealthy()
 	if err != nil {
 		return false, err
 	}
@@ -724,7 +974,7 @@ func checkAllResourcesHealthy(clientset *kubernetes.Clientset, namespace, releas
 	}
 
 	// Check Jobs
-	jobsHealthy, err := checkJobsHealthy(clientset, namespace, releaseName, debug)
+	jobsHealthy, err := checker.checkJobsHealthy()
 	if err != nil {
 		return false, err
 	}
@@ -733,7 +983,7 @@ func checkAllResourcesHealthy(clientset *kubernetes.Clientset, namespace, releas
 	}
 
 	// Check CronJobs
-	cronJobsHealthy, err := checkCronJobsHealthy(clientset, namespace, releaseName, debug)
+	cronJobsHealthy, err := checker.checkCronJobsHealthy()
 	if err != nil {
 		return false, err
 	}
@@ -742,222 +992,17 @@ func checkAllResourcesHealthy(clientset *kubernetes.Clientset, namespace, releas
 	}
 
 	// Check Pods (as a final verification)
-	podsHealthy, err := checkPodsHealthy(clientset, namespace, releaseName, debug)
+	podsHealthy, err := checker.checkPodsHealthy()
 	if err != nil {
 		return false, err
 	}
-
 	return podsHealthy, nil
-}
-
-// Individual resource health check functions
-func checkDeploymentsHealthy(clientset *kubernetes.Clientset, namespace, releaseName string, debug bool) (bool, error) {
-	deployments, err := clientset.AppsV1().Deployments(namespace).List(context.TODO(), metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("app.kubernetes.io/instance=%s", releaseName),
-	})
-	if err != nil {
-		return false, fmt.Errorf("failed to list deployments: %w", err)
-	}
-
-	if len(deployments.Items) == 0 {
-		if debug {
-			fmt.Printf("🔍 No deployments found for release\n")
-		}
-		return true, nil // No deployments is okay
-	}
-
-	allHealthy := true
-	for _, dep := range deployments.Items {
-		if debug {
-			fmt.Printf("🔍 Checking deployment %s: %d/%d replicas ready\n",
-				dep.Name, dep.Status.ReadyReplicas, dep.Status.Replicas)
-		}
-
-		// Check if deployment is available
-		if dep.Status.AvailableReplicas < dep.Status.Replicas {
-			if debug {
-				fmt.Printf("❌ Deployment %s not healthy: %d/%d replicas available\n",
-					dep.Name, dep.Status.AvailableReplicas, dep.Status.Replicas)
-			}
-			allHealthy = false
-		}
-
-		// Check for deployment conditions that indicate failure
-		for _, condition := range dep.Status.Conditions {
-			if condition.Type == appsv1.DeploymentReplicaFailure && condition.Status == corev1.ConditionTrue {
-				return false, fmt.Errorf("deployment %s has replica failure: %s", dep.Name, condition.Message)
-			}
-		}
-	}
-
-	return allHealthy, nil
-}
-
-func checkStatefulSetsHealthy(clientset *kubernetes.Clientset, namespace, releaseName string, debug bool) (bool, error) {
-	statefulSets, err := clientset.AppsV1().StatefulSets(namespace).List(context.TODO(), metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("app.kubernetes.io/instance=%s", releaseName),
-	})
-	if err != nil {
-		return false, fmt.Errorf("failed to list statefulsets: %w", err)
-	}
-
-	if len(statefulSets.Items) == 0 {
-		return true, nil
-	}
-
-	allHealthy := true
-	for _, sts := range statefulSets.Items {
-		if debug {
-			fmt.Printf("🔍 Checking statefulset %s: %d/%d replicas ready\n",
-				sts.Name, sts.Status.ReadyReplicas, sts.Status.Replicas)
-		}
-
-		if sts.Status.ReadyReplicas < sts.Status.Replicas {
-			if debug {
-				fmt.Printf("❌ StatefulSet %s not healthy: %d/%d replicas ready\n",
-					sts.Name, sts.Status.ReadyReplicas, sts.Status.Replicas)
-			}
-			allHealthy = false
-		}
-	}
-
-	return allHealthy, nil
-}
-
-func checkDaemonSetsHealthy(clientset *kubernetes.Clientset, namespace, releaseName string, debug bool) (bool, error) {
-	daemonSets, err := clientset.AppsV1().DaemonSets(namespace).List(context.TODO(), metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("app.kubernetes.io/instance=%s", releaseName),
-	})
-	if err != nil {
-		return false, fmt.Errorf("failed to list daemonsets: %w", err)
-	}
-
-	if len(daemonSets.Items) == 0 {
-		return true, nil
-	}
-
-	allHealthy := true
-	for _, ds := range daemonSets.Items {
-		if debug {
-			fmt.Printf("🔍 Checking daemonset %s: %d/%d pods ready\n",
-				ds.Name, ds.Status.NumberReady, ds.Status.DesiredNumberScheduled)
-		}
-
-		if ds.Status.NumberReady < ds.Status.DesiredNumberScheduled {
-			if debug {
-				fmt.Printf("❌ DaemonSet %s not healthy: %d/%d pods ready\n",
-					ds.Name, ds.Status.NumberReady, ds.Status.DesiredNumberScheduled)
-			}
-			allHealthy = false
-		}
-	}
-
-	return allHealthy, nil
-}
-
-func checkJobsHealthy(clientset *kubernetes.Clientset, namespace, releaseName string, debug bool) (bool, error) {
-	jobs, err := clientset.BatchV1().Jobs(namespace).List(context.TODO(), metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("app.kubernetes.io/instance=%s", releaseName),
-	})
-	if err != nil {
-		return false, fmt.Errorf("failed to list jobs: %w", err)
-	}
-
-	if len(jobs.Items) == 0 {
-		return true, nil
-	}
-
-	for _, job := range jobs.Items {
-		if debug {
-			fmt.Printf("🔍 Checking job %s: %d succeeded, %d failed\n",
-				job.Name, job.Status.Succeeded, job.Status.Failed)
-		}
-
-		// Job is considered failed if it has any failures
-		if job.Status.Failed > 0 {
-			return false, fmt.Errorf("job %s has failed: %d failures", job.Name, job.Status.Failed)
-		}
-
-		// Job is still running if no successes yet
-		if job.Status.Succeeded == 0 {
-			if debug {
-				fmt.Printf("⏳ Job %s still running\n", job.Name)
-			}
-			return false, nil
-		}
-	}
-
-	return true, nil
-}
-
-func checkCronJobsHealthy(clientset *kubernetes.Clientset, namespace, releaseName string, debug bool) (bool, error) {
-	cronJobs, err := clientset.BatchV1().CronJobs(namespace).List(context.TODO(), metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("app.kubernetes.io/instance=%s", releaseName),
-	})
-	if err != nil {
-		return false, fmt.Errorf("failed to list cronjobs: %w", err)
-	}
-
-	if len(cronJobs.Items) == 0 {
-		return true, nil
-	}
-
-	// For cronjobs, we just check that they exist and are scheduled properly
-	// Actual job execution will be checked by the Jobs check above
-	if debug {
-		for _, cj := range cronJobs.Items {
-			fmt.Printf("🔍 CronJob %s is scheduled\n", cj.Name)
-		}
-	}
-
-	return true, nil
-}
-
-func checkPodsHealthy(clientset *kubernetes.Clientset, namespace, releaseName string, debug bool) (bool, error) {
-	pods, err := clientset.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("app.kubernetes.io/instance=%s", releaseName),
-	})
-	if err != nil {
-		return false, fmt.Errorf("failed to list pods: %w", err)
-	}
-
-	if len(pods.Items) == 0 {
-		return true, nil
-	}
-
-	allHealthy := true
-	for _, pod := range pods.Items {
-		if debug {
-			fmt.Printf("🔍 Checking pod %s: %s\n", pod.Name, pod.Status.Phase)
-		}
-
-		// Check for pod failures
-		if isPodInFailureState(&pod) {
-			failureReason := getPodFailureReason(clientset, &pod)
-			return false, fmt.Errorf("pod %s failed: %s", pod.Name, failureReason)
-		}
-
-		// Check if pod is ready
-		if !isPodReadyInstall(&pod) {
-			if debug {
-				fmt.Printf("❌ Pod %s not ready: %s\n", pod.Name, getPodReadyStatus(&pod))
-			}
-			allHealthy = false
-		} else {
-			if debug {
-				fmt.Printf("✅ Pod %s is ready\n", pod.Name)
-			}
-		}
-	}
-
-	return allHealthy, nil
 }
 
 // getPodReadyStatus returns a string describing the pod's ready status
 func getPodReadyStatus(pod *corev1.Pod) string {
 	readyContainers := 0
 	totalContainers := len(pod.Spec.Containers)
-
 	for _, status := range pod.Status.ContainerStatuses {
 		if status.Ready {
 			readyContainers++
@@ -972,14 +1017,11 @@ func getPodReadyStatus(pod *corev1.Pod) string {
 		for _, cs := range pod.Status.ContainerStatuses {
 			if !cs.Ready {
 				if cs.State.Waiting != nil {
-					containerStatuses = append(containerStatuses,
-						fmt.Sprintf("%s: %s", cs.Name, cs.State.Waiting.Reason))
+					containerStatuses = append(containerStatuses, fmt.Sprintf("%s: %s", cs.Name, cs.State.Waiting.Reason))
 				} else if cs.State.Terminated != nil {
-					containerStatuses = append(containerStatuses,
-						fmt.Sprintf("%s: %s (exit %d)", cs.Name, cs.State.Terminated.Reason, cs.State.Terminated.ExitCode))
+					containerStatuses = append(containerStatuses, fmt.Sprintf("%s: %s (exit %d)", cs.Name, cs.State.Terminated.Reason, cs.State.Terminated.ExitCode))
 				} else {
-					containerStatuses = append(containerStatuses,
-						fmt.Sprintf("%s: not ready", cs.Name))
+					containerStatuses = append(containerStatuses, fmt.Sprintf("%s: not ready", cs.Name))
 				}
 			}
 		}
@@ -991,6 +1033,15 @@ func getPodReadyStatus(pod *corev1.Pod) string {
 	return status
 }
 
+func isPodReadyInstall(pod *corev1.Pod) bool {
+	for _, condition := range pod.Status.Conditions {
+		if condition.Type == corev1.PodReady {
+			return condition.Status == corev1.ConditionTrue
+		}
+	}
+	return false
+}
+
 func checkFinalHealthStatus(clientset *kubernetes.Clientset, namespace, releaseName string, startTime time.Time, debug bool) error {
 	var statusMessages []string
 
@@ -999,8 +1050,7 @@ func checkFinalHealthStatus(clientset *kubernetes.Clientset, namespace, releaseN
 		LabelSelector: fmt.Sprintf("app.kubernetes.io/instance=%s", releaseName),
 	}); err == nil {
 		for _, dep := range deployments.Items {
-			statusMessages = append(statusMessages,
-				fmt.Sprintf("Deployment %s: %d/%d ready", dep.Name, dep.Status.ReadyReplicas, dep.Status.Replicas))
+			statusMessages = append(statusMessages, fmt.Sprintf("Deployment %s: %d/%d ready", dep.Name, dep.Status.ReadyReplicas, dep.Status.Replicas))
 		}
 	}
 
