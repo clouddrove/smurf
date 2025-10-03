@@ -2,7 +2,6 @@ package selm
 
 import (
 	"errors"
-	"os"
 
 	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/helm"
@@ -38,7 +37,7 @@ var lintCmd = &cobra.Command{
 
 		err := helm.HelmLint(chartPath, configs.File)
 		if err != nil {
-			os.Exit(1)
+			return err
 		}
 		return nil
 	},

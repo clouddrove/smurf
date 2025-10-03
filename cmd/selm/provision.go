@@ -2,7 +2,6 @@ package selm
 
 import (
 	"errors"
-	"os"
 	"path/filepath"
 
 	"github.com/clouddrove/smurf/configs"
@@ -68,7 +67,7 @@ var provisionCmd = &cobra.Command{
 
 		err := helm.HelmProvision(releaseName, chartPath, configs.Namespace)
 		if err != nil {
-			os.Exit(1)
+			return err
 		}
 		return nil
 	},

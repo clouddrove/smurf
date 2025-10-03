@@ -2,7 +2,6 @@ package selm
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
 	"strings"
 
@@ -39,7 +38,7 @@ var pluginListCmd = &cobra.Command{
 		fmt.Println("Listing Helm plugins...")
 		err := HelmPluginList()
 		if err != nil {
-			os.Exit(1)
+			return err
 		}
 
 		pterm.Success.Printfln("Helm plugins listed successfully.")

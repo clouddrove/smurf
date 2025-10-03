@@ -3,7 +3,6 @@ package selm
 import (
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strconv"
 
@@ -98,7 +97,7 @@ The first argument is the name of the release to roll back, and the second is th
 
 		err := helm.HelmRollback(releaseName, revision, rollbackOpts)
 		if err != nil {
-			os.Exit(1)
+			return err
 		}
 		pterm.Success.Printfln("Successfully rolled back release '%v' to revision '%v'", releaseName, revision)
 		return nil

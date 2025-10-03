@@ -2,7 +2,6 @@ package selm
 
 import (
 	"errors"
-	"os"
 
 	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/helm"
@@ -46,7 +45,7 @@ var createChartCmd = &cobra.Command{
 
 		err := helm.CreateChart(name, configs.Directory)
 		if err != nil {
-			os.Exit(1)
+			return err
 		}
 		return nil
 	},

@@ -2,8 +2,6 @@
 package selm
 
 import (
-	"os"
-
 	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/helm"
 	"github.com/spf13/cobra"
@@ -38,7 +36,7 @@ var historyCmd = &cobra.Command{
 
 		err = helm.HelmHistory(releaseName, namespace, max)
 		if err != nil {
-			os.Exit(1)
+			return err
 		}
 		return nil
 	},

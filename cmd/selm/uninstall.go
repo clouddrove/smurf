@@ -2,7 +2,6 @@ package selm
 
 import (
 	"errors"
-	"os"
 	"path/filepath"
 	"time"
 
@@ -67,7 +66,7 @@ are properly deleted. It automatically handles cleanup of remaining resources.`,
 
 		err := helm.HelmUninstall(opts)
 		if err != nil {
-			os.Exit(1)
+			return err
 		}
 		return nil
 	},
