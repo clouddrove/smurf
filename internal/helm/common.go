@@ -88,7 +88,6 @@ func ensureNamespace(namespace string, create bool) error {
 
 	_, err = clientset.CoreV1().Namespaces().Get(context.Background(), namespace, metav1.GetOptions{})
 	if err == nil {
-		pterm.Success.Sprintf("Namespace '%s' already exists.\n", namespace)
 		return nil
 	}
 	if apierrors.IsNotFound(err) {
@@ -98,18 +97,14 @@ func ensureNamespace(namespace string, create bool) error {
 			}
 			_, err = clientset.CoreV1().Namespaces().Create(context.Background(), ns, metav1.CreateOptions{})
 			if err != nil {
-				pterm.Error.Printf("Failed to create namespace '%s': %v\n", namespace, err)
 				return fmt.Errorf("failed to create namespace '%s': %v", namespace, err)
 			}
-			pterm.Success.Printf("Namespace '%s' created successfully.\n", namespace)
 			return nil
 		}
-		pterm.Error.Printf("namespace '%v' does not exist and was not created\n", namespace)
 		return fmt.Errorf("namespace '%s' does not exist and was not created", namespace)
 	}
 
 	// Unknown error
-	pterm.Error.Printf("namespace '%v' does not exist and was not created\n", namespace)
 	return fmt.Errorf("error checking namespace '%s': %v", namespace, err)
 }
 

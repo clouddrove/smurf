@@ -28,6 +28,7 @@ The first argument is the name of the release to roll back, and the second is th
       smurf helm rollback
       # In this example, it will read RELEASE and REVISION from the config file
     `,
+	SilenceUsage: true,
 	Args: func(cmd *cobra.Command, args []string) error {
 		if len(args) != 0 && len(args) != 2 {
 			pterm.Error.Printfln("requires either exactly two arguments (RELEASE and REVISION) or none")

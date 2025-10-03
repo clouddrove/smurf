@@ -35,7 +35,8 @@ Examples:
   
   # Pull with provenance verification
   smurf selm pull repo/chart-name --prov --keyring ~/.gnupg/pubring.gpg`,
-	Args: cobra.ExactArgs(1),
+	Args:         cobra.ExactArgs(1),
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		chartRef := args[0]
 		return helm.Pull(chartRef, configs.Version, configs.Destination, configs.Untar,

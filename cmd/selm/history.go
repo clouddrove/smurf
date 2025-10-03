@@ -9,9 +9,10 @@ import (
 
 // historyCmd shows the revision history of a Helm release
 var historyCmd = &cobra.Command{
-	Use:   "history [RELEASE]",
-	Short: "Show revision history for a release",
-	Args:  cobra.ExactArgs(1),
+	Use:          "history [RELEASE]",
+	Short:        "Show revision history for a release",
+	Args:         cobra.ExactArgs(1),
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		releaseName := args[0]
 		namespace := configs.Namespace

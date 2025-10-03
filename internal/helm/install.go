@@ -25,84 +25,88 @@ func HelmInstall(
 	releaseName, chartRef, namespace string, valuesFiles []string,
 	duration time.Duration, atomic, debug bool,
 	setValues, setLiteralValues []string, repoURL, version string,
-	wait bool, // Add wait parameter
+	wait bool,
 ) error {
+	fmt.Printf("📦 Ensuring namespace '%s' exists...\n", namespace)
 	if err := ensureNamespace(namespace, true); err != nil {
-		logDetailedError("namespace creation", err, namespace, releaseName)
+		printErrorSummary("Namespace Preparation", releaseName, namespace, chartRef, err)
 		return err
 	}
 
+	fmt.Printf("⚙️  Initializing Helm configuration...\n")
 	settings := cli.New()
 	settings.SetNamespace(namespace)
 	actionConfig := new(action.Configuration)
 
 	logFn := func(format string, v ...interface{}) {
 		if debug {
-			fmt.Printf(format, v...)
-			fmt.Println()
+			fmt.Printf("🔍 "+format+"\n", v...)
 		}
 	}
 
 	if err := actionConfig.Init(settings.RESTClientGetter(), namespace, os.Getenv("HELM_DRIVER"), logFn); err != nil {
-		logDetailedError("helm action configuration", err, namespace, releaseName)
+		printErrorSummary("Helm Configuration", releaseName, namespace, chartRef, err)
 		return err
 	}
 
+	fmt.Printf("🛠️  Setting up install action...\n")
 	client := action.NewInstall(actionConfig)
 	client.ReleaseName = releaseName
 	client.Namespace = namespace
 	client.Atomic = atomic
-	client.Wait = wait // Set the wait flag
+	client.Wait = wait
 	client.Timeout = duration
 	client.CreateNamespace = true
 
+	fmt.Printf("📊 Loading chart '%s'...\n", chartRef)
 	var chartObj *chart.Chart
 	var err error
 
 	chartObj, err = LoadChart(chartRef, repoURL, version, settings)
 	if err != nil {
-		logDetailedError("chart loading", err, namespace, releaseName)
+		printErrorSummary("Chart Loading", releaseName, namespace, chartRef, err)
 		return err
 	}
 
-	// Load and merge values from files, --set, and --set-literal
+	// Load and merge values
+	fmt.Printf("📝 Processing values and configurations...\n")
 	vals, err := loadAndMergeValuesWithSets(valuesFiles, setValues, setLiteralValues, debug)
 	if err != nil {
-		logDetailedError("values loading", err, namespace, releaseName)
+		printErrorSummary("Values Processing", releaseName, namespace, chartRef, err)
 		return err
 	}
 
+	fmt.Printf("🚀 Installing release '%s'...\n", releaseName)
+
+	// Run Helm install
 	rel, err := client.Run(chartObj, vals)
 	if err != nil {
-		logDetailedError("helm install", err, namespace, releaseName)
+		printReleaseResources(namespace, releaseName)
+		printErrorSummary("Chart Installation", releaseName, namespace, chartRef, err)
 		return err
 	}
 
-	printReleaseInfo(rel, debug)
-	printResourcesFromRelease(rel)
-
-	// Only monitor resources if wait is enabled
-	if wait {
-		err = monitorResources(rel, namespace, client.Timeout)
-		if err != nil {
-			logDetailedError("resource monitoring", err, namespace, releaseName)
-			return err
-		}
-		pterm.Success.Printfln("All resources for release '%s' are ready and running.\n", releaseName)
-	} else {
-		pterm.Success.Printfln("Release '%s' installed successfully (without waiting for resources to be ready).\n", releaseName)
+	// After Helm reports success, verify everything is actually healthy
+	fmt.Printf("🔍 Verifying installation health...\n")
+	if err := verifyInstallationHealth(namespace, releaseName, duration, debug); err != nil {
+		printReleaseResources(namespace, releaseName)
+		printErrorSummary("Chart Installation", releaseName, namespace, chartRef, err)
+		return err
 	}
 
-	return nil
+	// Only if everything is healthy, print success
+	return handleInstallationSuccess(rel, namespace)
 }
 
 // loadChart determines the chart source and loads it appropriately
 func LoadChart(chartRef, repoURL, version string, settings *cli.EnvSettings) (*chart.Chart, error) {
 	if repoURL != "" {
+		fmt.Printf("🌐 Loading remote chart from repository...\n")
 		return LoadRemoteChart(chartRef, repoURL, version, settings)
 	}
 
 	if strings.Contains(chartRef, "/") && !strings.HasPrefix(chartRef, ".") && !filepath.IsAbs(chartRef) {
+		fmt.Printf("📂 Loading chart from local repository...\n")
 		return LoadFromLocalRepo(chartRef, version, settings)
 	}
 
@@ -138,6 +142,7 @@ func LoadFromLocalRepo(chartRef, version string, settings *cli.EnvSettings) (*ch
 
 // loadRemoteChart downloads and loads a chart from a remote repository
 func LoadRemoteChart(chartName, repoURL string, version string, settings *cli.EnvSettings) (*chart.Chart, error) {
+	fmt.Printf("🔗 Connecting to repository %s...\n", repoURL)
 	repoEntry := &repo.Entry{
 		Name: "temp-repo",
 		URL:  repoURL,
@@ -145,21 +150,21 @@ func LoadRemoteChart(chartName, repoURL string, version string, settings *cli.En
 
 	chartRepo, err := repo.NewChartRepository(repoEntry, getter.All(settings))
 	if err != nil {
-		pterm.Error.Printfln("failed to create chart repository: %v", err)
 		return nil, fmt.Errorf("failed to create chart repository: %v", err)
 	}
 
+	fmt.Printf("📥 Downloading repository index...\n")
 	if _, err := chartRepo.DownloadIndexFile(); err != nil {
-		pterm.Error.Printfln("failed to download index file: %v", err)
 		return nil, fmt.Errorf("failed to download index file: %v", err)
 	}
 
+	fmt.Printf("🔍 Finding chart %s in repository...\n", chartName)
 	chartURL, err := repo.FindChartInRepoURL(repoURL, chartName, version, "", "", "", getter.All(settings))
 	if err != nil {
-		pterm.Error.Printfln("failed to find chart in repository: %v", err)
 		return nil, fmt.Errorf("failed to find chart in repository: %v", err)
 	}
 
+	fmt.Printf("⬇️  Downloading chart...\n")
 	chartDownloader := downloader.ChartDownloader{
 		Out:     os.Stdout,
 		Getters: getter.All(settings),
@@ -168,10 +173,9 @@ func LoadRemoteChart(chartName, repoURL string, version string, settings *cli.En
 
 	chartPath, _, err := chartDownloader.DownloadTo(chartURL, version, settings.RepositoryCache)
 	if err != nil {
-		pterm.Error.Printfln("failed to download chart: %v", err)
 		return nil, fmt.Errorf("failed to download chart: %v", err)
 	}
 
-	pterm.Success.Print("Successfuly load remote chart...")
+	fmt.Printf("📦 Loading chart into memory...\n")
 	return loader.Load(chartPath)
 }

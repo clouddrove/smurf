@@ -2,6 +2,7 @@ package selm
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -15,9 +16,10 @@ var RepoURL string
 var Version string
 
 var installCmd = &cobra.Command{
-	Use:   "install [RELEASE] [CHART]",
-	Short: "Install a Helm chart into a Kubernetes cluster.",
-	Args:  cobra.MaximumNArgs(2),
+	Use:          "install [RELEASE] [CHART]",
+	Short:        "Install a Helm chart into a Kubernetes cluster.",
+	Args:         cobra.MaximumNArgs(2),
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var releaseName, chartPath string
 		if len(args) >= 1 {
@@ -73,6 +75,8 @@ var installCmd = &cobra.Command{
 			pterm.Debug.Printfln("  Wait: %v", configs.Wait)
 		}
 
+		pterm.Println(fmt.Sprintf("🚀 Installing release '%s' in namespace '%s'\n", releaseName, configs.Namespace))
+
 		err := helm.HelmInstall(
 			releaseName,
 			chartPath,
@@ -88,10 +92,8 @@ var installCmd = &cobra.Command{
 			configs.Wait,
 		)
 		if err != nil {
-			return fmt.Errorf("installation failed: %w", err)
+			os.Exit(1)
 		}
-
-		pterm.Success.Printfln("Release '%s' successfully installed", releaseName)
 		return nil
 	},
 	Example: `
@@ -119,6 +121,6 @@ func init() {
 	installCmd.Flags().StringSliceVar(&configs.SetLiteral, "set-literal", []string{}, "Set literal values on the command line")
 	installCmd.Flags().StringVar(&RepoURL, "repo", "", "Specify the chart repository URL for remote charts")
 	installCmd.Flags().StringVar(&Version, "version", "", "Specify the chart version to install")
-	installCmd.Flags().BoolVar(&configs.Wait, "wait", false, "Wait for all resources to be ready before marking the release as successful") // Default to false
+	installCmd.Flags().BoolVar(&configs.Wait, "wait", true, "Wait for all resources to be ready before marking the release as successful") // Default to true
 	selmCmd.AddCommand(installCmd)
 }

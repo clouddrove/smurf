@@ -16,7 +16,8 @@ var uninstallCmd = &cobra.Command{
 	Short: "Uninstall a Helm release and all its resources",
 	Long: `This command uninstalls a Helm release and ensures all associated Kubernetes resources
 are properly deleted. It automatically handles cleanup of remaining resources.`,
-	Args: cobra.MaximumNArgs(1),
+	Args:         cobra.MaximumNArgs(1),
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var releaseName string
 

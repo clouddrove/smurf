@@ -3,6 +3,7 @@ package selm
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -20,9 +21,10 @@ var (
 
 // upgradeCmd facilitates upgrading an existing Helm release or installing it if it's not present
 var upgradeCmd = &cobra.Command{
-	Use:   "upgrade [NAME] [CHART]",
-	Short: "Upgrade a deployed Helm chart.",
-	Args:  cobra.MaximumNArgs(2),
+	Use:          "upgrade [NAME] [CHART]",
+	Short:        "Upgrade a deployed Helm chart.",
+	Args:         cobra.MaximumNArgs(2),
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if configs.Debug {
 			pterm.EnableDebugMessages()
@@ -160,10 +162,9 @@ var upgradeCmd = &cobra.Command{
 			wait,
 		)
 		if err != nil {
-			return err
+			os.Exit(1)
 		}
 
-		pterm.Success.Println("Helm chart upgraded successfully.")
 		return nil
 	},
 	Example: `
@@ -196,6 +197,6 @@ func init() {
 	upgradeCmd.Flags().BoolVar(&installIfNotPresent, "install", false, "Install the chart if it is not already installed")
 	upgradeCmd.Flags().StringVar(&RepoURL, "repo-url", "", "Helm repository URL")
 	upgradeCmd.Flags().StringVar(&Version, "version", "", "Helm chart version")
-upgradeCmd.Flags().BoolVar(&configs.Wait, "wait", false, "Wait until all Pods, PVCs, Services, and minimum number of Pods of a Deployment are ready before marking success") // Changed default to false
+	upgradeCmd.Flags().BoolVar(&configs.Wait, "wait", false, "Wait until all Pods, PVCs, Services, and minimum number of Pods of a Deployment are ready before marking success") // Changed default to false
 	selmCmd.AddCommand(upgradeCmd)
 }

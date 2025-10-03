@@ -48,29 +48,36 @@ func HelmUpgrade(
 	}
 
 	// Handle namespace creation
+	fmt.Printf("📦 Ensuring namespace '%s' exists...\n", namespace)
 	if createNamespace {
 		if debug {
 			pterm.Println("Creating namespace if not exists...")
 		}
 		if err := ensureNamespace(namespace, debug); err != nil {
+			printErrorSummary("namespace creation failed", releaseName, namespace, chartRef, err)
 			return fmt.Errorf("namespace creation failed: %w", err)
 		}
 	}
 
 	// Initialize action config
+	fmt.Printf("⚙️  Initializing Helm configuration...\n")
 	actionConfig, err := initActionConfig(namespace, debug)
 	if err != nil {
+		printErrorSummary("failed to initialize helm", releaseName, namespace, chartRef, err)
 		return fmt.Errorf("failed to initialize helm: %w", err)
 	}
 
 	// Verify release exists or not
 	if err := verifyReleaseExists(actionConfig, releaseName, namespace, debug); err != nil {
+		printErrorSummary("release verification failed", releaseName, namespace, chartRef, err)
 		return fmt.Errorf("release verification failed: %w", err)
 	}
 
 	// Load chart (supports repo + local)
+	fmt.Printf("📊 Loading chart '%s'...\n", chartRef)
 	chart, err := loadChart(chartRef, repoURL, version, debug)
 	if err != nil {
+		printErrorSummary("failed to load chart", releaseName, namespace, chartRef, err)
 		return fmt.Errorf("failed to load chart: %w", err)
 	}
 	if debug {
@@ -78,12 +85,15 @@ func HelmUpgrade(
 	}
 
 	// Load and merge values
+	fmt.Printf("📝 Processing values and configurations...\n")
 	vals, err := loadAndMergeValuesWithSets(valuesFiles, setValues, setLiteral, debug)
 	if err != nil {
+		printErrorSummary("failed to load values", releaseName, namespace, chartRef, err)
 		return fmt.Errorf("failed to load values: %w", err)
 	}
 
 	// Create upgrade client
+	fmt.Printf("🛠️  Setting up upgrade action...\n")
 	client := action.NewUpgrade(actionConfig)
 	client.Namespace = namespace
 	client.Atomic = atomic
@@ -101,7 +111,8 @@ func HelmUpgrade(
 	// Execute upgrade
 	rel, err := client.Run(releaseName, chart, vals)
 	if err != nil {
-		pterm.Error.Printf("Helm upgrade failed: %v\n", err)
+		printReleaseResources(namespace, releaseName)
+		printErrorSummary("Helm upgradation", releaseName, namespace, chartRef, err)
 
 		// Debug pod info if upgrade fails
 		if debug {
@@ -130,7 +141,7 @@ func HelmUpgrade(
 	}
 
 	duration := time.Since(startTime)
-	pterm.Success.Printf("Release %q successfully upgraded in %s\n", rel.Name, duration)
+	//pterm.Success.Printf("Release %q successfully upgraded in %s\n", rel.Name, duration)
 
 	if debug {
 		printReleaseInfo(rel, debug)
@@ -138,8 +149,7 @@ func HelmUpgrade(
 		pterm.Printf("=== HELM UPGRADE COMPLETED IN %s ===\n", duration)
 	}
 
-	printReleaseInfo(rel, debug)
-	printResourcesFromRelease(rel)
+	handleInstallationSuccess(rel, namespace)
 	return nil
 }
 

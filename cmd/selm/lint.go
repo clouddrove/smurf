@@ -13,9 +13,10 @@ import (
 // If no chart is specified on the command line, it attempts to read from the config file.
 // Additionally, you can pass multiple values files to further customize the lint process.
 var lintCmd = &cobra.Command{
-	Use:   "lint [CHART]",
-	Short: "Lint a Helm chart.",
-	Args:  cobra.MaximumNArgs(1),
+	Use:          "lint [CHART]",
+	Short:        "Lint a Helm chart.",
+	Args:         cobra.MaximumNArgs(1),
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var chartPath string
 

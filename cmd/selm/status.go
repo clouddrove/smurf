@@ -2,6 +2,7 @@ package selm
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 
 	"github.com/clouddrove/smurf/configs"
@@ -15,9 +16,10 @@ import (
 // values in the config file. If neither is provided, it returns an error.
 // Additionally, a custom namespace can be specified via a flag.
 var statusCmd = &cobra.Command{
-	Use:   "status [NAME]",
-	Short: "Status of a Helm release.",
-	Args:  cobra.MaximumNArgs(1),
+	Use:          "status [NAME]",
+	Short:        "Status of a Helm release.",
+	Args:         cobra.MaximumNArgs(1),
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var releaseName string
 
@@ -52,7 +54,7 @@ var statusCmd = &cobra.Command{
 
 		err := helm.HelmStatus(releaseName, configs.Namespace)
 		if err != nil {
-			return err
+			os.Exit(1)
 		}
 		return nil
 	},

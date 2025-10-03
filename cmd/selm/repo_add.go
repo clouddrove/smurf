@@ -11,7 +11,8 @@ var repoAddCmd = &cobra.Command{
 	Short: "Add a chart repository",
 	Long: `Add a chart repository to your local repository list.
 The repository can be accessed by its name in other commands.`,
-	Args: cobra.ExactArgs(2),
+	Args:         cobra.ExactArgs(2),
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var username, password, certFile, keyFile, caFile, helmConfigDir string
 		username = configs.Username
