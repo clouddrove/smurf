@@ -188,7 +188,7 @@ func printReleaseResources(namespace, release string) {
 
 	w.Flush()
 }
-func errorLock(stage, releaseName, namespace, chartName string, err error) {
+func printErrorSummary(stage, releaseName, namespace, chartName string, err error) {
 	fmt.Println("")
 	fmt.Println(pterm.Red("INSTALLATION FAILED"))
 	fmt.Println("-------------------")

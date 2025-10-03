@@ -32,7 +32,7 @@ var installCmd = &cobra.Command{
 		if releaseName == "" || chartPath == "" {
 			data, err := configs.LoadConfig(configs.FileName)
 			if err != nil {
-				return fmt.Errorf("❌ Failed to load config: %w", err)
+				return fmt.Errorf("failed to load config: %w", err)
 			}
 
 			if releaseName == "" {
@@ -46,7 +46,7 @@ var installCmd = &cobra.Command{
 			}
 
 			if releaseName == "" || chartPath == "" {
-				return fmt.Errorf("❌ Both RELEASE and CHART must be provided either as arguments or in the config")
+				return fmt.Errorf("both RELEASE and CHART must be provided either as arguments or in the config")
 			}
 
 			if configs.Namespace == "" && data.Selm.Namespace != "" {
@@ -75,7 +75,7 @@ var installCmd = &cobra.Command{
 			pterm.Debug.Printfln("  Wait: %v", configs.Wait)
 		}
 
-		fmt.Printf("🚀 Installing release '%s' in namespace '%s'\n", releaseName, configs.Namespace)
+		pterm.Println(fmt.Sprintf("🚀 Installing release '%s' in namespace '%s'\n", releaseName, configs.Namespace))
 
 		err := helm.HelmInstall(
 			releaseName,

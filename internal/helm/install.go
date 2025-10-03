@@ -30,7 +30,7 @@ func HelmInstall(
 ) error {
 	fmt.Printf("📦 Ensuring namespace '%s' exists...\n", namespace)
 	if err := ensureNamespace(namespace, true); err != nil {
-		errorLock("Namespace Preparation", releaseName, namespace, chartRef, err)
+		printErrorSummary("Namespace Preparation", releaseName, namespace, chartRef, err)
 		return err
 	}
 
@@ -46,7 +46,7 @@ func HelmInstall(
 	}
 
 	if err := actionConfig.Init(settings.RESTClientGetter(), namespace, os.Getenv("HELM_DRIVER"), logFn); err != nil {
-		errorLock("Helm Configuration", releaseName, namespace, chartRef, err)
+		printErrorSummary("Helm Configuration", releaseName, namespace, chartRef, err)
 		return err
 	}
 
@@ -65,7 +65,7 @@ func HelmInstall(
 
 	chartObj, err = LoadChart(chartRef, repoURL, version, settings)
 	if err != nil {
-		errorLock("Chart Loading", releaseName, namespace, chartRef, err)
+		printErrorSummary("Chart Loading", releaseName, namespace, chartRef, err)
 		return err
 	}
 
@@ -73,7 +73,7 @@ func HelmInstall(
 	fmt.Printf("📝 Processing values and configurations...\n")
 	vals, err := loadAndMergeValuesWithSets(valuesFiles, setValues, setLiteralValues, debug)
 	if err != nil {
-		errorLock("Values Processing", releaseName, namespace, chartRef, err)
+		printErrorSummary("Values Processing", releaseName, namespace, chartRef, err)
 		return err
 	}
 
@@ -83,7 +83,7 @@ func HelmInstall(
 	rel, err := client.Run(chartObj, vals)
 	if err != nil {
 		printReleaseResources(namespace, releaseName)
-		errorLock("Chart Installation", releaseName, namespace, chartRef, err)
+		printErrorSummary("Chart Installation", releaseName, namespace, chartRef, err)
 		return err
 	}
 
@@ -91,7 +91,7 @@ func HelmInstall(
 	fmt.Printf("🔍 Verifying installation health...\n")
 	if err := verifyInstallationHealth(namespace, releaseName, duration, debug); err != nil {
 		printReleaseResources(namespace, releaseName)
-		errorLock("Chart Installation", releaseName, namespace, chartRef, err)
+		printErrorSummary("Chart Installation", releaseName, namespace, chartRef, err)
 		return err
 	}
 
