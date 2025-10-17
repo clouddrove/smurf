@@ -21,9 +21,10 @@ import (
 // as well as advanced features like specifying build args, timeouts, and
 // removing the local image once it's successfully pushed.
 var provisionAcrCmd = &cobra.Command{
-	Use:   "provision-acr [IMAGE_NAME[:TAG]]",
-	Short: "Build and push a Docker image to Azure Container Registry.",
-	Args:  cobra.MaximumNArgs(1),
+	Use:          "provision-acr [IMAGE_NAME[:TAG]]",
+	Short:        "Build and push a Docker image to Azure Container Registry.",
+	Args:         cobra.MaximumNArgs(1),
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var imageRef string
 		if len(args) == 1 {

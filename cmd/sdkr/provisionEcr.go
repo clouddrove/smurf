@@ -1,7 +1,6 @@
 package sdkr
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"os"
@@ -20,9 +19,10 @@ import (
 // It relies on config defaults or command-line flags for region, repository,
 // and other Docker build settings.
 var provisionEcrCmd = &cobra.Command{
-	Use:   "provision-ecr [IMAGE_NAME[:TAG]]",
-	Short: "Buildand push a Docker image to AWS ECR.",
-	Args:  cobra.MaximumNArgs(1),
+	Use:          "provision-ecr [IMAGE_NAME[:TAG]]",
+	Short:        "Buildand push a Docker image to AWS ECR.",
+	Args:         cobra.MaximumNArgs(1),
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var imageRef string
 		if len(args) == 1 {
@@ -96,11 +96,11 @@ var provisionEcrCmd = &cobra.Command{
 			pushImage = fullEcrImage
 		}
 
-		if !configs.ConfirmAfterPush {
-			pterm.Info.Println("Press Enter to continue...")
-			buf := bufio.NewReader(os.Stdin)
-			_, _ = buf.ReadBytes('\n')
-		}
+		// if !configs.ConfirmAfterPush {
+		// 	pterm.Info.Println("Press Enter to continue...")
+		// 	buf := bufio.NewReader(os.Stdin)
+		// 	_, _ = buf.ReadBytes('\n')
+		// }
 
 		accountID, ecrRegionName, ecrRepositoryName, ecrImageTag, parseErr := configs.ParseEcrImageRef(imageRef)
 		if parseErr != nil {

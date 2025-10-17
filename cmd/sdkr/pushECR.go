@@ -14,9 +14,10 @@ import (
 // It supports reading image references and ECR parameters from either command-line
 // arguments or a config file, with an optional cleanup of local images after push.
 var pushEcrCmd = &cobra.Command{
-	Use:   "aws [IMAGE_NAME]",
-	Short: "Push Docker images to ECR",
-	Args:  cobra.MaximumNArgs(1),
+	Use:          "aws [IMAGE_NAME]",
+	Short:        "Push Docker images to ECR",
+	Args:         cobra.MaximumNArgs(1),
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var imageRef string
 

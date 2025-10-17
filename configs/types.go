@@ -65,6 +65,8 @@ type Config struct {
 type SdkrConfig struct {
 	DockerPassword               string `yaml:"docker_password"`
 	DockerUsername               string `yaml:"docker_username"`
+	GithubUsername               string `yaml:"github_username"`
+	GithubToken                  string `yaml:"github_token"`
 	ProvisionAcrRegistryName     string `yaml:"provisionAcrRegistryName"`
 	ProvisionAcrResourceGroup    string `yaml:"provisionAcrResourceGroup"`
 	ProvisionAcrSubscriptionID   string `yaml:"provisionAcrSubscriptionID"`

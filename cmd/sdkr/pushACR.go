@@ -14,9 +14,10 @@ import (
 // It supports both direct arguments and config file-based parameters for the image reference,
 // as well as optional removal of the local image after a successful push.
 var pushAcrCmd = &cobra.Command{
-	Use:   "az [IMAGE_NAME[:TAG]]",
-	Short: "Push a Docker image to Azure Container Registry.",
-	Args:  cobra.MaximumNArgs(1),
+	Use:          "az [IMAGE_NAME[:TAG]]",
+	Short:        "Push a Docker image to Azure Container Registry.",
+	Args:         cobra.MaximumNArgs(1),
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var imageRef string
 

@@ -19,7 +19,8 @@ var pushGcrCmd = &cobra.Command{
 	Short: "Push Docker images to GCR",
 	Long: `Push Docker images to Google Container Registry. Set the GOOGLE_APPLICATION_CREDENTIALS environment variable to the path of your service account JSON key file, for example:
   export GOOGLE_APPLICATION_CREDENTIALS="/path/to/your/service-account-key.json"`,
-	Args: cobra.MaximumNArgs(1),
+	Args:         cobra.MaximumNArgs(1),
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var imageRef string
 		var envVars map[string]string
