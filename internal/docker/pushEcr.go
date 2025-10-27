@@ -6,11 +6,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os/exec"
 	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ecr"
 	"github.com/docker/docker/api/types/image"
@@ -216,4 +218,69 @@ func parseImageNameAndTag(imageName string) (string, string) {
 		return parts[0], parts[1]
 	}
 	return imageName, "latest"
+}
+
+func LoginToECR(accountID, region, accessKey, secretKey string) error {
+	// Create AWS session with provided credentials
+	sess, err := session.NewSession(&aws.Config{
+		Region:      aws.String(region),
+		Credentials: credentials.NewStaticCredentials(accessKey, secretKey, ""),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create AWS session: %v", err)
+	}
+
+	// Get ECR authorization token
+	svc := ecr.New(sess)
+	input := &ecr.GetAuthorizationTokenInput{}
+	result, err := svc.GetAuthorizationToken(input)
+	if err != nil {
+		return fmt.Errorf("failed to get ECR authorization token: %v", err)
+	}
+
+	if len(result.AuthorizationData) == 0 {
+		return fmt.Errorf("no authorization data returned from ECR")
+	}
+
+	// Decode the authorization token
+	authToken := *result.AuthorizationData[0].AuthorizationToken
+	decodedToken, err := base64.StdEncoding.DecodeString(authToken)
+	if err != nil {
+		return fmt.Errorf("failed to decode authorization token: %v", err)
+	}
+
+	// Extract username and password (format: "AWS:password")
+	parts := strings.SplitN(string(decodedToken), ":", 2)
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid authorization token format")
+	}
+
+	username := parts[0]
+	password := parts[1]
+
+	// Login to Docker
+	registryURL := fmt.Sprintf("%s.dkr.ecr.%s.amazonaws.com", accountID, region)
+	loginCmd := exec.Command("docker", "login", "--username", username, "--password-stdin", registryURL)
+	loginCmd.Stdin = strings.NewReader(password)
+
+	output, err := loginCmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("docker login failed: %v, output: %s", err, string(output))
+	}
+
+	return nil
+}
+
+// doDockerLogin performs the actual docker login
+func doDockerLogin(accountID, region, password string) error {
+	registryURL := fmt.Sprintf("%s.dkr.ecr.%s.amazonaws.com", accountID, region)
+	loginCmd := exec.Command("docker", "login", "--username", "AWS", "--password-stdin", registryURL)
+	loginCmd.Stdin = strings.NewReader(password)
+
+	output, err := loginCmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("docker login failed: %v, output: %s", err, string(output))
+	}
+
+	return nil
 }

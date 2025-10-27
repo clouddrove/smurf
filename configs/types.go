@@ -74,6 +74,9 @@ type SdkrConfig struct {
 	GoogleApplicationCredentials string `yaml:"google_application_credentials"`
 	ImageName                    string `yaml:"imageName"`
 	TargetImageTag               string `yaml:"targetImageTag"`
+	AwsAccessKey                 string `yaml:"awsAccessKey"`
+	AwsSecretKey                 string `yaml:"awsSecretKey"`
+	AwsRegion                    string `yaml:"awsRegion"`
 }
 
 // types for SELM in the config file

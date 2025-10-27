@@ -1,6 +1,7 @@
 package sdkr
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"os"
@@ -25,6 +26,9 @@ var provisionEcrCmd = &cobra.Command{
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var imageRef string
+		var awsAccessKey string
+		var awsSecretKey string
+		var awsRegion string
 		if len(args) == 1 {
 			imageRef = args[0]
 		} else {
@@ -36,6 +40,9 @@ var provisionEcrCmd = &cobra.Command{
 				return errors.New("image name (with optional tag) must be provided either as an argument or in the config")
 			}
 			imageRef = data.Sdkr.ImageName
+			awsAccessKey = data.Sdkr.AwsAccessKey
+			awsSecretKey = data.Sdkr.AwsSecretKey
+			awsRegion = data.Sdkr.AwsRegion
 		}
 
 		localImageName, localTag, parseErr := configs.ParseImage(imageRef)
@@ -77,6 +84,11 @@ var provisionEcrCmd = &cobra.Command{
 			configs.DockerfilePath = filepath.Join(configs.ContextDir, configs.DockerfilePath)
 		}
 
+		accountID, ecrRegionName, ecrRepositoryName, ecrImageTag, parseErr := configs.ParseEcrImageRef(imageRef)
+		if parseErr != nil {
+			return parseErr
+		}
+
 		buildOpts := docker.BuildOptions{
 			ContextDir:     configs.ContextDir,
 			DockerfilePath: configs.DockerfilePath,
@@ -91,18 +103,22 @@ var provisionEcrCmd = &cobra.Command{
 			return fmt.Errorf("build failed: %v", err)
 		}
 
+		if err := docker.LoginToECR(accountID, awsRegion, awsAccessKey, awsSecretKey); err != nil {
+			return fmt.Errorf("ECR login failed: %v", err)
+		}
+
 		pushImage := imageRef
 		if pushImage == "" {
 			pushImage = fullEcrImage
 		}
 
-		// if !configs.ConfirmAfterPush {
-		// 	pterm.Info.Println("Press Enter to continue...")
-		// 	buf := bufio.NewReader(os.Stdin)
-		// 	_, _ = buf.ReadBytes('\n')
-		// }
+		if !configs.ConfirmAfterPush {
+			pterm.Info.Println("Press Enter to continue...")
+			buf := bufio.NewReader(os.Stdin)
+			_, _ = buf.ReadBytes('\n')
+		}
 
-		accountID, ecrRegionName, ecrRepositoryName, ecrImageTag, parseErr := configs.ParseEcrImageRef(imageRef)
+		accountID, ecrRegionName, ecrRepositoryName, ecrImageTag, parseErr = configs.ParseEcrImageRef(imageRef)
 		if parseErr != nil {
 			return parseErr
 		}

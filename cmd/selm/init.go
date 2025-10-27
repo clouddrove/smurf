@@ -1,4 +1,4 @@
-package sdkr
+package selm
 
 import (
 	"fmt"
@@ -8,29 +8,19 @@ import (
 )
 
 // defaultYamlContent contains the initial smurf.yaml structure
-var defaultYamlContent = `sdkr:
-  docker_username: "my-docker-username"
-  docker_password: "my-docker-password"
-  github_username: "my-github_username"
-  github_token: "my-github_token"
-  provisionAcrRegistryName: "myacrregistry"
-  provisionAcrResourceGroup: "my-resource-group"
-  provisionAcrSubscriptionID: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-  provisionGcrProjectID: "my-gcr-project-id"
-  google_application_credentials: "/path/to/service-account-key.json"
-  imageName: "my-application"
-  targetImageTag: "v1.0.0"
-  awsAccessKey: ""
-  awsSecretKey: ""
-  awsRegion: "us-east-1"
+var defaultYamlContent = `selm:
+  releaseName: "Release Name"
+  namespace: "Name Space"
+  chartName: "Chart Name"
+  revision: "revision"
 `
 
 // sdkrCreateCmd defines the "smurf sdkr create" command
-var sdkrCreateCmd = &cobra.Command{
+var selmCreateCmd = &cobra.Command{
 	Use:   "init",
-	Short: "Create a default smurf.yaml file with sdkr configuration",
+	Short: "Create a default smurf.yaml file with selm configuration",
 	Long: `This command generates a smurf.yaml file in the current working directory
-with default sdkr configuration placeholders.`,
+with default selm configuration placeholders.`,
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		fileName := "smurf.yaml"
@@ -52,5 +42,5 @@ with default sdkr configuration placeholders.`,
 }
 
 func init() {
-	sdkrCmd.AddCommand(sdkrCreateCmd)
+	selmCmd.AddCommand(selmCreateCmd)
 }
