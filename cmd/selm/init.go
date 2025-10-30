@@ -12,7 +12,7 @@ var defaultYamlContent = `selm:
   releaseName: "Release Name"
   namespace: "Name Space"
   chartName: "Chart Name"
-  revision: "revision"
+  revision: 0
 `
 
 // sdkrCreateCmd defines the "smurf sdkr create" command

@@ -77,12 +77,17 @@ type SdkrConfig struct {
 	AwsAccessKey                 string `yaml:"awsAccessKey"`
 	AwsSecretKey                 string `yaml:"awsSecretKey"`
 	AwsRegion                    string `yaml:"awsRegion"`
+	Dockerfile                   string `yaml:"dockerfile"`
+	AwsECR                       bool   `yaml:"awsECR"`
+	DockerHub                    bool   `yaml:"dockerHub"`
 }
 
 // types for SELM in the config file
 type SelmConfig struct {
+	HelmDeploy  bool   `yaml:"deployHelm"`
 	ReleaseName string `yaml:"releaseName"`
 	Namespace   string `yaml:"namespace"`
 	ChartName   string `yaml:"chartName"`
+	FileName    string `yaml:"fileName"`
 	Revision    int    `yaml:"revision"`
 }

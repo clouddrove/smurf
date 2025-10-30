@@ -69,3 +69,35 @@ func SplitKeyValue(arg string) []string {
 	}
 	return parts
 }
+
+// ParseGhcrImageRef parses a GHCR image reference into its components
+func ParseGhcrImageRef(imageRef string) (namespace, repository, tag string, err error) {
+	// If it's already a full GHCR reference
+	if strings.HasPrefix(imageRef, "ghcr.io/") {
+		// Remove the ghcr.io/ prefix
+		path := strings.TrimPrefix(imageRef, "ghcr.io/")
+
+		// Split into parts
+		parts := strings.Split(path, "/")
+		if len(parts) < 2 {
+			return "", "", "", fmt.Errorf("invalid GHCR image reference: expected format 'ghcr.io/namespace/repository[:tag]'")
+		}
+
+		namespace = parts[0]
+		repoWithTag := strings.Join(parts[1:], "/") // Handle nested repositories
+
+		// Split repository and tag
+		repoParts := strings.Split(repoWithTag, ":")
+		repository = repoParts[0]
+		if len(repoParts) > 1 {
+			tag = repoParts[1]
+		} else {
+			tag = "latest"
+		}
+
+		return namespace, repository, tag, nil
+	}
+
+	// If it's just a local image name, return empty to use flags/config
+	return "", "", "", fmt.Errorf("not a GHCR image reference")
+}

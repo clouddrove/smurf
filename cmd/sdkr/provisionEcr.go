@@ -26,9 +26,6 @@ var provisionEcrCmd = &cobra.Command{
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var imageRef string
-		var awsAccessKey string
-		var awsSecretKey string
-		var awsRegion string
 		if len(args) == 1 {
 			imageRef = args[0]
 		} else {
@@ -40,9 +37,6 @@ var provisionEcrCmd = &cobra.Command{
 				return errors.New("image name (with optional tag) must be provided either as an argument or in the config")
 			}
 			imageRef = data.Sdkr.ImageName
-			awsAccessKey = data.Sdkr.AwsAccessKey
-			awsSecretKey = data.Sdkr.AwsSecretKey
-			awsRegion = data.Sdkr.AwsRegion
 		}
 
 		localImageName, localTag, parseErr := configs.ParseImage(imageRef)
@@ -101,10 +95,6 @@ var provisionEcrCmd = &cobra.Command{
 
 		if err := docker.Build(localImageName, localTag, buildOpts); err != nil {
 			return fmt.Errorf("build failed: %v", err)
-		}
-
-		if err := docker.LoginToECR(accountID, awsRegion, awsAccessKey, awsSecretKey); err != nil {
-			return fmt.Errorf("ECR login failed: %v", err)
 		}
 
 		pushImage := imageRef

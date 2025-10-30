@@ -17,20 +17,18 @@ var generateConfig = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		config := map[string]interface{}{
 			"sdkr": map[string]interface{}{
-				"docker_password":                "",
-				"docker_username":                "",
-				"provisionAcrRegistryName":       "",
-				"provisionAcrResourceGroup":      "",
-				"provisionAcrSubscriptionID":     "",
-				"provisionGcrProjectID":          "",
-				"google_application_credentials": "",
-				"imageName":                      "",
-				"targetImageTag":                 "",
+				"awsECR":         false,
+				"dockerHub":      false,
+				"imageName":      "",
+				"targetImageTag": "",
+				"dockerfile":     "",
 			},
 			"selm": map[string]interface{}{
+				"deployHelm":  false,
 				"releaseName": "",
 				"namespace":   "",
 				"chartName":   "",
+				"fileName":    "",
 				"revision":    0,
 			},
 		}
@@ -52,7 +50,7 @@ var generateConfig = &cobra.Command{
 			pterm.Error.Printfln("error writing to YAML file: %v", err)
 			return fmt.Errorf("error writing to YAML file: %v", err)
 		}
-		pterm.FgGreen.Print("smurf.yaml configuration file generated successfully with empty values.")
+		fmt.Printf("✅smurf.yaml configuration file generated successfully with empty values.")
 		return nil
 	},
 }
