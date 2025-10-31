@@ -46,14 +46,14 @@ func PushToGHCR(opts PushOptions) error {
 	fmt.Printf("Preparing GHCR authentication...\n")
 
 	authConfig := registry.AuthConfig{
-		Username:      os.Getenv("GITHUB_USERNAME"),
-		Password:      os.Getenv("GITHUB_TOKEN"),
+		Username:      os.Getenv("USERNAME_GITHUB"),
+		Password:      os.Getenv("TOKEN_GITHUB"),
 		ServerAddress: "ghcr.io",
 	}
 
 	if authConfig.Username == "" || authConfig.Password == "" {
 		fmt.Printf("❌ GitHub credentials not found\n")
-		return fmt.Errorf("GITHUB_USERNAME and GITHUB_TOKEN environment variables are required for GHCR")
+		return fmt.Errorf("USERNAME_GITHUB and TOKEN_GITHUB environment variables are required for GHCR")
 	}
 
 	if !strings.HasPrefix(opts.ImageName, "ghcr.io/") {

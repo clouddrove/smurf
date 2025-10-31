@@ -22,8 +22,8 @@ var provisionGHCRCmd = &cobra.Command{
 	Long: `Build and push a Docker image to GitHub Container Registry (GHCR).
 	
 Authentication:
-  - Set GITHUB_USERNAME and GITHUB_TOKEN environment variables
-  - OR set them in config file as github_username and github_token
+  - Set USERNAME_GITHUB and TOKEN_GITHUB environment variables
+  - OR set them in config file as USERNAME_GITHUB and TOKEN_GITHUB
   - The token must have 'write:packages' scope
 
 Image naming:
@@ -57,28 +57,28 @@ Image naming:
 		}
 
 		// Check for GitHub credentials
-		if os.Getenv("GITHUB_USERNAME") == "" && os.Getenv("GITHUB_TOKEN") == "" {
+		if os.Getenv("USERNAME_GITHUB") == "" && os.Getenv("TOKEN_GITHUB") == "" {
 			data, err := configs.LoadConfig(configs.FileName)
 			if err != nil {
 				return err
 			}
 
 			envVars := map[string]string{
-				"GITHUB_USERNAME": data.Sdkr.GithubUsername,
-				"GITHUB_TOKEN":    data.Sdkr.GithubToken,
+				"USERNAME_GITHUB": data.Sdkr.GithubUsername,
+				"TOKEN_GITHUB":    data.Sdkr.GithubToken,
 			}
 			if err := configs.ExportEnvironmentVariables(envVars); err != nil {
 				return err
 			}
 		}
 
-		if os.Getenv("GITHUB_USERNAME") == "" || os.Getenv("GITHUB_TOKEN") == "" {
+		if os.Getenv("USERNAME_GITHUB") == "" || os.Getenv("TOKEN_GITHUB") == "" {
 			pterm.Error.Println("GitHub Container Registry credentials are required")
 			pterm.Info.Println("You can set them via environment variables:")
-			pterm.Info.Println("  export GITHUB_USERNAME=\"your-username\"")
-			pterm.Info.Println("  export GITHUB_TOKEN=\"your-github-personal-access-token\"")
+			pterm.Info.Println("  export USERNAME_GITHUB=\"your-username\"")
+			pterm.Info.Println("  export TOKEN_GITHUB=\"your-github-personal-access-token\"")
 			pterm.Info.Println("The token must have 'write:packages' scope")
-			pterm.Info.Println("Or set them in your config file as github_username and github_token")
+			pterm.Info.Println("Or set them in your config file as USERNAME_GITHUB and TOKEN_GITHUB")
 			return errors.New("missing required GitHub Container Registry credentials")
 		}
 
@@ -102,8 +102,8 @@ Image naming:
 		pterm.Info.Println("Logging in to GitHub Container Registry...")
 		loginOpts := docker.LoginOptions{
 			Registry: "ghcr.io",
-			Username: os.Getenv("GITHUB_USERNAME"),
-			Password: os.Getenv("GITHUB_TOKEN"),
+			Username: os.Getenv("USERNAME_GITHUB"),
+			Password: os.Getenv("TOKEN_GITHUB"),
 		}
 		if err := docker.Login(loginOpts); err != nil {
 			pterm.Error.Println("GHCR login failed:", err)
@@ -191,8 +191,8 @@ Image naming:
     --delete
 
   # Using environment variables for auth
-  export GITHUB_USERNAME="my-username"
-  export GITHUB_TOKEN="ghp_yourPersonalAccessToken"
+  export USERNAME_GITHUB="my-username"
+  export TOKEN_GITHUB="ghp_yourPersonalAccessToken"
   smurf sdkr provision-ghcr ghcr.io/my-org/my-app:latest
 
   # Read image name from config file
