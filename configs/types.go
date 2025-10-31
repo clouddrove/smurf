@@ -80,6 +80,7 @@ type SdkrConfig struct {
 	Dockerfile                   string `yaml:"dockerfile"`
 	AwsECR                       bool   `yaml:"awsECR"`
 	DockerHub                    bool   `yaml:"dockerHub"`
+	GHCRRepo                     bool   `yaml:"ghcrRepo"`
 }
 
 // types for SELM in the config file

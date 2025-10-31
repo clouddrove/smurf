@@ -13,7 +13,6 @@ import (
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/registry"
 	"github.com/docker/docker/client"
-	"github.com/pterm/pterm"
 )
 
 // In docker package
@@ -32,61 +31,60 @@ func Login(opts LoginOptions) error {
 }
 
 func PushToGHCR(opts PushOptions) error {
-	spinner, _ := pterm.DefaultSpinner.Start("Initializing Docker client for GHCR...")
+	fmt.Printf("Initializing Docker client for GHCR...\n")
 
 	ctx, cancel := context.WithTimeout(context.Background(), opts.Timeout)
 	defer cancel()
 
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
-		spinner.Fail("Failed to initialize Docker client\n")
-		return fmt.Errorf("failed to initialize Docker client : %v", err)
+		fmt.Printf("❌ Failed to initialize Docker client\n")
+		return fmt.Errorf("failed to initialize Docker client: %v", err)
 	}
 	defer cli.Close()
 
-	spinner.UpdateText("Preparing GHCR authentication...")
+	fmt.Printf("Preparing GHCR authentication...\n")
 
-	// Use GitHub credentials for GHCR
 	authConfig := registry.AuthConfig{
 		Username:      os.Getenv("GITHUB_USERNAME"),
 		Password:      os.Getenv("GITHUB_TOKEN"),
 		ServerAddress: "ghcr.io",
 	}
 
-	// Validate that we have GitHub credentials
 	if authConfig.Username == "" || authConfig.Password == "" {
-		spinner.Fail("GitHub credentials not found")
+		fmt.Printf("❌ GitHub credentials not found\n")
 		return fmt.Errorf("GITHUB_USERNAME and GITHUB_TOKEN environment variables are required for GHCR")
 	}
 
-	// Validate that image name is for GHCR
 	if !strings.HasPrefix(opts.ImageName, "ghcr.io/") {
-		spinner.Fail("Image name must be for GHCR registry")
+		fmt.Printf("❌ Image name must be for GHCR registry\n")
 		return fmt.Errorf("image name must start with 'ghcr.io/' for GitHub Container Registry")
 	}
 
 	encodedJSON, err := json.Marshal(authConfig)
 	if err != nil {
-		spinner.Fail("GHCR authentication preparation failed: ", err)
-		return fmt.Errorf("GHCR authentication preparation failed : %v", err)
+		fmt.Printf("❌ GHCR authentication preparation failed: %v\n", err)
+		return fmt.Errorf("GHCR authentication preparation failed: %v", err)
 	}
 
 	authStr := base64.URLEncoding.EncodeToString(encodedJSON)
 
-	spinner.UpdateText(fmt.Sprintf("Pushing image %s to GHCR...", opts.ImageName))
+	fmt.Printf("Pushing image to GitHub Container Registry: %s\n", opts.ImageName)
+	fmt.Printf("─────────────────────────────────────────────────────────────\n")
 
 	pushResp, err := cli.ImagePush(ctx, opts.ImageName, image.PushOptions{
 		RegistryAuth: authStr,
 	})
 
 	if err != nil {
-		spinner.Fail(fmt.Sprintf("Failed to push image %s to GHCR, error : %v", opts.ImageName, err))
-		return fmt.Errorf("failed to push image to GHCR : %v", err)
+		fmt.Printf("❌ Failed to push image %s to GHCR, error: %v\n", opts.ImageName, err)
+		return fmt.Errorf("failed to push image to GHCR: %v", err)
 	}
 	defer pushResp.Close()
 
 	decoder := json.NewDecoder(pushResp)
-	progressBar, _ := pterm.DefaultProgressbar.WithTotal(100).WithTitle("GHCR Push Progress").Start()
+	currentLayer := ""
+	layerStatus := make(map[string]string)
 
 	for {
 		var msg jsonMessage
@@ -94,35 +92,93 @@ func PushToGHCR(opts PushOptions) error {
 			if err == io.EOF {
 				break
 			}
-			// Don't fail on decode errors, just break
 			break
 		}
 
 		if msg.Error != "" {
-			spinner.Fail(msg.Error)
-			return fmt.Errorf("failed to push image to GHCR : %v", msg.Error)
+			fmt.Printf("❌ GHCR push error: %s\n", msg.Error)
+			return fmt.Errorf("failed to push image to GHCR: %v", msg.Error)
 		}
 
-		if msg.Status != "" {
-			// Update progress based on status messages
-			if strings.Contains(msg.Status, "Layer already exists") {
-				progressBar.Add(10)
-			} else if strings.Contains(msg.Status, "Pushed") {
-				progressBar.Add(15)
-			} else if strings.Contains(msg.Status, "Mounted") {
-				progressBar.Add(5)
+		// Handle layer changes
+		if msg.ID != "" && msg.ID != currentLayer {
+			if currentLayer != "" {
+				// Show completion status for previous layer
+				status := layerStatus[currentLayer]
+				if status == "" {
+					status = "completed"
+				}
+				fmt.Printf("   ✅ %s\n", status)
+			}
+			currentLayer = msg.ID
+			fmt.Printf("Layer: %s\n", msg.ID)
+		}
+
+		// Update and show meaningful status changes
+		if msg.Status != "" && currentLayer != "" {
+			// Only show important status updates
+			showStatus := false
+			var displayText string
+
+			switch {
+			case strings.Contains(msg.Status, "Pushing"):
+				if !strings.Contains(msg.Progress, "MB") {
+					layerStatus[currentLayer] = "uploading"
+					displayText = "📤 Uploading"
+					showStatus = true
+				}
+			case strings.Contains(msg.Status, "Pushed"):
+				layerStatus[currentLayer] = "pushed"
+				displayText = "✅ Pushed"
+				showStatus = true
+			case strings.Contains(msg.Status, "Layer already exists"):
+				layerStatus[currentLayer] = "cached"
+				displayText = "⚡ Already exists"
+				showStatus = true
+			case strings.Contains(msg.Status, "Mounted"):
+				layerStatus[currentLayer] = "mounted"
+				displayText = "🔗 Mounted from cache"
+				showStatus = true
+			case strings.Contains(msg.Status, "Verifying Checksum"):
+				layerStatus[currentLayer] = "verifying"
+				displayText = "🔍 Verifying checksum"
+				showStatus = true
 			}
 
-			spinner.UpdateText(msg.Status)
+			if showStatus {
+				fmt.Printf("   %s\n", displayText)
+			}
 		}
 
-		if msg.Progress != "" {
-			progressBar.UpdateTitle(fmt.Sprintf("%s: %s", msg.Status, msg.Progress))
+		// Show final digest
+		if msg.ID == "" && strings.Contains(msg.Status, "Digest:") {
+			if currentLayer != "" {
+				fmt.Printf("   ✅ completed\n")
+				currentLayer = ""
+			}
+			fmt.Printf("📦 %s\n", msg.Status)
 		}
 	}
 
-	progressBar.Stop()
-	spinner.Success("Successfully pushed image to GHCR: ", opts.ImageName)
+	// Complete the last layer if needed
+	if currentLayer != "" {
+		status := layerStatus[currentLayer]
+		if status == "" {
+			status = "completed"
+		}
+		fmt.Printf("   ✅ %s\n", status)
+	}
+
+	fmt.Printf("─────────────────────────────────────────────────────────────\n")
+	fmt.Printf("✅ Successfully pushed to GitHub Container Registry\n")
+	fmt.Printf("📦 Image: %s\n", opts.ImageName)
+
+	parts := strings.Split(opts.ImageName, "/")
+	if len(parts) >= 3 {
+		repoParts := strings.Split(parts[2], ":")
+		repoName := repoParts[0]
+		fmt.Printf("🌐 View at: https://github.com/%s/pkgs/container/%s\n", parts[1], repoName)
+	}
 
 	return nil
 }

@@ -19,6 +19,7 @@ var generateConfig = &cobra.Command{
 			"sdkr": map[string]interface{}{
 				"awsECR":         false,
 				"dockerHub":      false,
+				"ghcrRepo":       false,
 				"imageName":      "",
 				"targetImageTag": "",
 				"dockerfile":     "",

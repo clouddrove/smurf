@@ -396,6 +396,138 @@ var deployCmd = &cobra.Command{
 
 		}
 
+		if data.Sdkr.GHCRRepo {
+			// Validate that image reference includes GHCR registry
+			if !strings.HasPrefix(imageName, "ghcr.io/") {
+				pterm.Error.Printfln("GHCR image must start with 'ghcr.io/', got: %s", imageName)
+				pterm.Info.Println("GHCR images must be in the format: ghcr.io/OWNER/IMAGE_NAME:TAG")
+				return errors.New("invalid GHCR image format")
+			}
+
+			// Check for GitHub credentials
+			if os.Getenv("GITHUB_USERNAME") == "" && os.Getenv("GITHUB_TOKEN") == "" {
+				data, err := configs.LoadConfig(configs.FileName)
+				if err != nil {
+					return err
+				}
+
+				envVars := map[string]string{
+					"GITHUB_USERNAME": data.Sdkr.GithubUsername,
+					"GITHUB_TOKEN":    data.Sdkr.GithubToken,
+				}
+				if err := configs.ExportEnvironmentVariables(envVars); err != nil {
+					return err
+				}
+			}
+
+			if os.Getenv("GITHUB_USERNAME") == "" || os.Getenv("GITHUB_TOKEN") == "" {
+				pterm.Error.Println("GitHub Container Registry credentials are required")
+				pterm.Info.Println("You can set them via environment variables:")
+				pterm.Info.Println("  export GITHUB_USERNAME=\"your-username\"")
+				pterm.Info.Println("  export GITHUB_TOKEN=\"your-github-personal-access-token\"")
+				pterm.Info.Println("The token must have 'write:packages' scope")
+				pterm.Info.Println("Or set them in your config file as github_username and github_token")
+				return errors.New("missing required GitHub Container Registry credentials")
+			}
+
+			// Parse image reference
+			localImageName, localTag, parseErr := configs.ParseImage(imageName)
+			if parseErr != nil {
+				pterm.Error.Printfln("invalid image format: %v", parseErr)
+				return fmt.Errorf("invalid image format: %v", parseErr)
+			}
+			if localImageName == "" {
+				pterm.Error.Printfln("invalid image reference")
+				return errors.New("invalid image reference")
+			}
+			if localTag == "" {
+				localTag = "latest"
+			}
+
+			fullImageName := fmt.Sprintf("%s:%s", localImageName, localTag)
+			imageRepo = localImageName
+			imageTag = localTag
+
+			// Login to GHCR
+			pterm.Info.Println("Logging in to GitHub Container Registry...")
+			loginOpts := docker.LoginOptions{
+				Registry: "ghcr.io",
+				Username: os.Getenv("GITHUB_USERNAME"),
+				Password: os.Getenv("GITHUB_TOKEN"),
+			}
+			if err := docker.Login(loginOpts); err != nil {
+				pterm.Error.Println("GHCR login failed:", err)
+				return fmt.Errorf("GHCR login failed: %v", err)
+			}
+			pterm.Success.Println("Successfully logged in to GitHub Container Registry")
+
+			// Prepare build arguments
+			buildArgsMap := make(map[string]string)
+			for _, arg := range configs.BuildArgs {
+				parts := strings.SplitN(arg, "=", 2)
+				if len(parts) == 2 {
+					buildArgsMap[parts[0]] = parts[1]
+				}
+			}
+
+			// Set context and Dockerfile paths
+			if configs.ContextDir == "" {
+				wd, err := os.Getwd()
+				if err != nil {
+					pterm.Error.Printfln("Failed to get current working directory: %v", err)
+					return fmt.Errorf("failed to get current working directory: %v", err)
+				}
+				configs.ContextDir = wd
+			}
+
+			if configs.DockerfilePath == "" {
+				configs.DockerfilePath = filepath.Join(configs.ContextDir, "Dockerfile")
+			} else {
+				configs.DockerfilePath = filepath.Join(configs.ContextDir, configs.DockerfilePath)
+			}
+
+			// Build options
+			buildOpts := docker.BuildOptions{
+				DockerfilePath: configs.DockerfilePath,
+				NoCache:        configs.NoCache,
+				BuildArgs:      buildArgsMap,
+				Target:         configs.Target,
+				Platform:       configs.Platform,
+				Timeout:        time.Duration(configs.BuildTimeout) * time.Second,
+				ContextDir:     configs.ContextDir,
+			}
+
+			// Build image
+			pterm.Info.Println("Starting build...")
+			if err := docker.Build(localImageName, localTag, buildOpts); err != nil {
+				return err
+			}
+			pterm.Success.Println("Build completed successfully.")
+
+			// Push image to GHCR
+			pterm.Info.Printf("Pushing image %s to GitHub Container Registry...\n", fullImageName)
+			pushOpts := docker.PushOptions{
+				ImageName: fullImageName,
+				Timeout:   1000 * time.Second,
+			}
+			if err := docker.PushToGHCR(pushOpts); err != nil {
+				pterm.Error.Println("Push to GHCR failed:", err)
+				return err
+			}
+			pterm.Success.Printf("Successfully pushed %s to GitHub Container Registry\n", fullImageName)
+
+			// Clean up local image if requested
+			if configs.DeleteAfterPush {
+				pterm.Info.Printf("Deleting local image %s...\n", fullImageName)
+				if err := docker.RemoveImage(fullImageName); err != nil {
+					pterm.Warning.Printf("Failed to delete local image: %v\n", err)
+					// Don't fail the entire process if delete fails
+				} else {
+					pterm.Success.Println("Successfully deleted local image:", fullImageName)
+				}
+			}
+		}
+
 		if data.Selm.HelmDeploy {
 			if configs.Debug {
 				pterm.EnableDebugMessages()
