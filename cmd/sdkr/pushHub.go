@@ -24,7 +24,8 @@ Push Docker images to Docker Hub.
 Export DOCKER_USERNAME and DOCKER_PASSWORD as environment variables for Docker Hub authentication, for example:
   export DOCKER_USERNAME="your-username"
   export DOCKER_PASSWORD="your-password"`,
-	Args: cobra.MaximumNArgs(1),
+	Args:         cobra.MaximumNArgs(1),
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var imageRef string
 		var envVars map[string]string

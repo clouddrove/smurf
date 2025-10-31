@@ -20,9 +20,10 @@ import (
 // It relies on config defaults or command-line flags for region, repository,
 // and other Docker build settings.
 var provisionEcrCmd = &cobra.Command{
-	Use:   "provision-ecr [IMAGE_NAME[:TAG]]",
-	Short: "Buildand push a Docker image to AWS ECR.",
-	Args:  cobra.MaximumNArgs(1),
+	Use:          "provision-ecr [IMAGE_NAME[:TAG]]",
+	Short:        "Buildand push a Docker image to AWS ECR.",
+	Args:         cobra.MaximumNArgs(1),
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var imageRef string
 		if len(args) == 1 {

@@ -21,7 +21,7 @@ var installCmd = &cobra.Command{
 	Args:         cobra.MaximumNArgs(2),
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		var releaseName, chartPath string
+		var releaseName, chartPath, namespace string
 		if len(args) >= 1 {
 			releaseName = args[0]
 		}
@@ -56,7 +56,7 @@ var installCmd = &cobra.Command{
 
 		timeoutDuration := time.Duration(configs.Timeout) * time.Second
 
-		if configs.Namespace == "" {
+		if namespace == "" {
 			configs.Namespace = "default"
 		}
 

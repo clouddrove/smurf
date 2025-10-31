@@ -20,9 +20,10 @@ import (
 // Usage examples are included within the command definition below, showcasing various ways
 // to override defaults (e.g., no-cache, target stage, platform, and timeout).
 var buildCmd = &cobra.Command{
-	Use:   "build [IMAGE[:TAG]]",
-	Short: "Build a Docker image with the given name and tag.",
-	Args:  cobra.MaximumNArgs(1),
+	Use:          "build [IMAGE[:TAG]]",
+	Short:        "Build a Docker image with the given name and tag.",
+	Args:         cobra.MaximumNArgs(1),
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var imageName, tag string
 

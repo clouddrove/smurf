@@ -124,7 +124,7 @@ var upgradeCmd = &cobra.Command{
 				if configs.Debug {
 					pterm.Println("Installation completed successfully")
 				}
-				pterm.Success.Println("Helm chart installed successfully.")
+				pterm.Success.Println(".")
 				return nil
 			} else {
 				return fmt.Errorf("release %s not found in namespace %s. Use --install flag to install it", releaseName, configs.Namespace)

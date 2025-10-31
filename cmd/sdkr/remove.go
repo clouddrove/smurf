@@ -13,9 +13,10 @@ import (
 // from the local system. If no image is provided, it reads from the config file.
 // On successful removal, a confirmation message is displayed.
 var removeCmd = &cobra.Command{
-	Use:   "remove [IMAGE_NAME[:TAG]]",
-	Short: "Remove a Docker image from the local system.",
-	Args:  cobra.MaximumNArgs(1),
+	Use:          "remove [IMAGE_NAME[:TAG]]",
+	Short:        "Remove a Docker image from the local system.",
+	Args:         cobra.MaximumNArgs(1),
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var imageRef string
 

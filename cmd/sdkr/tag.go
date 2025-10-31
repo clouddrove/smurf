@@ -15,9 +15,10 @@ import (
 // If either reference is missing, it attempts to read them from the config.
 // On successful tagging, a confirmation message is displayed.
 var tagCmd = &cobra.Command{
-	Use:   "tag [SOURCE_IMAGE[:TAG]] [TARGET_IMAGE[:TAG]]",
-	Short: "Tag a Docker image for a remote repository",
-	Args:  cobra.MaximumNArgs(2),
+	Use:          "tag [SOURCE_IMAGE[:TAG]] [TARGET_IMAGE[:TAG]]",
+	Short:        "Tag a Docker image for a remote repository",
+	Args:         cobra.MaximumNArgs(2),
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var source, target string
 

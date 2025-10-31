@@ -43,4 +43,5 @@ type jsonMessage struct {
 	Status   string `json:"status"`
 	Error    string `json:"error"`
 	Progress string `json:"progress"`
+	ID       string `json:"id"`
 }

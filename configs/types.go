@@ -65,6 +65,8 @@ type Config struct {
 type SdkrConfig struct {
 	DockerPassword               string `yaml:"docker_password"`
 	DockerUsername               string `yaml:"docker_username"`
+	GithubUsername               string `yaml:"github_username"`
+	GithubToken                  string `yaml:"github_token"`
 	ProvisionAcrRegistryName     string `yaml:"provisionAcrRegistryName"`
 	ProvisionAcrResourceGroup    string `yaml:"provisionAcrResourceGroup"`
 	ProvisionAcrSubscriptionID   string `yaml:"provisionAcrSubscriptionID"`
@@ -72,12 +74,21 @@ type SdkrConfig struct {
 	GoogleApplicationCredentials string `yaml:"google_application_credentials"`
 	ImageName                    string `yaml:"imageName"`
 	TargetImageTag               string `yaml:"targetImageTag"`
+	AwsAccessKey                 string `yaml:"awsAccessKey"`
+	AwsSecretKey                 string `yaml:"awsSecretKey"`
+	AwsRegion                    string `yaml:"awsRegion"`
+	Dockerfile                   string `yaml:"dockerfile"`
+	AwsECR                       bool   `yaml:"awsECR"`
+	DockerHub                    bool   `yaml:"dockerHub"`
+	GHCRRepo                     bool   `yaml:"ghcrRepo"`
 }
 
 // types for SELM in the config file
 type SelmConfig struct {
+	HelmDeploy  bool   `yaml:"deployHelm"`
 	ReleaseName string `yaml:"releaseName"`
 	Namespace   string `yaml:"namespace"`
 	ChartName   string `yaml:"chartName"`
+	FileName    string `yaml:"fileName"`
 	Revision    int    `yaml:"revision"`
 }

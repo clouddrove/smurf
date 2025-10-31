@@ -13,9 +13,10 @@ import (
 // It supports both direct command-line arguments and configuration file values for the image name,
 // and optionally allows saving the scan report to a specified SARIF file.
 var scanCmd = &cobra.Command{
-	Use:   "scan [IMAGE_NAME[:TAG]]",
-	Short: "Scan a Docker image for known vulnerabilities.",
-	Args:  cobra.MaximumNArgs(1),
+	Use:          "scan [IMAGE_NAME[:TAG]]",
+	Short:        "Scan a Docker image for known vulnerabilities.",
+	Args:         cobra.MaximumNArgs(1),
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var imageRef string
 		if len(args) == 1 {
