@@ -59,8 +59,8 @@ func PushImage(opts PushOptions) error {
 	defer pushResp.Close()
 
 	decoder := json.NewDecoder(pushResp)
-	var layerCount int
-	var currentLayerID string
+	layerStatus := make(map[string][]string) // layerID -> list of statuses
+	var layerOrder []string                  // maintain layer order
 
 	for {
 		var msg jsonMessage
@@ -68,7 +68,7 @@ func PushImage(opts PushOptions) error {
 			if err == io.EOF {
 				break
 			}
-			continue
+			break
 		}
 
 		if msg.Error != "" {
@@ -76,42 +76,77 @@ func PushImage(opts PushOptions) error {
 			return fmt.Errorf("failed to push image: %v", msg.Error)
 		}
 
-		// Handle layer identification
-		if msg.ID != "" && msg.ID != currentLayerID {
-			currentLayerID = msg.ID
-			layerCount++
-			if msg.ID != "" {
-				fmt.Printf("Layer %d: %s\n", layerCount, msg.ID)
+		// Track layer and its status
+		if msg.ID != "" {
+			if _, exists := layerStatus[msg.ID]; !exists {
+				layerOrder = append(layerOrder, msg.ID)
+				layerStatus[msg.ID] = []string{}
+			}
+
+			// Add status if it's meaningful and not already tracked
+			if msg.Status != "" && isMeaningfulStatus(msg.Status) {
+				currentStatuses := layerStatus[msg.ID]
+				if !hasSimilarStatus(currentStatuses, msg.Status) {
+					layerStatus[msg.ID] = append(currentStatuses, msg.Status)
+				}
 			}
 		}
 
-		// Display progress information
-		if msg.Status != "" {
-			switch {
-			case strings.Contains(msg.Status, "Preparing"):
-				fmt.Printf("   📦 %s\n", msg.Status)
-			case strings.Contains(msg.Status, "Waiting"):
-				fmt.Printf("   ⏳ %s\n", msg.Status)
-			case strings.Contains(msg.Status, "Layer already exists"):
-				fmt.Printf("   ✅ %s\n", msg.Status)
-			case strings.Contains(msg.Status, "Pushing") && !strings.Contains(msg.Progress, "MB"):
-				// Only show "Pushing" once per layer, not the progress updates
-				fmt.Printf("   📤 %s\n", msg.Status)
-			case strings.Contains(msg.Status, "Pushed"):
-				fmt.Printf("   ✅ %s\n", msg.Status)
-			case strings.Contains(msg.Status, "Mounted"):
-				fmt.Printf("   🔗 %s\n", msg.Status)
-			case strings.Contains(msg.Status, "Verifying Checksum"):
-				fmt.Printf("   🔍 %s\n", msg.Status)
-			case strings.Contains(msg.Status, "Digest:"):
-				fmt.Printf("   🏷️  %s\n", msg.Status)
+		// Show digest
+		if msg.ID == "" && strings.Contains(msg.Status, "Digest:") {
+			fmt.Printf("📦 %s\n", msg.Status)
+		}
+	}
+
+	// Display layers one by one in order
+	for i, layerID := range layerOrder {
+		statuses := layerStatus[layerID]
+		fmt.Printf("Layer %d: %s\n", i+1, layerID)
+
+		// Show the progression of this layer
+		for _, status := range statuses {
+			if strings.Contains(status, "Preparing") {
+				fmt.Printf("   📦 Preparing\n")
+			} else if strings.Contains(status, "Waiting") {
+				fmt.Printf("   ⏳ Waiting\n")
+			} else if strings.Contains(status, "Layer already exists") {
+				fmt.Printf("   ✅ Already exists\n")
+			} else if strings.Contains(status, "Pushing") {
+				fmt.Printf("   📤 Uploading\n")
+			} else if strings.Contains(status, "Pushed") {
+				fmt.Printf("   ✅ Pushed\n")
+			} else if strings.Contains(status, "Mounted") {
+				fmt.Printf("   🔗 Mounted from cache\n")
+			} else if strings.Contains(status, "Verifying Checksum") {
+				fmt.Printf("   🔍 Verifying\n")
 			}
 		}
 	}
 
 	fmt.Printf("─────────────────────────────────────────────────────────────\n")
 	fmt.Printf("✅ Successfully pushed image: %s\n", opts.ImageName)
-	fmt.Printf("📦 Total layers processed: %d\n", layerCount)
+	fmt.Printf("📦 Total layers processed: %d\n", len(layerOrder))
 
 	return nil
+}
+
+// Helper functions
+func isMeaningfulStatus(status string) bool {
+	// Filter out noisy status messages
+	meaningless := []string{"Image", "latest", "Mounted from"}
+	for _, m := range meaningless {
+		if strings.Contains(status, m) {
+			return false
+		}
+	}
+	return true
+}
+
+func hasSimilarStatus(statuses []string, newStatus string) bool {
+	for _, status := range statuses {
+		if strings.Contains(newStatus, status) || strings.Contains(status, newStatus) {
+			return true
+		}
+	}
+	return false
 }

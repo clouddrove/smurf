@@ -46,14 +46,14 @@ func PushToGHCR(opts PushOptions) error {
 	fmt.Printf("Preparing GHCR authentication...\n")
 
 	authConfig := registry.AuthConfig{
-		Username:      os.Getenv("USERNAME_GITHUB"),
-		Password:      os.Getenv("TOKEN_GITHUB"),
+		Username:      os.Getenv("GITHUB_USERNAME"),
+		Password:      os.Getenv("GITHUB_TOKEN"),
 		ServerAddress: "ghcr.io",
 	}
 
 	if authConfig.Username == "" || authConfig.Password == "" {
 		fmt.Printf("❌ GitHub credentials not found\n")
-		return fmt.Errorf("USERNAME_GITHUB and TOKEN_GITHUB environment variables are required for GHCR")
+		return fmt.Errorf("GITHUB_USERNAME and GITHUB_TOKEN environment variables are required for GHCR")
 	}
 
 	if !strings.HasPrefix(opts.ImageName, "ghcr.io/") {
@@ -83,8 +83,8 @@ func PushToGHCR(opts PushOptions) error {
 	defer pushResp.Close()
 
 	decoder := json.NewDecoder(pushResp)
-	currentLayer := ""
-	layerStatus := make(map[string]string)
+	layerStatus := make(map[string][]string) // layerID -> list of statuses
+	var layerOrder []string                  // maintain layer order
 
 	for {
 		var msg jsonMessage
@@ -100,73 +100,57 @@ func PushToGHCR(opts PushOptions) error {
 			return fmt.Errorf("failed to push image to GHCR: %v", msg.Error)
 		}
 
-		// Handle layer changes
-		if msg.ID != "" && msg.ID != currentLayer {
-			if currentLayer != "" {
-				// Show completion status for previous layer
-				status := layerStatus[currentLayer]
-				if status == "" {
-					status = "completed"
-				}
-				fmt.Printf("   ✅ %s\n", status)
-			}
-			currentLayer = msg.ID
-			fmt.Printf("Layer: %s\n", msg.ID)
-		}
-
-		// Update and show meaningful status changes
-		if msg.Status != "" && currentLayer != "" {
-			// Only show important status updates
-			showStatus := false
-			var displayText string
-
-			switch {
-			case strings.Contains(msg.Status, "Pushing"):
-				if !strings.Contains(msg.Progress, "MB") {
-					layerStatus[currentLayer] = "uploading"
-					displayText = "📤 Uploading"
-					showStatus = true
-				}
-			case strings.Contains(msg.Status, "Pushed"):
-				layerStatus[currentLayer] = "pushed"
-				displayText = "✅ Pushed"
-				showStatus = true
-			case strings.Contains(msg.Status, "Layer already exists"):
-				layerStatus[currentLayer] = "cached"
-				displayText = "⚡ Already exists"
-				showStatus = true
-			case strings.Contains(msg.Status, "Mounted"):
-				layerStatus[currentLayer] = "mounted"
-				displayText = "🔗 Mounted from cache"
-				showStatus = true
-			case strings.Contains(msg.Status, "Verifying Checksum"):
-				layerStatus[currentLayer] = "verifying"
-				displayText = "🔍 Verifying checksum"
-				showStatus = true
+		// Track layer and its status
+		if msg.ID != "" {
+			if _, exists := layerStatus[msg.ID]; !exists {
+				layerOrder = append(layerOrder, msg.ID)
+				layerStatus[msg.ID] = []string{}
 			}
 
-			if showStatus {
-				fmt.Printf("   %s\n", displayText)
+			// Add status if it's new and meaningful
+			if msg.Status != "" {
+				currentStatuses := layerStatus[msg.ID]
+				// Only add if this is a new meaningful status
+				if !containsStatus(currentStatuses, msg.Status) {
+					layerStatus[msg.ID] = append(currentStatuses, msg.Status)
+				}
 			}
 		}
 
-		// Show final digest
+		// Show digest
 		if msg.ID == "" && strings.Contains(msg.Status, "Digest:") {
-			if currentLayer != "" {
-				fmt.Printf("   ✅ completed\n")
-				currentLayer = ""
-			}
 			fmt.Printf("📦 %s\n", msg.Status)
 		}
 	}
 
-	// Complete the last layer if needed
-	if currentLayer != "" {
-		status := layerStatus[currentLayer]
-		if status == "" {
-			status = "completed"
+	// Now display layers one by one in order
+	for i, layerID := range layerOrder {
+		statuses := layerStatus[layerID]
+		fmt.Printf("Layer %d: %s\n", i+1, layerID)
+
+		// Show the progression of this layer
+		for _, status := range statuses {
+			if strings.Contains(status, "Pushing") {
+				fmt.Printf("   📤 Uploading\n")
+			} else if strings.Contains(status, "Pushed") {
+				fmt.Printf("   ✅ Pushed\n")
+			} else if strings.Contains(status, "Layer already exists") {
+				fmt.Printf("   ⚡ Already exists\n")
+			} else if strings.Contains(status, "Mounted") {
+				fmt.Printf("   🔗 Mounted from cache\n")
+			} else if strings.Contains(status, "Verifying Checksum") {
+				fmt.Printf("   🔍 Verifying\n")
+			} else if strings.Contains(status, "Preparing") {
+				fmt.Printf("   📦 Preparing\n")
+			} else if strings.Contains(status, "Waiting") {
+				fmt.Printf("   ⏳ Waiting\n")
+			}
 		}
-		fmt.Printf("   ✅ %s\n", status)
+
+		// If no specific status was captured, show completed
+		if len(statuses) == 0 {
+			fmt.Printf("   ✅ Completed\n")
+		}
 	}
 
 	fmt.Printf("─────────────────────────────────────────────────────────────\n")
@@ -181,4 +165,13 @@ func PushToGHCR(opts PushOptions) error {
 	}
 
 	return nil
+}
+
+func containsStatus(statuses []string, status string) bool {
+	for _, s := range statuses {
+		if strings.Contains(s, status) || strings.Contains(status, s) {
+			return true
+		}
+	}
+	return false
 }
