@@ -98,19 +98,6 @@ Image naming:
 
 		fullImageName := fmt.Sprintf("%s:%s", localImageName, localTag)
 
-		// Login to GHCR
-		// pterm.Info.Println("Logging in to GitHub Container Registry...")
-		// loginOpts := docker.LoginOptions{
-		// 	Registry: "ghcr.io",
-		// 	Username: os.Getenv("USERNAME_GITHUB"),
-		// 	Password: os.Getenv("TOKEN_GITHUB"),
-		// }
-		// if err := docker.Login(loginOpts); err != nil {
-		// 	pterm.Error.Println("GHCR login failed:", err)
-		// 	return fmt.Errorf("GHCR login failed: %v", err)
-		// }
-		// pterm.Success.Println("Successfully logged in to GitHub Container Registry")
-
 		// Prepare build arguments
 		buildArgsMap := make(map[string]string)
 		for _, arg := range configs.BuildArgs {

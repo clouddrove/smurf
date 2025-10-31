@@ -78,11 +78,6 @@ var provisionEcrCmd = &cobra.Command{
 			configs.DockerfilePath = filepath.Join(configs.ContextDir, configs.DockerfilePath)
 		}
 
-		accountID, ecrRegionName, ecrRepositoryName, ecrImageTag, parseErr := configs.ParseEcrImageRef(imageRef)
-		if parseErr != nil {
-			return parseErr
-		}
-
 		buildOpts := docker.BuildOptions{
 			ContextDir:     configs.ContextDir,
 			DockerfilePath: configs.DockerfilePath,
@@ -108,7 +103,7 @@ var provisionEcrCmd = &cobra.Command{
 			_, _ = buf.ReadBytes('\n')
 		}
 
-		accountID, ecrRegionName, ecrRepositoryName, ecrImageTag, parseErr = configs.ParseEcrImageRef(imageRef)
+		accountID, ecrRegionName, ecrRepositoryName, ecrImageTag, parseErr := configs.ParseEcrImageRef(imageRef)
 		if parseErr != nil {
 			return parseErr
 		}

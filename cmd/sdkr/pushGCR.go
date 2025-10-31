@@ -54,7 +54,7 @@ var pushGcrCmd = &cobra.Command{
 
 			if envVars["GOOGLE_APPLICATION_CREDENTIALS"] == "" {
 				pterm.Error.Println("Google Application Credentials is required")
-				return errors.New("Google Application Credentials is required")
+				return errors.New("google Application Credentials is required")
 			}
 		}
 

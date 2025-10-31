@@ -201,10 +201,7 @@ var deployCmd = &cobra.Command{
 		if imageName == "" {
 			return fmt.Errorf("%v", "No image name provided. Please provide an image name as an argument or in the config.")
 		}
-		tag := data.Sdkr.TargetImageTag
-		if tag == "" {
-			tag = "latest"
-		}
+
 		var imageRepo, imageTag string
 
 		if data.Sdkr.AwsECR {
@@ -315,8 +312,6 @@ var deployCmd = &cobra.Command{
 			}
 
 			if os.Getenv("DOCKER_USERNAME") == "" || os.Getenv("DOCKER_PASSWORD") == "" {
-				fmt.Println("error : ", os.Getenv("DOCKER_USERNAME"), "&&", os.Getenv("DOCKER_PASSWORD"))
-				pterm.Error.Println("Docker Hub credentials are required")
 				return errors.New("missing required Docker Hub credentials")
 			}
 
@@ -447,19 +442,6 @@ var deployCmd = &cobra.Command{
 			fullImageName := fmt.Sprintf("%s:%s", localImageName, localTag)
 			imageRepo = localImageName
 			imageTag = localTag
-
-			// // Login to GHCR
-			// pterm.Info.Println("Logging in to GitHub Container Registry...")
-			// loginOpts := docker.LoginOptions{
-			// 	Registry: "ghcr.io",
-			// 	Username: os.Getenv("USERNAME_GITHUB"),
-			// 	Password: os.Getenv("TOKEN_GITHUB"),
-			// }
-			// if err := docker.Login(loginOpts); err != nil {
-			// 	pterm.Error.Println("GHCR login failed:", err)
-			// 	return fmt.Errorf("GHCR login failed: %v", err)
-			// }
-			// pterm.Success.Println("Successfully logged in to GitHub Container Registry")
 
 			// Prepare build arguments
 			buildArgsMap := make(map[string]string)
@@ -624,7 +606,7 @@ var deployCmd = &cobra.Command{
 					if configs.Debug {
 						pterm.Println("Installation completed successfully")
 					}
-					pterm.Success.Println("Helm chart installed successfully.")
+
 					return nil
 				} else {
 					return fmt.Errorf("release %s not found in namespace %s. Use --install flag to install it", releaseName, namespace)
