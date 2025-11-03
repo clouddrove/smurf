@@ -1,13 +1,11 @@
 package sdkr
 
 import (
-	"fmt"
-	"os"
-
+	"github.com/clouddrove/smurf/internal/utils"
 	"github.com/spf13/cobra"
 )
 
-// defaultYamlContent contains the initial smurf.yaml structure
+// defaultYamlContent contains the initial smurf.yaml structure for sdkr
 var defaultYamlContent = `sdkr:
   docker_username: "my-docker-username"
   docker_password: "my-docker-password"
@@ -25,7 +23,7 @@ var defaultYamlContent = `sdkr:
   awsRegion: "us-east-1"
 `
 
-// sdkrCreateCmd defines the "smurf sdkr create" command
+// sdkrCreateCmd defines the "smurf sdkr init" command
 var sdkrCreateCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Create a default smurf.yaml file with sdkr configuration",
@@ -33,21 +31,7 @@ var sdkrCreateCmd = &cobra.Command{
 with default sdkr configuration placeholders.`,
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		fileName := "smurf.yaml"
-
-		// Check if file already exists to prevent accidental overwrite
-		if _, err := os.Stat(fileName); err == nil {
-			return fmt.Errorf("%s already exists. Delete or rename it before creating a new one", fileName)
-		}
-
-		// Write default YAML content
-		err := os.WriteFile(fileName, []byte(defaultYamlContent), 0644)
-		if err != nil {
-			return fmt.Errorf("failed to create %s: %v", fileName, err)
-		}
-
-		fmt.Printf("✅ %s created successfully.\n", fileName)
-		return nil
+		return utils.CreateYamlFile("smurf.yaml", defaultYamlContent)
 	},
 }
 
