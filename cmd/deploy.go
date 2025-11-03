@@ -356,16 +356,6 @@ func handleHelmDeploy(data *configs.Config, imageRepo, imageTag string) error {
 	)
 }
 
-// Helper function to update image values in setValues
-func updateImageValues(setValues *[]string, imageRepo, imageTag string) {
-	if imageRepo != "" {
-		*setValues = append(*setValues, fmt.Sprintf("image.repository=%s", imageRepo))
-	}
-	if imageTag != "" {
-		*setValues = append(*setValues, fmt.Sprintf("image.tag=%s", imageTag))
-	}
-}
-
 // Helper function to update values.yaml file directly
 func updateValuesYamlFile(valuesFilePath, imageRepo, imageTag string) error {
 	// Read the existing values.yaml file
