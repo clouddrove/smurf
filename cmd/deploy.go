@@ -15,6 +15,347 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var deployCmd = &cobra.Command{
+	Use:          "deploy",
+	Short:        "Deploy is used to perform operation provided smurf.yml file configuration.",
+	SilenceUsage: true,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		// 1️⃣ Load config
+		data, err := configs.LoadConfig(configs.FileName)
+		if err != nil {
+			return err
+		}
+
+		imageName := data.Sdkr.ImageName
+		if imageName == "" {
+			return fmt.Errorf("no image name provided in smurf.yaml or CLI argument")
+		}
+
+		var imageRepo, imageTag string
+
+		// 2️⃣ Handle registry push
+		switch {
+		case data.Sdkr.AwsECR:
+			imageRepo, imageTag, err = handleECRPush(data)
+		case data.Sdkr.DockerHub:
+			imageRepo, imageTag, err = handleDockerHubPush(data)
+		case data.Sdkr.GHCRRepo:
+			imageRepo, imageTag, err = handleGHCRPush(data)
+		default:
+			pterm.Warning.Println("No registry selected (awsECR/dockerHub/ghcrRepo). Skipping image push.")
+		}
+		if err != nil {
+			return err
+		}
+
+		// 3️⃣ Helm deployment
+		if data.Selm.HelmDeploy {
+			if err := handleHelmDeploy(data, imageRepo, imageTag); err != nil {
+				return err
+			}
+		}
+		return nil
+	},
+}
+
+func init() {
+	RootCmd.AddCommand(deployCmd)
+}
+
+func handleECRPush(data *configs.Config) (string, string, error) {
+	pterm.Info.Println("Pushing image to AWS ECR...")
+
+	localImageName, localTag, err := configs.ParseImage(data.Sdkr.ImageName)
+	if err != nil {
+		return "", "", fmt.Errorf("invalid image name: %v", err)
+	}
+	if localTag == "" {
+		localTag = "latest"
+	}
+
+	// Determine context directory
+	contextDir := configs.ContextDir
+	if contextDir == "" {
+		if wd, err := os.Getwd(); err == nil {
+			contextDir = wd
+		}
+	}
+
+	// Find Dockerfile
+	dockerfilePath, err := getDockerfilePath(data.Sdkr, contextDir)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to find Dockerfile: %v", err)
+	}
+
+	// Prepare build args
+	buildArgs := make(map[string]string)
+	for _, arg := range configs.BuildArgs {
+		if parts := strings.SplitN(arg, "=", 2); len(parts) == 2 {
+			buildArgs[parts[0]] = parts[1]
+		}
+	}
+
+	buildOpts := docker.BuildOptions{
+		ContextDir:     contextDir,
+		DockerfilePath: dockerfilePath,
+		NoCache:        configs.NoCache,
+		BuildArgs:      buildArgs,
+		Target:         configs.Target,
+		Platform:       configs.Platform,
+		Timeout:        time.Duration(configs.BuildTimeout) * time.Second,
+	}
+
+	if err := docker.Build(localImageName, localTag, buildOpts); err != nil {
+		return "", "", fmt.Errorf("ECR build failed: %v", err)
+	}
+
+	accountID, region, repo, tag, parseErr := configs.ParseEcrImageRef(data.Sdkr.ImageName)
+	if parseErr != nil {
+		return "", "", parseErr
+	}
+
+	fullImage := fmt.Sprintf("%s.dkr.ecr.%s.amazonaws.com/%s:%s", accountID, region, repo, tag)
+	if err := docker.PushImageToECR(fullImage, region, repo); err != nil {
+		return "", "", err
+	}
+
+	pterm.Success.Printf("✅ Successfully pushed to ECR: %s\n", fullImage)
+
+	if configs.DeleteAfterPush {
+		_ = docker.RemoveImage(fullImage)
+		pterm.Info.Printf("🧹 Deleted local image: %s\n", fullImage)
+	}
+
+	return fmt.Sprintf("%s.dkr.ecr.%s.amazonaws.com/%s", accountID, region, repo), tag, nil
+}
+
+func handleDockerHubPush(data *configs.Config) (string, string, error) {
+	pterm.Info.Println("Pushing image to Docker Hub...")
+
+	username := os.Getenv("DOCKER_USERNAME")
+	password := os.Getenv("DOCKER_PASSWORD")
+
+	if username == "" && password == "" {
+		envVars := map[string]string{
+			"DOCKER_USERNAME": data.Sdkr.DockerUsername,
+			"DOCKER_PASSWORD": data.Sdkr.DockerPassword,
+		}
+		if err := configs.ExportEnvironmentVariables(envVars); err != nil {
+			return "", "", err
+		}
+	}
+
+	localImageName, localTag, err := configs.ParseImage(data.Sdkr.ImageName)
+	if err != nil {
+		return "", "", fmt.Errorf("invalid image format: %v", err)
+	}
+	if localTag == "" {
+		localTag = "latest"
+	}
+
+	fullImageName := fmt.Sprintf("%s:%s", localImageName, localTag)
+
+	// Build args
+	buildArgs := make(map[string]string)
+	for _, arg := range configs.BuildArgs {
+		if parts := strings.SplitN(arg, "=", 2); len(parts) == 2 {
+			buildArgs[parts[0]] = parts[1]
+		}
+	}
+
+	contextDir := configs.ContextDir
+	if contextDir == "" {
+		if wd, err := os.Getwd(); err == nil {
+			contextDir = wd
+		}
+	}
+	dockerfilePath := configs.DockerfilePath
+	if dockerfilePath == "" {
+		dockerfilePath = filepath.Join(contextDir, "Dockerfile")
+	}
+
+	buildOpts := docker.BuildOptions{
+		ContextDir:     contextDir,
+		DockerfilePath: dockerfilePath,
+		NoCache:        configs.NoCache,
+		BuildArgs:      buildArgs,
+		Target:         configs.Target,
+		Platform:       configs.Platform,
+		Timeout:        time.Duration(configs.BuildTimeout) * time.Second,
+	}
+
+	if err := docker.Build(localImageName, localTag, buildOpts); err != nil {
+		return "", "", err
+	}
+
+	pterm.Info.Printf("🚀 Pushing image %s...\n", fullImageName)
+	pushOpts := docker.PushOptions{ImageName: fullImageName, Timeout: 1000 * time.Second}
+
+	if err := docker.PushImage(pushOpts); err != nil {
+		return "", "", err
+	}
+	pterm.Success.Printf("✅ Successfully pushed to Docker Hub: %s\n", fullImageName)
+
+	if configs.DeleteAfterPush {
+		_ = docker.RemoveImage(fullImageName)
+		pterm.Info.Printf("🧹 Deleted local image: %s\n", fullImageName)
+	}
+
+	return localImageName, localTag, nil
+}
+
+func handleGHCRPush(data *configs.Config) (string, string, error) {
+	pterm.Info.Println("Pushing image to GitHub Container Registry (GHCR)...")
+
+	imageName := data.Sdkr.ImageName
+	if !strings.HasPrefix(imageName, "ghcr.io/") {
+		return "", "", errors.New("GHCR image must start with 'ghcr.io/'")
+	}
+
+	if os.Getenv("USERNAME_GITHUB") == "" && os.Getenv("TOKEN_GITHUB") == "" {
+		envVars := map[string]string{
+			"USERNAME_GITHUB": data.Sdkr.GithubUsername,
+			"TOKEN_GITHUB":    data.Sdkr.GithubToken,
+		}
+		if err := configs.ExportEnvironmentVariables(envVars); err != nil {
+			return "", "", err
+		}
+	}
+
+	localImageName, localTag, err := configs.ParseImage(imageName)
+	if err != nil {
+		return "", "", fmt.Errorf("invalid image format: %v", err)
+	}
+	if localTag == "" {
+		localTag = "latest"
+	}
+
+	fullImage := fmt.Sprintf("%s:%s", localImageName, localTag)
+
+	// Build args
+	buildArgs := make(map[string]string)
+	for _, arg := range configs.BuildArgs {
+		if parts := strings.SplitN(arg, "=", 2); len(parts) == 2 {
+			buildArgs[parts[0]] = parts[1]
+		}
+	}
+
+	contextDir := configs.ContextDir
+	if contextDir == "" {
+		if wd, err := os.Getwd(); err == nil {
+			contextDir = wd
+		}
+	}
+	dockerfilePath := configs.DockerfilePath
+	if dockerfilePath == "" {
+		dockerfilePath = filepath.Join(contextDir, "Dockerfile")
+	}
+
+	buildOpts := docker.BuildOptions{
+		ContextDir:     contextDir,
+		DockerfilePath: dockerfilePath,
+		NoCache:        configs.NoCache,
+		BuildArgs:      buildArgs,
+		Target:         configs.Target,
+		Platform:       configs.Platform,
+		Timeout:        time.Duration(configs.BuildTimeout) * time.Second,
+	}
+
+	if err := docker.Build(localImageName, localTag, buildOpts); err != nil {
+		return "", "", err
+	}
+
+	pterm.Info.Printf("🚀 Pushing image %s to GHCR...\n", fullImage)
+	if err := docker.PushToGHCR(docker.PushOptions{
+		ImageName: fullImage,
+		Timeout:   1000 * time.Second,
+	}); err != nil {
+		return "", "", err
+	}
+
+	pterm.Success.Printf("✅ Successfully pushed to GHCR: %s\n", fullImage)
+
+	if configs.DeleteAfterPush {
+		_ = docker.RemoveImage(fullImage)
+		pterm.Info.Printf("🧹 Deleted local image: %s\n", fullImage)
+	}
+
+	return localImageName, localTag, nil
+}
+
+func handleHelmDeploy(data *configs.Config, imageRepo, imageTag string) error {
+	pterm.Info.Println("Starting Helm deployment...")
+
+	releaseName := data.Selm.ReleaseName
+	if releaseName == "" {
+		releaseName = filepath.Base(data.Selm.ChartName)
+	}
+
+	chartPath := data.Selm.ChartName
+	if releaseName == "" || chartPath == "" {
+		return errors.New("release name or chart path missing in config")
+	}
+
+	namespace := data.Selm.Namespace
+	if namespace == "" {
+		namespace = "default"
+	}
+
+	valuesFilePath, err := getValuesFilePath(data.Selm, chartPath)
+	if err != nil {
+		return err
+	}
+
+	if imageRepo != "" && imageTag != "" {
+		if err := updateValuesYamlFile(valuesFilePath, imageRepo, imageTag); err != nil {
+			return fmt.Errorf("failed to update values.yaml: %v", err)
+		}
+		pterm.Success.Println("✅ Updated values.yaml with new image details")
+	}
+
+	timeoutDuration := time.Duration(configs.Timeout) * time.Second
+
+	exists, err := helm.HelmReleaseExists(releaseName, namespace, configs.Debug)
+	if err != nil {
+		return err
+	}
+
+	if !exists {
+		pterm.Info.Printf("Installing Helm release %s...\n", releaseName)
+		return helm.HelmInstall(
+			releaseName,
+			chartPath,
+			namespace,
+			configs.File,
+			timeoutDuration,
+			configs.Atomic,
+			configs.Debug,
+			configs.Set,
+			configs.SetLiteral,
+			"",
+			"",
+			true,
+		)
+	}
+
+	pterm.Info.Printf("Upgrading Helm release %s...\n", releaseName)
+	return helm.HelmUpgrade(
+		releaseName,
+		chartPath,
+		namespace,
+		configs.Set,
+		configs.File,
+		configs.SetLiteral,
+		true,
+		configs.Atomic,
+		timeoutDuration,
+		configs.Debug,
+		"",
+		"",
+		true,
+	)
+}
+
 // Helper function to update image values in setValues
 func updateImageValues(setValues *[]string, imageRepo, imageTag string) {
 	if imageRepo != "" {
@@ -185,468 +526,4 @@ func getDockerfilePath(sdkrConfig configs.SdkrConfig, contextDir string) (string
 	}
 
 	return "", fmt.Errorf("could not find Dockerfile. Please specify dockerfile in config or ensure Dockerfile exists in context directory")
-}
-
-var deployCmd = &cobra.Command{
-	Use:          "deploy",
-	Short:        "Deploy is used to perform operation provided smurf.yml file configuration.",
-	SilenceUsage: true,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		data, err := configs.LoadConfig(configs.FileName)
-		if err != nil {
-			return err
-		}
-
-		imageName := data.Sdkr.ImageName
-		if imageName == "" {
-			return fmt.Errorf("%v", "No image name provided. Please provide an image name as an argument or in the config.")
-		}
-
-		var imageRepo, imageTag string
-
-		if data.Sdkr.AwsECR {
-			localImageName, localTag, parseErr := configs.ParseImage(imageName)
-			if parseErr != nil {
-				return fmt.Errorf("invalid image format: %v", parseErr)
-			}
-
-			if localTag == "" {
-				localTag = "latest"
-			}
-
-			// Determine context directory
-			contextDir := configs.ContextDir
-			if contextDir == "" {
-				wd, err := os.Getwd()
-				if err != nil {
-					return fmt.Errorf("failed to get current working directory: %w", err)
-				}
-				contextDir = wd
-			}
-
-			// Get Dockerfile path dynamically
-			dockerfilePath, err := getDockerfilePath(data.Sdkr, contextDir)
-			if err != nil {
-				return fmt.Errorf("failed to find Dockerfile: %v", err)
-			}
-
-			pterm.Info.Printf("Using Dockerfile: %s\n", dockerfilePath)
-			pterm.Info.Printf("Using build context: %s\n", contextDir)
-
-			fullEcrImage := fmt.Sprintf(
-				"%s.dkr.ecr.%s.amazonaws.com/%s:%s",
-				localImageName,
-				configs.Region,
-				configs.Repository,
-				localTag,
-			)
-
-			buildArgsMap := make(map[string]string)
-			for _, arg := range configs.BuildArgs {
-				parts := strings.SplitN(arg, "=", 2)
-				if len(parts) == 2 {
-					buildArgsMap[parts[0]] = parts[1]
-				}
-			}
-
-			buildOpts := docker.BuildOptions{
-				ContextDir:     contextDir,
-				DockerfilePath: dockerfilePath,
-				NoCache:        configs.NoCache,
-				BuildArgs:      buildArgsMap,
-				Target:         configs.Target,
-				Platform:       configs.Platform,
-				Timeout:        time.Duration(configs.BuildTimeout) * time.Second,
-			}
-
-			if err := docker.Build(localImageName, localTag, buildOpts); err != nil {
-				return fmt.Errorf("build failed: %v", err)
-			}
-
-			pushImage := imageName
-			if pushImage == "" {
-				pushImage = fullEcrImage
-			}
-
-			accountID, ecrRegionName, ecrRepositoryName, ecrImageTag, parseErr := configs.ParseEcrImageRef(imageName)
-			if parseErr != nil {
-				return parseErr
-			}
-
-			if accountID == "" || ecrRegionName == "" || ecrRepositoryName == "" || ecrImageTag == "" {
-				return errors.New("invalid image reference: missing account ID, region, or repository name")
-			}
-			imageName = fmt.Sprintf("%s.dkr.ecr.%s.amazonaws.com/%s:%s",
-				accountID, ecrRegionName, ecrRepositoryName, ecrImageTag,
-			)
-
-			// Store image repo and tag for Helm deployment
-			imageRepo = fmt.Sprintf("%s.dkr.ecr.%s.amazonaws.com/%s",
-				accountID, ecrRegionName, ecrRepositoryName)
-			imageTag = ecrImageTag
-
-			pterm.Info.Printf("Pushing image %s to ECR...\n", pushImage)
-			if err := docker.PushImageToECR(imageName, ecrRegionName, ecrRepositoryName); err != nil {
-				return err
-			}
-			pterm.Success.Println("Push to ECR completed successfully.")
-
-			if configs.DeleteAfterPush {
-				pterm.Info.Printf("Deleting local image %s...\n", fullEcrImage)
-				if err := docker.RemoveImage(fullEcrImage); err != nil {
-					return err
-				}
-				pterm.Success.Println("Successfully deleted local image:", fullEcrImage)
-			}
-		}
-
-		if data.Sdkr.DockerHub {
-			if os.Getenv("DOCKER_USERNAME") == "" && os.Getenv("DOCKER_PASSWORD") == "" {
-				envVars := map[string]string{
-					"DOCKER_USERNAME": data.Sdkr.DockerUsername,
-					"DOCKER_PASSWORD": data.Sdkr.DockerPassword,
-				}
-				if err := configs.ExportEnvironmentVariables(envVars); err != nil {
-					return err
-				}
-			}
-
-			if os.Getenv("DOCKER_USERNAME") == "" || os.Getenv("DOCKER_PASSWORD") == "" {
-				return errors.New("missing required Docker Hub credentials")
-			}
-
-			localImageName, localTag, parseErr := configs.ParseImage(imageName)
-			if parseErr != nil {
-				pterm.Error.Printfln("invalid image format: %v", parseErr)
-				return fmt.Errorf("invalid image format: %v", parseErr)
-			}
-			if localImageName == "" {
-				pterm.Error.Printfln("invalid image reference")
-				return errors.New("invalid image reference")
-			}
-			if localTag == "" {
-				localTag = "latest"
-			}
-
-			imageRepo = localImageName
-			imageTag = localTag
-			fullImageName := fmt.Sprintf("%s:%s", localImageName, localTag)
-
-			buildArgsMap := make(map[string]string)
-			for _, arg := range configs.BuildArgs {
-				parts := strings.SplitN(arg, "=", 2)
-				if len(parts) == 2 {
-					buildArgsMap[parts[0]] = parts[1]
-				}
-			}
-
-			if configs.ContextDir == "" {
-				wd, err := os.Getwd()
-				if err != nil {
-					pterm.Error.Printfln("Failed to get current working directory: %v", err)
-					return fmt.Errorf("failed to get current working directory: %v", err)
-				}
-				configs.ContextDir = wd
-			}
-
-			if configs.DockerfilePath == "" {
-				configs.DockerfilePath = filepath.Join(configs.ContextDir, "Dockerfile")
-			} else {
-				configs.DockerfilePath = filepath.Join(configs.ContextDir, configs.DockerfilePath)
-			}
-
-			buildOpts := docker.BuildOptions{
-				DockerfilePath: configs.DockerfilePath,
-				NoCache:        configs.NoCache,
-				BuildArgs:      buildArgsMap,
-				Target:         configs.Target,
-				Platform:       configs.Platform,
-				Timeout:        time.Duration(configs.BuildTimeout) * time.Second,
-				ContextDir:     configs.ContextDir,
-			}
-
-			pterm.Info.Println("Starting build...")
-			if err := docker.Build(localImageName, localTag, buildOpts); err != nil {
-				return err
-			}
-			pterm.Success.Println("Build completed successfully.")
-			pterm.Info.Printf("Pushing image %s...\n", fullImageName)
-			pushOpts := docker.PushOptions{
-				ImageName: fullImageName,
-				Timeout:   1000000000000,
-			}
-			if err := docker.PushImage(pushOpts); err != nil {
-				pterm.Error.Println("Push failed:", err)
-				return err
-			}
-
-			if configs.DeleteAfterPush {
-				pterm.Info.Printf("Deleting local image %s...\n", fullImageName)
-				if err := docker.RemoveImage(fullImageName); err != nil {
-					pterm.Error.Println("Failed to delete local image:", err)
-					return err
-				}
-				pterm.Success.Println("Successfully deleted local image:", fullImageName)
-			}
-
-		}
-
-		if data.Sdkr.GHCRRepo {
-			// Validate that image reference includes GHCR registry
-			if !strings.HasPrefix(imageName, "ghcr.io/") {
-				pterm.Error.Printfln("GHCR image must start with 'ghcr.io/', got: %s", imageName)
-				pterm.Info.Println("GHCR images must be in the format: ghcr.io/OWNER/IMAGE_NAME:TAG")
-				return errors.New("invalid GHCR image format")
-			}
-
-			// Check for GitHub credentials
-			if os.Getenv("USERNAME_GITHUB") == "" && os.Getenv("TOKEN_GITHUB") == "" {
-				data, err := configs.LoadConfig(configs.FileName)
-				if err != nil {
-					return err
-				}
-
-				envVars := map[string]string{
-					"USERNAME_GITHUB": data.Sdkr.GithubUsername,
-					"TOKEN_GITHUB":    data.Sdkr.GithubToken,
-				}
-				if err := configs.ExportEnvironmentVariables(envVars); err != nil {
-					return err
-				}
-			}
-
-			if os.Getenv("USERNAME_GITHUB") == "" || os.Getenv("TOKEN_GITHUB") == "" {
-				pterm.Error.Println("GitHub Container Registry credentials are required")
-				pterm.Info.Println("You can set them via environment variables:")
-				pterm.Info.Println("  export USERNAME_GITHUB=\"your-username\"")
-				pterm.Info.Println("  export TOKEN_GITHUB=\"your-github-personal-access-token\"")
-				pterm.Info.Println("The token must have 'write:packages' scope")
-				pterm.Info.Println("Or set them in your config file as USERNAME_GITHUB and TOKEN_GITHUB")
-				return errors.New("missing required GitHub Container Registry credentials")
-			}
-
-			// Parse image reference
-			localImageName, localTag, parseErr := configs.ParseImage(imageName)
-			if parseErr != nil {
-				pterm.Error.Printfln("invalid image format: %v", parseErr)
-				return fmt.Errorf("invalid image format: %v", parseErr)
-			}
-			if localImageName == "" {
-				pterm.Error.Printfln("invalid image reference")
-				return errors.New("invalid image reference")
-			}
-			if localTag == "" {
-				localTag = "latest"
-			}
-
-			fullImageName := fmt.Sprintf("%s:%s", localImageName, localTag)
-			imageRepo = localImageName
-			imageTag = localTag
-
-			// Prepare build arguments
-			buildArgsMap := make(map[string]string)
-			for _, arg := range configs.BuildArgs {
-				parts := strings.SplitN(arg, "=", 2)
-				if len(parts) == 2 {
-					buildArgsMap[parts[0]] = parts[1]
-				}
-			}
-
-			// Set context and Dockerfile paths
-			if configs.ContextDir == "" {
-				wd, err := os.Getwd()
-				if err != nil {
-					pterm.Error.Printfln("Failed to get current working directory: %v", err)
-					return fmt.Errorf("failed to get current working directory: %v", err)
-				}
-				configs.ContextDir = wd
-			}
-
-			if configs.DockerfilePath == "" {
-				configs.DockerfilePath = filepath.Join(configs.ContextDir, "Dockerfile")
-			} else {
-				configs.DockerfilePath = filepath.Join(configs.ContextDir, configs.DockerfilePath)
-			}
-
-			// Build options
-			buildOpts := docker.BuildOptions{
-				DockerfilePath: configs.DockerfilePath,
-				NoCache:        configs.NoCache,
-				BuildArgs:      buildArgsMap,
-				Target:         configs.Target,
-				Platform:       configs.Platform,
-				Timeout:        time.Duration(configs.BuildTimeout) * time.Second,
-				ContextDir:     configs.ContextDir,
-			}
-
-			// Build image
-			pterm.Info.Println("Starting build...")
-			if err := docker.Build(localImageName, localTag, buildOpts); err != nil {
-				return err
-			}
-			pterm.Success.Println("Build completed successfully.")
-
-			// Push image to GHCR
-			pterm.Info.Printf("Pushing image %s to GitHub Container Registry...\n", fullImageName)
-			pushOpts := docker.PushOptions{
-				ImageName: fullImageName,
-				Timeout:   1000 * time.Second,
-			}
-			if err := docker.PushToGHCR(pushOpts); err != nil {
-				pterm.Error.Println("Push to GHCR failed:", err)
-				return err
-			}
-			pterm.Success.Printf("Successfully pushed %s to GitHub Container Registry\n", fullImageName)
-
-			// Clean up local image if requested
-			if configs.DeleteAfterPush {
-				pterm.Info.Printf("Deleting local image %s...\n", fullImageName)
-				if err := docker.RemoveImage(fullImageName); err != nil {
-					pterm.Warning.Printf("Failed to delete local image: %v\n", err)
-					// Don't fail the entire process if delete fails
-				} else {
-					pterm.Success.Println("Successfully deleted local image:", fullImageName)
-				}
-			}
-		}
-
-		if data.Selm.HelmDeploy {
-			if configs.Debug {
-				pterm.EnableDebugMessages()
-				pterm.Println("=== DEBUG MODE ENABLED ===")
-			}
-
-			releaseName := data.Selm.ReleaseName
-			if releaseName == "" {
-				releaseName = filepath.Base(data.Selm.ChartName)
-			}
-
-			chartPath := data.Selm.ChartName
-
-			if releaseName == "" || chartPath == "" {
-				return errors.New("RELEASE and CHART must be provided either as arguments or in the config")
-			}
-
-			namespace := data.Selm.Namespace
-			if namespace == "" {
-				namespace = "default"
-			}
-
-			// Get values file path
-			valuesFilePath, err := getValuesFilePath(data.Selm, chartPath)
-			if err != nil {
-				return err
-			}
-
-			pterm.Info.Printf("Using values file: %s\n", valuesFilePath)
-
-			// Update values.yaml file with new image details
-			if imageRepo != "" || imageTag != "" {
-				pterm.Info.Printf("Updating values.yaml with image - Repository: %s, Tag: %s\n", imageRepo, imageTag)
-				if err := updateValuesYamlFile(valuesFilePath, imageRepo, imageTag); err != nil {
-					return fmt.Errorf("failed to update values.yaml: %v", err)
-				}
-				pterm.Success.Println("Successfully updated values.yaml file")
-			}
-
-			timeoutDuration := time.Duration(configs.Timeout) * time.Second
-
-			createNamespace := true
-			installIfNotPresent := true
-			wait := true
-			RepoURL := ""
-			Version := ""
-
-			// Prepare set values for Helm (as backup)
-			setValues := configs.Set
-			if setValues == nil {
-				setValues = []string{}
-			}
-
-			// Also add image values to setValues as backup
-			if imageRepo != "" || imageTag != "" {
-				updateImageValues(&setValues, imageRepo, imageTag)
-			}
-
-			if configs.Debug {
-				pterm.Printf("Configuration\n")
-				pterm.Printf("  - Release: %s\n", releaseName)
-				pterm.Printf("  - Chart: %s\n", chartPath)
-				pterm.Printf("  - Namespace: %s\n", namespace)
-				pterm.Printf("  - Values File: %s\n", valuesFilePath)
-				pterm.Printf("  - Timeout: %v\n", timeoutDuration)
-				pterm.Printf("  - Atomic: %t\n", configs.Atomic)
-				pterm.Printf("  - Create Namespace: %t\n", createNamespace)
-				pterm.Printf("  - Install if not present: %t\n", installIfNotPresent)
-				pterm.Printf("  - Wait: %t\n", wait)
-				pterm.Printf("  - Set values: %v\n", setValues)
-				pterm.Printf("  - Values files: %v\n", configs.File)
-				pterm.Printf("  - Set literal: %v\n", configs.SetLiteral)
-				pterm.Printf("  - Repo URL: %s\n", RepoURL)
-				pterm.Printf("  - Version: %s\n", Version)
-				if imageName != "" {
-					pterm.Printf("  - ECR Image: %s\n", imageName)
-				}
-			}
-
-			// Check if release exists
-			exists, err := helm.HelmReleaseExists(releaseName, namespace, configs.Debug)
-			if err != nil {
-				return err
-			}
-
-			if !exists {
-				if installIfNotPresent {
-					if configs.Debug {
-						pterm.Println("Release not found, installing...")
-					}
-					if err := helm.HelmInstall(releaseName, chartPath, namespace, configs.File, timeoutDuration, configs.Atomic, configs.Debug, setValues, configs.SetLiteral, RepoURL, Version, wait); err != nil {
-						return err
-					}
-					if configs.Debug {
-						pterm.Println("Installation completed successfully")
-					}
-
-					return nil
-				} else {
-					return fmt.Errorf("release %s not found in namespace %s. Use --install flag to install it", releaseName, namespace)
-				}
-			}
-
-			if configs.Debug {
-				pterm.Println("Release exists, proceeding with upgrade")
-			}
-
-			if configs.Debug {
-				pterm.Println("Starting Helm upgrade...")
-			}
-
-			err = helm.HelmUpgrade(
-				releaseName,
-				chartPath,
-				namespace,
-				setValues,
-				configs.File,
-				configs.SetLiteral,
-				createNamespace,
-				configs.Atomic,
-				timeoutDuration,
-				configs.Debug,
-				RepoURL,
-				Version,
-				wait,
-			)
-			if err != nil {
-				return fmt.Errorf("helm upgrade failed: %v", err)
-			}
-
-			pterm.Success.Println("Helm deployment completed successfully.")
-		}
-
-		return nil
-	},
-}
-
-func init() {
-	RootCmd.AddCommand(deployCmd)
 }
