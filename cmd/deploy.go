@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"os"
@@ -58,10 +59,6 @@ var deployCmd = &cobra.Command{
 
 func init() { RootCmd.AddCommand(deployCmd) }
 
-//
-// 🧱 Shared Helpers
-//
-
 func buildImageWithOpts(imageName, tag string) error {
 	opts, err := prepareDockerBuild()
 	if err != nil {
@@ -106,10 +103,6 @@ func maybeCleanup(image string) {
 		pterm.Info.Printf("🧹 Deleted local image: %s\n", image)
 	}
 }
-
-//
-// ☁️ Registry Handlers (preserve your logic)
-//
 
 func handleECRPush(cfg *configs.Config) (string, string, error) {
 	pterm.Info.Println("📦 Handling AWS ECR push...")
@@ -228,6 +221,12 @@ func handleGHCRPush(cfg *configs.Config) (string, string, error) {
 func handleHelmDeploy(data *configs.Config, imageRepo, imageTag string) error {
 	pterm.Info.Println("Starting Helm deployment...")
 
+	if strings.Contains(imageRepo, ":") {
+		parts := strings.SplitN(imageRepo, ":", 2)
+		imageRepo = parts[0]
+		pterm.Info.Printf("🧹 Cleaned image repo: %s (removed internal tag)\n", imageRepo)
+	}
+
 	releaseName := data.Selm.ReleaseName
 	if releaseName == "" {
 		releaseName = filepath.Base(data.Selm.ChartName)
@@ -298,85 +297,87 @@ func handleHelmDeploy(data *configs.Config, imageRepo, imageTag string) error {
 	)
 }
 
-// Helper function to update values.yaml file directly
+// updateValuesYamlFile updates image.repository and image.tag fields in values.yaml safely.
 func updateValuesYamlFile(valuesFilePath, imageRepo, imageTag string) error {
-	// Read the existing values.yaml file
-	content, err := os.ReadFile(valuesFilePath)
-	if err != nil {
-		return fmt.Errorf("failed to read values.yaml file: %v", err)
+	if imageRepo == "" && imageTag == "" {
+		pterm.Warning.Println("⚠️ No imageRepo or imageTag provided, skipping values.yaml update.")
+		return nil
 	}
 
-	lines := strings.Split(string(content), "\n")
+	pterm.Info.Printf("🔧 Updating values.yaml: %s\n", valuesFilePath)
+
+	file, err := os.Open(valuesFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to open values.yaml: %v", err)
+	}
+	defer file.Close()
+
 	var updatedLines []string
-
-	imageRepoUpdated := false
-	imageTagUpdated := false
 	inImageSection := false
+	repoUpdated, tagUpdated := false, false
 
-	for i, line := range lines {
-		trimmedLine := strings.TrimSpace(line)
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		trimmed := strings.TrimSpace(line)
 
-		// Check if we're in the image section
-		if trimmedLine == "image:" {
+		// detect "image:" section
+		if strings.HasPrefix(trimmed, "image:") {
 			inImageSection = true
 			updatedLines = append(updatedLines, line)
 			continue
 		}
 
-		// If we're in image section, look for repository and tag
 		if inImageSection {
-			if strings.HasPrefix(trimmedLine, "repository:") {
-				if imageRepo != "" {
-					updatedLines = append(updatedLines, fmt.Sprintf("  repository: %s", imageRepo))
-					imageRepoUpdated = true
-					continue
-				}
+			// repository line
+			if strings.HasPrefix(trimmed, "repository:") && imageRepo != "" {
+				indent := strings.Repeat(" ", len(line)-len(strings.TrimLeft(line, " ")))
+				line = fmt.Sprintf("%srepository: %s", indent, imageRepo)
+				repoUpdated = true
 			}
 
-			if strings.HasPrefix(trimmedLine, "tag:") {
-				if imageTag != "" {
-					if imageTag == "" {
-						updatedLines = append(updatedLines, "  tag: \"\"")
-					} else {
-						updatedLines = append(updatedLines, fmt.Sprintf("  tag: \"%s\"", imageTag))
-					}
-					imageTagUpdated = true
-					continue
-				}
+			// tag line
+			if strings.HasPrefix(trimmed, "tag:") && imageTag != "" {
+				indent := strings.Repeat(" ", len(line)-len(strings.TrimLeft(line, " ")))
+				line = fmt.Sprintf("%stag: \"%s\"", indent, imageTag)
+				tagUpdated = true
 			}
 
-			// Check if we're leaving the image section
-			if trimmedLine != "" && !strings.HasPrefix(trimmedLine, " ") && !strings.HasPrefix(trimmedLine, "\t") {
+			// exit image section if next top-level key found
+			if trimmed != "" && !strings.HasPrefix(trimmed, "#") &&
+				!strings.HasPrefix(trimmed, "repository:") &&
+				!strings.HasPrefix(trimmed, "tag:") &&
+				!strings.HasPrefix(line, " ") {
 				inImageSection = false
 			}
 		}
 
 		updatedLines = append(updatedLines, line)
+	}
 
-		// If this is the last line and we need to add image section, add it
-		if i == len(lines)-1 && (!imageRepoUpdated || !imageTagUpdated) {
-			updatedLines = append(updatedLines, "")
-			updatedLines = append(updatedLines, "image:")
-			if !imageRepoUpdated && imageRepo != "" {
-				updatedLines = append(updatedLines, fmt.Sprintf("  repository: %s", imageRepo))
-			}
-			if !imageTagUpdated && imageTag != "" {
-				if imageTag == "" {
-					updatedLines = append(updatedLines, "  tag: \"\"")
-				} else {
-					updatedLines = append(updatedLines, fmt.Sprintf("  tag: \"%s\"", imageTag))
-				}
-			}
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("error reading values.yaml: %v", err)
+	}
+
+	// if repository/tag not found, append new image section
+	if !repoUpdated || !tagUpdated {
+		updatedLines = append(updatedLines, "")
+		updatedLines = append(updatedLines, "image:")
+		if !repoUpdated && imageRepo != "" {
+			updatedLines = append(updatedLines, fmt.Sprintf("  repository: %s", imageRepo))
+		}
+		if !tagUpdated && imageTag != "" {
+			updatedLines = append(updatedLines, fmt.Sprintf("  tag: \"%s\"", imageTag))
 		}
 	}
 
-	// Write the updated content back to the file
-	updatedContent := strings.Join(updatedLines, "\n")
-	err = os.WriteFile(valuesFilePath, []byte(updatedContent), 0644)
-	if err != nil {
-		return fmt.Errorf("failed to write values.yaml file: %v", err)
+	// write back
+	output := strings.Join(updatedLines, "\n")
+	if err := os.WriteFile(valuesFilePath, []byte(output), 0644); err != nil {
+		return fmt.Errorf("failed to write updated values.yaml: %v", err)
 	}
 
+	pterm.Success.Printf("✅ Updated values.yaml successfully:\n  repository: %s\n  tag: %s\n", imageRepo, imageTag)
 	return nil
 }
 
