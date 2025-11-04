@@ -70,6 +70,36 @@ Easily manage Terraform workflows:
 
 ---
 
+### 🚀 `smurf deploy` command
+Streamline read credential from `smurf.yaml` file Docker image build, push on given repo and easily deploy using `smurf selm`
+- `deploy` → runs (`build` ➝ `push` ➝ `deploy`)
+
+---
+
+## 🧰 Credential Fallback from `smurf.yaml`
+
+Smurf supports **automatic credential fallback**.  
+If required credentials (like username or token) are not provided via CLI or environment variables, Smurf will read them directly from your `smurf.yaml` file.
+
+### Example
+```yaml
+sdkr:
+  awsECR: false
+  dockerHub: false
+  ghcrRepo: false
+  dockerfile: ""
+  imageName: ""
+selm:
+  chartName: ""
+  deployHelm: true
+  fileName: ""
+  namespace: ""
+  releaseName: ""
+  revision: 0
+  ```
+
+---
+
 ### ☁️ Multicloud Container Registry
 Push images to multiple registries from one CLI:
 - Supported: **AWS ECR**, **GCP GCR**, **Azure ACR**, **Docker Hub**
