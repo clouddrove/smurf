@@ -22,10 +22,11 @@ var provisionHubCmd = &cobra.Command{
 	Use:   "provision-hub [IMAGE_NAME[:TAG]]",
 	Short: "Build, scan, and push a Docker image .",
 	Long: `Build, scan, and push a Docker image to Docker Hub.
-Set DOCKER_USERNAME and DOCKER_PASSWORD environment variables for Docker Hub authentication, for example:
-  export DOCKER_USERNAME="your-username"
-  export DOCKER_PASSWORD="your-password"`,
-	Args: cobra.MaximumNArgs(1),
+	Set DOCKER_USERNAME and DOCKER_PASSWORD environment variables for Docker Hub authentication, for example:
+  	export DOCKER_USERNAME="your-username"
+  	export DOCKER_PASSWORD="your-password"`,
+	Args:         cobra.MaximumNArgs(1),
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var imageRef string
 		if len(args) == 1 {
