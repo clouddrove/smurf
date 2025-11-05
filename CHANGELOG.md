@@ -13,7 +13,7 @@ All notable and important changes to **Smurf Tool** are documented here.
 - Introduced `smurf selm init` and related Helm management features.
 
 ### Fixed
-- Removed duplicate logic detected by SonarCube.
+- Removed duplicate logic detected by SonarQube Cloud.
 - Fixed Helm nil pointer error in test templates.
 
 ---
