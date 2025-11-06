@@ -32,9 +32,9 @@
 </a>
 </p>
 
-Smurf is a command-line interface (CLI) application built using Golang leveraging technology specific SDKs, designed to simplify and automate commands for essential tools like Terraform and Docker. It provides intuitive, unified commands to execute Terraform plans, Docker container management, and other DevOps tasks seamlessly from one interface. Whether you need to spin up environments, manage containers, or apply infrastructure as code, this CLI streamlines multi-tool operations, boosting productivity and reducing context-switching.
+Smurf is a command-line interface (CLI) application built using Golang leveraging technology specific SDKs, designed to simplify and automate commands for essential tools like Docker, Helm and Terraform. It provides intuitive, unified commands to execute Helm package manager, Terraform plans and Docker container management, and other DevOps tasks seamlessly from one interface. Whether you need to spin up environments, manage containers, or apply infrastructure as code, this CLI streamlines multi-tool operations, boosting productivity and reducing context-switching.
 
-Smurf isn’t just another CLI tool—it’s your DevOps powerhouse. Managing Terraform, Docker, and other essential tools separately is a hassle. Constant context-switching slows you down, and remembering multiple CLI syntaxes is frustrating. Smurf simplifies this by providing a unified, intuitive interface to streamline your workflows.
+Smurf isn’t just another CLI tool—it’s your DevOps powerhouse. Managing Helm, Docker and Terraform and other essential tools separately is a hassle. Constant context-switching slows you down, and remembering multiple CLI syntaxes is frustrating. Smurf simplifies this by providing a unified, intuitive interface to streamline your workflows.
 With Smurf, you can spin up environments, manage containers, and apply infrastructure as code—all from a single command-line tool. It boosts productivity, reduces errors, and helps you focus on delivering solutions rather than troubleshooting commands. If efficiency and automation matter to you, Smurf is the tool you’ve been waiting for.
 
 ## What can you do with Smurf
@@ -63,7 +63,11 @@ Helm Commands in Smurf ⎈
 - **`status`**: Status of a Helm release.  
 - **`template`**: Render chart templates.  
 - **`uninstall`**: Uninstall a Helm release.  
-- **`upgrade`**: Upgrade a deployed Helm chart.  
+- **`upgrade`**: Upgrade a deployed Helm chart. 
+- **`history`**: Prints historical revisions for a given release.
+- **`pull`**: Downloads a chart from a repository
+- **`init`**: Create `smurf.yaml` configuration file
+- **`plugin`**: Manage plugins, which are add-on tools that extend Helm's core functionality.
 
 Terraform Commands in Smurf ⚙️
 
@@ -78,6 +82,10 @@ Terraform Commands in Smurf ⚙️
 - **`provision`**: Combination of `init`, `plan`, `apply`, and `output` for Terraform.  
 - **`refresh`**: Update the state file of your infrastructure.  
 - **`state-list`**: List resources in the Terraform state.  
+
+Other Helping Commands in Smurf 🤝
+- **`init`**: Create `smurf.yaml` configuration file 
+- **`deploy`**: Build and push the Docker image, update the container details in the Helm chart’s values file, and install or upgrade the release — all in a single command.
 
 ## Contributors ✨ 
 

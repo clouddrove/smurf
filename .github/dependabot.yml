@@ -11,6 +11,7 @@ updates:
     # Add reviewer
     reviewers: 
       - "anmolnagpal"
+      - "anketclouddrove"
       
   - package-ecosystem: "gomod" # See documentation for possible values
     directory: "/" # Location of package manifests
@@ -22,3 +23,4 @@ updates:
     # Add reviewer
     reviewers:
       - "anmolnagpal"
+      - "anketclouddrove"

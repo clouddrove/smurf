@@ -4,7 +4,7 @@
 
 - Go 1.20 or higher
 - Git
-- Terraform, Helm, and Docker Daemon installed and accessible via your PATH
+- Helm, Terraform and Docker Daemon installed and accessible via your PATH
 
 ## Setup using GitHub Repository
 
@@ -21,7 +21,12 @@ cd smurf
 3. Build the tool using Go
 
 ```bash
-go build -o smurf .
+go build -a \
+  -ldflags "\
+    -X 'github.com/clouddrove/smurf/cmd.version=$(git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0)' \
+    -X 'github.com/clouddrove/smurf/cmd.commit=$(git rev-parse --short HEAD)' \
+    -X 'github.com/clouddrove/smurf/cmd.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)'" \
+  -o smurf .
 ```
 4. Move binary to /usr/local/bin
 
@@ -38,7 +43,7 @@ mv smurf /usr/local/bin/
 2. Execute the following command to build and install Smurf
 
 ```bash
-bash docs/sm/docs/install_smurf.sh
+bash smurf/install_smurf.sh
 ```
 3. To check if Smurf is installed successfully, run:
 

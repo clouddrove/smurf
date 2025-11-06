@@ -4,6 +4,8 @@
     Smurf 🚀
 </h1>
 
+Smurf is a command-line interface (CLI) application built in Golang that leverages technology-specific SDKs to simplify and automate operations for essential DevOps tools such as Docker, Helm, and Terraform. It provides intuitive, unified commands to manage Docker containers, execute Helm package operations, and apply Terraform plans—all from a single interface. Whether you need to spin up environments, manage containers, or implement infrastructure as code, Smurf streamlines multi-tool workflows, enhances productivity, and minimizes context switching.
+
 ## 🚀 Get Started  
 
 1. **Clone the repository:**
@@ -14,7 +16,7 @@
 2. Execute the following command to build and install Smurf
 
 ```bash
-bash docs/sm/docs/install_smurf.sh
+bash smurf/install_smurf.sh
 ```
 3. To check if Smurf is installed successfully, run:
 
@@ -27,7 +29,7 @@ smurf --help
 
 ✅ Unified Interface
 
-Manage Terraform, Docker, and Helm from a single CLI, reducing context-switching and boosting productivity.
+Manage Docker, Helm and Terraform from a single CLI, reducing context-switching and boosting productivity.
 
 ⚡ Simplified Workflows
 
@@ -46,16 +48,16 @@ Build, scan, deploy and do more with container images seamlessly.
 smurf sdkr --help
 ```
 
-☁️ Terraform
-
-Manage infrastructure with ease.
-```sh
-smurf stf --help
-```
-
 🎩 Helm
 
 Deploy applications effortlessly using Helm.
 ```sh
 smurf selm --help
+```
+
+☁️ Terraform
+
+Manage infrastructure with ease.
+```sh
+smurf stf --help
 ```
