@@ -1,6 +1,8 @@
 package stf
 
 import (
+	"os"
+
 	"github.com/clouddrove/smurf/internal/terraform"
 	"github.com/spf13/cobra"
 )
@@ -15,11 +17,16 @@ var applyAutoApprove bool
 // applyCmd defines a subcommand that applies the changes required to reach the desired state of Terraform Infrastructure.
 // applyCmd defines a subcommand that applies the changes required to reach the desired state of Terraform Infrastructure.
 var applyCmd = &cobra.Command{
-	Use:   "apply",
-	Short: "Apply the changes required to reach the desired state of Terraform Infrastructure",
+	Use:          "apply",
+	Short:        "Apply the changes required to reach the desired state of Terraform Infrastructure",
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		approve := applyApprove || applyAutoApprove
-		return terraform.Apply(approve, applyVarNameValue, applyVarFile, applyLock, applyDir)
+		err := terraform.Apply(approve, applyVarNameValue, applyVarFile, applyLock, applyDir)
+		if err != nil {
+			os.Exit(1)
+		}
+		return nil
 	},
 	Example: `
 	smurf stf apply

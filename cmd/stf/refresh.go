@@ -1,6 +1,8 @@
 package stf
 
 import (
+	"os"
+
 	"github.com/clouddrove/smurf/internal/terraform"
 	"github.com/spf13/cobra"
 )
@@ -14,10 +16,15 @@ var (
 
 // refreshCmd represents the command to refresh the state of Terraform resources
 var refreshCmd = &cobra.Command{
-	Use:   "refresh",
-	Short: "Update the state file of your infrastructure",
+	Use:           "refresh",
+	Short:         "Update the state file of your infrastructure",
+	SilenceErrors: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return terraform.Refresh(refreshVars, refreshVarFiles, refreshLock, refreshDir)
+		err := terraform.Refresh(refreshVars, refreshVarFiles, refreshLock, refreshDir)
+		if err != nil {
+			os.Exit(1)
+		}
+		return nil
 	},
 	Example: `
     # Basic refresh

@@ -9,9 +9,10 @@ import (
 
 // stfCmd represents the 'stf' command
 var stfCmd = &cobra.Command{
-	Use:   "stf",
-	Short: "Subcommand for Terraform-related actions",
-	Long:  `stf is a subcommand that groups various Terraform-related actions under a single command.`,
+	Use:           "stf",
+	Short:         "Subcommand for Terraform-related actions",
+	Long:          `stf is a subcommand that groups various Terraform-related actions under a single command.`,
+	SilenceErrors: true,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("Use 'smurf stf [command]' to run Terraform-related actions")
 	},

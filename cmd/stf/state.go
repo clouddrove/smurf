@@ -1,6 +1,8 @@
 package stf
 
 import (
+	"os"
+
 	"github.com/clouddrove/smurf/internal/terraform"
 	"github.com/spf13/cobra"
 )
@@ -9,8 +11,9 @@ var stateListDir string
 
 // stateListCmd represents the command to list resources in the Terraform state
 var stateListCmd = &cobra.Command{
-	Use:   "state-list",
-	Short: "List resources in the Terraform state",
+	Use:          "state-list",
+	Short:        "List resources in the Terraform state",
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		err := terraform.StateList(stateListDir)
 
@@ -18,6 +21,10 @@ var stateListCmd = &cobra.Command{
 			terraform.ErrorHandler(err)
 			return err
 		}
+		if err != nil {
+			os.Exit(1)
+		}
+		return nil
 
 		return nil
 	},

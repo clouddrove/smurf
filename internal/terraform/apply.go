@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/hashicorp/terraform-exec/tfexec"
-	"github.com/pterm/pterm"
 )
 
 // Apply executes 'apply' to apply the planned changes.
@@ -16,45 +15,49 @@ import (
 // and handles any errors that occur during the process. Upon successful completion,
 // it sets custom writers for stdout and stderr to handle colored output. lock is by default false
 func Apply(approve bool, vars []string, varFiles []string, lock bool, dir string) error {
+	Step("Initializing Terraform client...")
 	tf, err := GetTerraform(dir)
 	if err != nil {
+		Error("Failed to initialize Terraform client: %v", err)
 		return err
 	}
-
-	pterm.DefaultHeader.WithBackgroundStyle(pterm.NewStyle(pterm.BgBlue)).
-		WithTextStyle(pterm.NewStyle(pterm.FgLightWhite)).
-		Printf("Terraform Apply")
-	fmt.Println()
 
 	applyOptions := []tfexec.PlanOption{
 		tfexec.Out("plan.out"),
 	}
 
+	// Handle inline variables
 	if vars != nil {
-		pterm.Info.Printf("Setting variable: %s\n", vars)
+		Info("Setting %d variable(s)...", len(vars))
 		for _, v := range vars {
-			pterm.Info.Printf("Setting variable: %s\n", v)
+			Info("Using variable: %s", v)
 			applyOptions = append(applyOptions, tfexec.Var(v))
 		}
 	}
 
+	// Handle variable files
 	if varFiles != nil {
-		pterm.Info.Printf("Setting variable file: %s\n", varFiles)
+		Info("Loading %d variable file(s)...", len(varFiles))
 		for _, vf := range varFiles {
-			pterm.Info.Printf("Loading variable file: %s\n", vf)
+			Info("Using var-file: %s", vf)
 			applyOptions = append(applyOptions, tfexec.VarFile(vf))
 		}
 	}
 
+	// Generate Terraform plan
+	Step("Generating Terraform plan...")
 	_, err = tf.Plan(context.Background(), applyOptions...)
 	if err != nil {
-		pterm.Error.Printf("Failed to generate plan: %v\n", err)
+		Error("Failed to generate plan: %v", err)
 		return err
 	}
+	Success("Terraform plan generated successfully.")
 
+	// Show plan details
+	Step("Fetching plan details...")
 	planDetail, err := tf.ShowPlanFileRaw(context.Background(), "plan.out")
 	if err != nil {
-		pterm.Error.Printf("Failed to show plan: %v\n", err)
+		Error("Failed to read plan details: %v", err)
 		return err
 	}
 
@@ -67,14 +70,16 @@ func Apply(approve bool, vars []string, varFiles []string, lock bool, dir string
 
 	show, err := tf.ShowPlanFile(context.Background(), "plan.out")
 	if err != nil {
-		pterm.Error.Printf("Failed to parse plan: %v\n", err)
+		Error("Failed to parse plan file: %v", err)
 		return err
 	}
 
 	if len(show.ResourceChanges) == 0 {
-		pterm.Info.Println("No changes to apply.")
+		Warn("No changes to apply. Everything is up to date.")
 		return nil
 	}
+
+	// Approval prompt (if not auto-approved)
 	if !approve {
 		var confirmation string
 		fmt.Print("\nDo you want to perform these actions? Only 'yes' will be accepted to approve.\nEnter a value: ")
@@ -82,14 +87,13 @@ func Apply(approve bool, vars []string, varFiles []string, lock bool, dir string
 		fmt.Println()
 
 		if confirmation != "yes" {
+			Warn("Operation cancelled by user.")
 			return nil
 		}
 	}
 
-	spinner := pterm.DefaultSpinner.
-		WithRemoveWhenDone(true).
-		WithText("Applying changes...")
-	spinner.Start()
+	// Apply phase with spinner
+	Step("Applying changes...")
 
 	tf.SetStdout(os.Stdout)
 	tf.SetStderr(os.Stderr)
@@ -101,16 +105,14 @@ func Apply(approve bool, vars []string, varFiles []string, lock bool, dir string
 
 	err = tf.Apply(context.Background(), Options...)
 	if err != nil {
-		spinner.Fail("Apply failed")
-		pterm.Error.Printf("Error: %v\n", err)
+		Error("Terraform apply failed: %v", err)
 		return err
 	}
 
-	spinner.Success("Applied successfully")
+	Success("Terraform changes applied successfully.")
 
-	added := 0
-	changed := 0
-	destroyed := 0
+	// Summarize resource changes
+	added, changed, destroyed := 0, 0, 0
 
 	for _, resource := range show.ResourceChanges {
 		for _, action := range resource.Change.Actions {
@@ -125,9 +127,6 @@ func Apply(approve bool, vars []string, varFiles []string, lock bool, dir string
 		}
 	}
 
-	pterm.Success.Println("Apply complete! Resources: " +
-		fmt.Sprintf("%d added", added) +
-		fmt.Sprintf(", %d changed", changed) +
-		fmt.Sprintf(", %d destroyed", destroyed))
+	Success("Apply complete! Resources: %d added, %d changed, %d destroyed", added, changed, destroyed)
 	return nil
 }

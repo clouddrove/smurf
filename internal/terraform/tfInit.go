@@ -2,7 +2,6 @@ package terraform
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -19,57 +18,39 @@ type CustomLogger struct {
 // Write formats the output of Terraform operations for better readability
 // by the user. It formats the output for download, provider installation,
 // and initialization messages.
+// Write formats terraform output for readability (download, init, providers)
 func (l *CustomLogger) Write(p []byte) (n int, err error) {
 	msg := string(p)
 
-	if strings.Contains(msg, "Downloading") {
-		parts := strings.Split(msg, " ")
+	switch {
+	case strings.Contains(msg, "Downloading"):
+		parts := strings.Fields(msg)
 		if len(parts) >= 4 {
-			pterm.Info.Printf("- Downloading %s %s for %s...\n",
-				pterm.Cyan(parts[1]),
-				pterm.Yellow(parts[2]),
-				pterm.Cyan(strings.TrimSpace(parts[4])))
+			Info("Downloading %s %s for %s...", pterm.Cyan(parts[1]), pterm.Yellow(parts[2]), pterm.Cyan(strings.TrimSpace(parts[4])))
 		}
 		return len(p), nil
-	}
 
-	if strings.Contains(msg, "provider") {
-		if strings.Contains(msg, "Installing") {
-			parts := strings.Split(msg, " ")
-			pterm.Info.Printf("- Installing %s...\n",
-				pterm.Cyan(strings.Join(parts[1:], " ")))
-		} else if strings.Contains(msg, "Reusing") {
-			pterm.Info.Printf("- %s\n", msg)
-		}
+	case strings.Contains(msg, "Installing"):
+		Info("Installing provider: %s", pterm.Cyan(strings.TrimPrefix(msg, "Installing ")))
 		return len(p), nil
-	}
 
-	if strings.Contains(msg, "Initializing") {
-		section := ""
+	case strings.Contains(msg, "Reusing"):
+		Info("%s", strings.TrimSpace(msg))
+		return len(p), nil
+
+	case strings.Contains(msg, "Initializing"):
 		if strings.Contains(msg, "backend") {
-			section = "backend"
+			Info("Initializing backend...")
 		} else if strings.Contains(msg, "modules") {
-			section = "modules"
+			Info("Initializing modules...")
 		} else if strings.Contains(msg, "provider") {
-			section = "provider plugins"
-		}
-		if section != "" {
-			pterm.DefaultHeader.WithBackgroundStyle(pterm.NewStyle(pterm.BgBlue)).
-				WithTextStyle(pterm.NewStyle(pterm.FgLightWhite)).
-				Printf("Initializing %s...", section)
-			fmt.Println()
+			Info("Initializing provider plugins...")
 		}
 		return len(p), nil
-	}
 
-	if strings.Contains(msg, "successfully initialized") {
-		pterm.Success.Println("\nInfrastructure has been successfully initialized!")
-		pterm.Info.Println("\nYou may now begin working with Smurf. Try running \"smurf stf plan\" to see")
-		pterm.Info.Println("any changes that are required for your infrastructure. All Stf commands")
-		pterm.Info.Println("should now work.")
-		pterm.Info.Println("\nIf you ever set or change modules or backend configuration for Stf,")
-		pterm.Info.Println("rerun this command to reinitialize your working directory. If you forget, other")
-		pterm.Info.Println("commands will detect it and remind you to do so if necessary.")
+	case strings.Contains(msg, "successfully initialized"):
+		Success("Infrastructure successfully initialized!")
+		Info("You may now begin working with Smurf. Run `smurf stf plan` to review changes.")
 		return len(p), nil
 	}
 
@@ -83,6 +64,7 @@ func (l *CustomLogger) Write(p []byte) (n int, err error) {
 func Init(dir string, upgrade bool) error {
 	tf, err := GetTerraform(dir)
 	if err != nil {
+		Error("Failed to initialize Terraform client: %v", err)
 		return err
 	}
 
@@ -95,15 +77,7 @@ func Init(dir string, upgrade bool) error {
 		workingDir = dir
 	}
 
-	pterm.DefaultHeader.WithBackgroundStyle(pterm.NewStyle(pterm.BgBlue)).
-		WithTextStyle(pterm.NewStyle(pterm.FgLightWhite)).
-		Println("Infrastructure Initialization in", workingDir)
-	fmt.Println()
-
-	spinner := pterm.DefaultSpinner.
-		WithRemoveWhenDone(true).
-		WithText("Infrastructure Initialization...")
-	spinner.Start()
+	Info("Starting infrastructure initialization in %s", workingDir)
 
 	initOptions := tfexec.InitOption(
 		tfexec.Upgrade(upgrade),
@@ -111,11 +85,10 @@ func Init(dir string, upgrade bool) error {
 
 	err = tf.Init(context.Background(), initOptions)
 	if err != nil {
-		spinner.Fail("Infrastructure initialization failed")
-		pterm.Error.Printf("Error: %v\n", err)
+		Error("Error: %v", err)
 		return err
 	}
 
-	spinner.Success("Initialization complete")
+	Success("Terraform backend and providers successfully initialized.")
 	return nil
 }

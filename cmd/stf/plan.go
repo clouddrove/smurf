@@ -1,6 +1,8 @@
 package stf
 
 import (
+	"os"
+
 	"github.com/clouddrove/smurf/internal/terraform"
 	"github.com/spf13/cobra"
 )
@@ -12,10 +14,15 @@ var planDestroy bool
 
 // planCmd defines a subcommand that generates and shows an execution plan for Terraform
 var planCmd = &cobra.Command{
-	Use:   "plan",
-	Short: "Generate and show an execution plan for Terraform",
+	Use:          "plan",
+	Short:        "Generate and show an execution plan for Terraform",
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return terraform.Plan(planVarNameValue, planVarFile, planDir, planDestroy)
+		err := terraform.Plan(planVarNameValue, planVarFile, planDir, planDestroy)
+		if err != nil {
+			os.Exit(1)
+		}
+		return nil
 	},
 	Example: `
     smurf stf plan

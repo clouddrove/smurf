@@ -1,6 +1,8 @@
 package stf
 
 import (
+	"os"
+
 	"github.com/clouddrove/smurf/internal/terraform"
 	"github.com/spf13/cobra"
 )
@@ -12,10 +14,15 @@ var (
 
 // initCmd defines a subcommand that initializes Terraform.
 var initCmd = &cobra.Command{
-	Use:   "init",
-	Short: "Initialize Terraform",
+	Use:           "init",
+	Short:         "Initialize Terraform",
+	SilenceErrors: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return terraform.Init(initDir, initUpgrade)
+		err := terraform.Init(initDir, initUpgrade)
+		if err != nil {
+			os.Exit(1)
+		}
+		return nil
 	},
 	Example: `
   smurf stf init

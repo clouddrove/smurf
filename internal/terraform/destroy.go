@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/hashicorp/terraform-exec/tfexec"
-	"github.com/pterm/pterm"
 )
 
 // Destroy executes 'destroy' to remove all managed infrastructure.
@@ -19,39 +18,37 @@ import (
 func Destroy(approve bool, lock bool, dir string) error {
 	tf, err := GetTerraform(dir)
 	if err != nil {
+		Error("Failed to initialize Terraform client: %v", err)
 		return err
 	}
 
-	pterm.DefaultHeader.
-		WithBackgroundStyle(pterm.NewStyle(pterm.BgRed)).
-		WithTextStyle(pterm.NewStyle(pterm.FgLightWhite)).
-		Printf("Terraform Destroy")
-	fmt.Println()
+	Info("Preparing Terraform destroy operation in directory: %s", dir)
 
+	// Generate destroy plan
 	_, err = tf.Plan(
 		context.Background(),
 		tfexec.Destroy(true),
 		tfexec.Out("plan.out"),
 	)
 	if err != nil {
-		pterm.Error.Printf("Failed to generate destroy plan: %v\n", err)
+		Error("Failed to generate destroy plan: %v", err)
 		return err
 	}
 
 	show, err := tf.ShowPlanFile(context.Background(), "plan.out")
 	if err != nil {
-		pterm.Error.Printf("Failed to parse plan: %v\n", err)
+		Error("Failed to parse plan: %v", err)
 		return err
 	}
 
 	if len(show.ResourceChanges) == 0 {
-		pterm.Info.Println("No resources to destroy.")
+		Warn("No resources to destroy.")
 		return nil
 	}
 
 	planDetail, err := tf.ShowPlanFileRaw(context.Background(), "plan.out")
 	if err != nil {
-		pterm.Error.Printf("Failed to show plan: %v\n", err)
+		Error("Failed to show plan details: %v", err)
 		return err
 	}
 
@@ -61,6 +58,8 @@ func Destroy(approve bool, lock bool, dir string) error {
 		Writer: os.Stdout,
 	}
 	customWriter.Write([]byte(planDetail))
+
+	// Ask for confirmation if not auto-approved
 	if !approve {
 		var confirmation string
 		fmt.Print("\nDo you want to destroy these resources? Only 'yes' will be accepted to approve.\nEnter a value: ")
@@ -68,15 +67,10 @@ func Destroy(approve bool, lock bool, dir string) error {
 		fmt.Println()
 
 		if confirmation != "yes" {
+			Warn("Destroy operation aborted by user.")
 			return nil
 		}
 	}
-
-	spinner := pterm.DefaultSpinner.
-		WithRemoveWhenDone(true).
-		WithStyle(pterm.NewStyle(pterm.FgLightRed)).
-		WithText("Destroying resources...")
-	spinner.Start()
 
 	tf.SetStdout(os.Stdout)
 	tf.SetStderr(os.Stderr)
@@ -88,12 +82,9 @@ func Destroy(approve bool, lock bool, dir string) error {
 		tfexec.Lock(lock),
 	)
 	if err != nil {
-		spinner.Fail("Destroy failed")
-		pterm.Error.Printf("Error: %v\n", err)
+		Error("Terraform destroy failed: %v", err)
 		return err
 	}
-
-	spinner.Success("Destroyed successfully")
 
 	destroyed := 0
 	for _, rc := range show.ResourceChanges {
@@ -104,11 +95,7 @@ func Destroy(approve bool, lock bool, dir string) error {
 		}
 	}
 
-	pterm.Success.Println(
-		"\nDestroy complete! Resources: " +
-			pterm.Red("%d destroyed", destroyed),
-	)
-
+	Success("Destroy complete! Resources destroyed: %d", destroyed)
 	return nil
 }
 
@@ -120,29 +107,23 @@ type DestroyLogger struct {
 
 // Write handles the output of the Terraform destroy command
 // and applies color to specific messages
+// Write enhances Terraform destroy logs with color and readability.
 func (l *DestroyLogger) Write(p []byte) (n int, err error) {
 	msg := string(p)
 
 	if l.isDestroy {
-		if strings.Contains(msg, "Destroying...") {
-			msg = pterm.Red(msg)
-		} else if strings.Contains(msg, "Destruction complete") {
-			msg = pterm.Green(msg)
+		switch {
+		case strings.Contains(msg, "Destroying..."):
+			Warn("Destroying: %s", strings.TrimSpace(msg))
+		case strings.Contains(msg, "Destruction complete"):
+			Success("Destruction complete: %s", strings.TrimSpace(msg))
+		case strings.Contains(msg, "Error:"):
+			Error("%s", strings.TrimSpace(msg))
+		default:
+			fmt.Print(msg)
 		}
+		return len(p), nil
 	}
 
-	switch {
-	case strings.Contains(msg, "Terraform will perform the following actions"):
-		pterm.Info.Println(msg)
-	case strings.Contains(msg, "Plan:"):
-		pterm.Yellow(msg)
-	case strings.Contains(msg, "Error:"):
-		pterm.Red(msg)
-	default:
-		if _, err := l.CustomColorWriter.Writer.Write([]byte(msg)); err != nil {
-			return 0, err
-		}
-	}
-
-	return len(p), nil
+	return l.CustomColorWriter.Writer.Write(p)
 }
