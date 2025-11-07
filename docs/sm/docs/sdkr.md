@@ -64,7 +64,7 @@ sdkr:
   targetImageTag: "v1.0.0"
 ```
 
-Once complete `smurf.yaml file then Build and Push Image to AWS ECR workflow will look like-
+Once the `smurf.yaml` file is configured, the workflow to build and push an image to AWS ECR will look like this:
 ```yaml
 jobs:
   build-and-push:
