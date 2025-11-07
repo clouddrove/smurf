@@ -12,7 +12,11 @@ Use `smurf selm <command>` to run smurf sdkr commands. Supported commands includ
 - **`status`**: Status of a Helm release.  
 - **`template`**: Render chart templates.  
 - **`uninstall`**: Uninstall a Helm release.  
-- **`upgrade`**: Upgrade a deployed Helm chart.  
+- **`upgrade`**: Upgrade a deployed Helm chart.
+- **`history`**: Prints historical revisions for a given release.
+- **`pull`**: Downloads a chart from a repository
+- **`init`**: Create `smurf.yaml` configuration file
+- **`plugin`**: Manage plugins, which are add-on tools that extend Helm's core functionality.
 
 ## Using Smurf Helm in local environment
 To upgrade a helm chart using smurf run the command-
@@ -25,19 +29,56 @@ smurf selm  upgrade smurf ./smurf -n smurf
 Using Smurf Helm in GitHub Actions involves calling the Smurf shared workflow.
 To lint, template and deploy helm chart workflow will look like-
 ```yaml
-jobs: 
-  dev:
-   uses: clouddrove/github-shared-workflows/.github/workflows/smurf.yml@master
-   with:
-     aws_auth: true
-     eks-cluster: <cluster_name>
-     aws-role: <aws_role>
-     aws-region: <aws_region>
-     aws_auth_method: oidc
-     helm_enable: false
-     helm-lint-command: lint <helm_chart_path>
-     helm-template-command: template <release_name> <helm_chart_path>
-     helm_deploy_command: upgrade <release_name> --install --atomic -f <helm_chart_path>/values.yaml <helm_chart_path>
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up smurf
+        uses: clouddrove/smurf@master
+        with:
+          version: latest
+
+      - name: Helm lint
+        run: |
+          smurf selm lint <helm_chart_path>
+
+      - name: Helm template
+        run: |
+          smurf selm template <release_name> <helm_chart_path>
+
+      - name: Helm deploy
+        run: |
+          smurf selm upgrade <release_name> --install --atomic -f <helm_chart_path>/values.yaml <helm_chart_path>
+```
+
+## Using smurf.yaml configure file for Smurf Helm
+Use the smurf.yaml configuration file to perform Smurf Helm both locally and in GitHub Actions.
+```bash
+smurf selm init
+```
+This creates the `smurf.yaml` configuration file for Helm.
+```yaml
+selm:
+  releaseName: "Release Name"
+  namespace: "Name Space"
+  chartName: "Chart Name"
+  revision: 0
+```
+
+Once complete `smurf.yaml` file then install, upgrade, lint, and template in one workflow will look like-
+```yaml
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up smurf
+        uses: clouddrove/smurf@master
+        with:
+          version: latest
+
+      - name: Helm lint
+        run: |
+          smurf selm provision
 ```
 
 ![selm](gif/selm.mov)
