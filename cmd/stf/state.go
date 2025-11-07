@@ -1,8 +1,6 @@
 package stf
 
 import (
-	"os"
-
 	"github.com/clouddrove/smurf/internal/terraform"
 	"github.com/spf13/cobra"
 )
@@ -21,10 +19,6 @@ var stateListCmd = &cobra.Command{
 			terraform.ErrorHandler(err)
 			return err
 		}
-		if err != nil {
-			os.Exit(1)
-		}
-		return nil
 
 		return nil
 	},
