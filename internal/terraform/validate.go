@@ -9,10 +9,9 @@ import (
 	"strings"
 
 	"github.com/hashicorp/terraform-exec/tfexec"
-	"github.com/pterm/pterm"
 )
 
-// ValidationError represents a single validation error with its details
+// ValidationError represents a single validation error with details.
 type ValidationError struct {
 	ErrorType   string
 	Description string
@@ -22,77 +21,65 @@ type ValidationError struct {
 	HelpText    string
 }
 
-// CustomValidator handles the validation process and error formatting
+// CustomValidator handles validation and error formatting.
 type CustomValidator struct {
 	tf *tfexec.Terraform
 }
 
-// NewCustomValidator creates a new validator instance
+// NewCustomValidator creates a new validator instance.
 func NewCustomValidator(tf *tfexec.Terraform) *CustomValidator {
-	return &CustomValidator{
-		tf: tf,
-	}
+	return &CustomValidator{tf: tf}
 }
 
-// formatValidationError formats a single validation error in Terraform style
+// formatValidationError formats a Terraform-style error output.
 func (cv *CustomValidator) formatValidationError(err ValidationError) string {
 	var sb strings.Builder
 
-	errorSymbol := pterm.Red("│")
-	errorPrefix := pterm.Red("Error: ")
-	locationColor := pterm.White(err.Location)
-	lineNumColor := pterm.White(fmt.Sprintf("line %d", err.LineNumber))
-
-	sb.WriteString("╷\n")
-	sb.WriteString(fmt.Sprintf("%s %s%s\n", errorSymbol, errorPrefix, err.Description))
-	sb.WriteString(fmt.Sprintf("%s\n", errorSymbol))
-	sb.WriteString(fmt.Sprintf("%s   on %s %s:\n", errorSymbol, locationColor, lineNumColor))
-
-	sb.WriteString(fmt.Sprintf("%s   %d:   %s\n", errorSymbol, err.LineNumber, err.LineContent))
-
+	sb.WriteString("\n╷\n")
+	sb.WriteString(fmt.Sprintf("│ %s%s\n", RedText("Error: "), err.Description))
+	sb.WriteString("│\n")
+	sb.WriteString(fmt.Sprintf("│   on %s line %d:\n", GreyText(err.Location), err.LineNumber))
+	sb.WriteString(fmt.Sprintf("│   %d:   %s\n", err.LineNumber, err.LineContent))
 	if err.HelpText != "" {
-		sb.WriteString(fmt.Sprintf("%s\n", errorSymbol))
-		sb.WriteString(fmt.Sprintf("%s %s\n", errorSymbol, err.HelpText))
+		sb.WriteString("│\n")
+		sb.WriteString(fmt.Sprintf("│   %s\n", GreyText(err.HelpText)))
 	}
-
 	sb.WriteString("╵\n")
+
 	return sb.String()
 }
 
-// ValidateWithDetails performs validation and returns detailed error output
-// ValidateWithDetails performs validation and returns detailed error output
+// ValidateWithDetails performs `terraform validate` and logs structured output.
 func (cv *CustomValidator) ValidateWithDetails(ctx context.Context) error {
 	if cv.tf == nil {
 		return errors.New("terraform instance is nil")
 	}
 
-	spinner, _ := pterm.DefaultSpinner.Start("Validating Terraform configuration...")
+	Info("Starting Terraform validation...")
+
 	valid, err := cv.tf.Validate(ctx)
 	if err != nil {
-		spinner.Fail("Validation process failed")
+		Error("Validation process failed: %v", err)
 		return fmt.Errorf("validation process error: %w", err)
 	}
 
 	if valid.Valid {
-		spinner.Success("Terraform Configuration is valid")
+		Success("Terraform configuration is valid ✅")
 		return nil
 	}
 
-	spinner.Fail(fmt.Sprintf("Configuration is invalid (%d errors)", valid.ErrorCount))
+	Warn("Configuration is invalid (%d errors)", valid.ErrorCount)
 
 	for _, diag := range valid.Diagnostics {
-		if diag.Severity == "error" {
-			// Handle case where Range could be nil
+		if string(diag.Severity) == "error" {
 			location := ""
 			lineNumber := 0
-			columnStr := ""
+			lineContent := ""
 
 			if diag.Range != nil {
 				location = diag.Range.Filename
-				// Since diag.Range.Start is a struct (not a pointer),
-				// we can access its fields directly
 				lineNumber = diag.Range.Start.Line
-				columnStr = fmt.Sprintf("%d", diag.Range.Start.Column)
+				lineContent = fmt.Sprintf("col %d", diag.Range.Start.Column)
 			}
 
 			validationErr := ValidationError{
@@ -100,43 +87,48 @@ func (cv *CustomValidator) ValidateWithDetails(ctx context.Context) error {
 				Description: diag.Detail,
 				Location:    location,
 				LineNumber:  lineNumber,
-				LineContent: columnStr,
-				HelpText:    string(diag.Severity),
+				LineContent: lineContent,
+				HelpText:    string(diag.Severity), // casted to string
 			}
 
 			fmt.Print(cv.formatValidationError(validationErr))
 		}
 	}
 
+	Error("Validation failed with %d errors", valid.ErrorCount)
 	return fmt.Errorf("validation failed with %d errors", valid.ErrorCount)
 }
 
-// GetValidateTerraform initializes and returns a Terraform instance
+// GetValidateTerraform initializes Terraform executor for validation.
 func GetValidateTerraform(dir string) (*tfexec.Terraform, error) {
 	workDir := dir
 	var err error
 
-	// If no directory specified, use current directory
 	if workDir == "" {
 		workDir, err = os.Getwd()
 		if err != nil {
+			Error("Failed to get working directory: %v", err)
 			return nil, fmt.Errorf("failed to get working directory: %w", err)
 		}
 	}
 
 	terraformPath, err := exec.LookPath("terraform")
 	if err != nil {
+		Error("Terraform executable not found: %v", err)
 		return nil, fmt.Errorf("terraform executable not found: %w", err)
 	}
 
 	tf, err := tfexec.NewTerraform(workDir, terraformPath)
 	if err != nil {
+		Error("Failed to create Terraform executor: %v", err)
 		return nil, fmt.Errorf("failed to create Terraform executor: %w", err)
 	}
 
+	Info("Terraform executable initialized successfully")
 	return tf, nil
 }
 
+// Validate runs terraform validate command with detailed logging.
 func Validate(dir string) error {
 	tf, err := GetValidateTerraform(dir)
 	if err != nil {
@@ -144,6 +136,7 @@ func Validate(dir string) error {
 	}
 
 	if tf == nil {
+		Error("Terraform instance is nil")
 		return fmt.Errorf("terraform instance is nil")
 	}
 

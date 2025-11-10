@@ -7,6 +7,13 @@ import (
 	"github.com/pterm/pterm"
 )
 
+// These ensure consistent styling across all Terraform commands.
+func RedText(text string) string    { return pterm.FgRed.Sprint(text) }
+func GreenText(text string) string  { return pterm.FgGreen.Sprint(text) }
+func YellowText(text string) string { return pterm.FgYellow.Sprint(text) }
+func CyanText(text string) string   { return pterm.FgLightCyan.Sprint(text) }
+func GreyText(text string) string   { return pterm.FgGray.Sprint(text) }
+
 // logTime returns the current time formatted as HH:MM:SS
 func logTime() string {
 	return time.Now().Format("15:04:05")

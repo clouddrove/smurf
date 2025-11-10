@@ -10,10 +10,9 @@ import (
 	"strings"
 
 	"github.com/hashicorp/terraform-exec/tfexec"
-	"github.com/pterm/pterm"
 )
 
-// FormatError represents a single formatting error with its details
+// FormatError represents a single formatting error with details
 type FormatError struct {
 	ErrorType   string
 	Description string
@@ -32,13 +31,10 @@ type CustomFormatter struct {
 
 // NewCustomFormatter creates a new formatter instance
 func NewCustomFormatter(tf *tfexec.Terraform, workDir string) *CustomFormatter {
-	return &CustomFormatter{
-		tf:      tf,
-		workDir: workDir,
-	}
+	return &CustomFormatter{tf: tf, workDir: workDir}
 }
 
-// findTerraformFiles finds all .tf files in the given directory
+// findTerraformFiles finds all `.tf` files in the given directory
 func (cf *CustomFormatter) findTerraformFiles(root string, recursive bool) ([]string, error) {
 	var files []string
 
@@ -62,11 +58,9 @@ func (cf *CustomFormatter) findTerraformFiles(root string, recursive bool) ([]st
 		return nil
 	}
 
-	err := filepath.Walk(root, walkFn)
-	if err != nil {
+	if err := filepath.Walk(root, walkFn); err != nil {
 		return nil, err
 	}
-
 	return files, nil
 }
 
@@ -74,39 +68,38 @@ func (cf *CustomFormatter) findTerraformFiles(root string, recursive bool) ([]st
 func (cf *CustomFormatter) formatError(err FormatError) string {
 	var sb strings.Builder
 
-	errorSymbol := pterm.Red("│")
-	errorPrefix := pterm.Red("Error: ")
-	locationColor := pterm.White(err.Location)
-	lineNumColor := pterm.White(fmt.Sprintf("line %d", err.LineNumber))
-
-	sb.WriteString("╷\n")
-	sb.WriteString(fmt.Sprintf("%s %s%s\n", errorSymbol, errorPrefix, err.Description))
-	sb.WriteString(fmt.Sprintf("%s\n", errorSymbol))
-	sb.WriteString(fmt.Sprintf("%s   on %s %s:\n", errorSymbol, locationColor, lineNumColor))
-	sb.WriteString(fmt.Sprintf("%s   %d:   %s\n", errorSymbol, err.LineNumber, err.LineContent))
+	sb.WriteString("\n╷\n")
+	sb.WriteString(fmt.Sprintf("│ %s%s\n", RedText("Error: "), err.Description))
+	sb.WriteString("│\n")
+	sb.WriteString(fmt.Sprintf("│   on %s line %d:\n", GreyText(err.Location), err.LineNumber))
+	sb.WriteString(fmt.Sprintf("│   %d:   %s\n", err.LineNumber, err.LineContent))
 	if err.NextLine != "" {
-		sb.WriteString(fmt.Sprintf("%s   %d:   %s\n", errorSymbol, err.LineNumber+1, err.NextLine))
+		sb.WriteString(fmt.Sprintf("│   %d:   %s\n", err.LineNumber+1, err.NextLine))
 	}
 	if err.HelpText != "" {
-		sb.WriteString(fmt.Sprintf("%s\n", errorSymbol))
-		sb.WriteString(fmt.Sprintf("%s %s\n", errorSymbol, err.HelpText))
+		sb.WriteString("│\n")
+		sb.WriteString(fmt.Sprintf("│   %s\n", GreyText(err.HelpText)))
 	}
 	sb.WriteString("╵\n")
-
 	return sb.String()
 }
 
-// FormatWithDetails performs formatting and returns detailed output
+// FormatWithDetails performs Terraform formatting with rich logging
 func (cf *CustomFormatter) FormatWithDetails(ctx context.Context, dir string, recursive bool) error {
-	spinner, _ := pterm.DefaultSpinner.Start("Formatting Terraform configuration files...")
+	Info("Starting Terraform formatting process...")
 
 	files, err := cf.findTerraformFiles(dir, recursive)
 	if err != nil {
-		spinner.Fail("Failed to find Terraform files")
+		Error("Failed to find Terraform files: %v", err)
 		return fmt.Errorf("error finding Terraform files: %w", err)
 	}
 
-	formatted := make([]string, 0)
+	if len(files) == 0 {
+		Warn("No Terraform (.tf) files found in the directory.")
+		return nil
+	}
+
+	formatted := []string{}
 	var formatErrors []FormatError
 
 	for _, file := range files {
@@ -116,7 +109,6 @@ func (cf *CustomFormatter) FormatWithDetails(ctx context.Context, dir string, re
 				ErrorType:   "File read failed",
 				Description: err.Error(),
 				Location:    file,
-				LineNumber:  0,
 				HelpText:    "Failed to read file for formatting check",
 			})
 			continue
@@ -129,7 +121,6 @@ func (cf *CustomFormatter) FormatWithDetails(ctx context.Context, dir string, re
 				ErrorType:   "Terraform init failed",
 				Description: err.Error(),
 				Location:    file,
-				LineNumber:  0,
 				HelpText:    "Failed to initialize Terraform for formatting",
 			})
 			continue
@@ -143,7 +134,7 @@ func (cf *CustomFormatter) FormatWithDetails(ctx context.Context, dir string, re
 		}
 
 		if bytes.Equal(content, outputBuffer.Bytes()) {
-			continue
+			continue // Already properly formatted
 		}
 
 		err = os.WriteFile(file, outputBuffer.Bytes(), 0644)
@@ -152,7 +143,6 @@ func (cf *CustomFormatter) FormatWithDetails(ctx context.Context, dir string, re
 				ErrorType:   "File write failed",
 				Description: err.Error(),
 				Location:    file,
-				LineNumber:  0,
 				HelpText:    "Failed to write formatted content to file",
 			})
 			continue
@@ -162,21 +152,21 @@ func (cf *CustomFormatter) FormatWithDetails(ctx context.Context, dir string, re
 	}
 
 	if len(formatErrors) > 0 {
-		spinner.Fail(fmt.Sprintf("Formatting failed with %d errors", len(formatErrors)))
-		for _, err := range formatErrors {
-			fmt.Print(cf.formatError(err))
+		for _, e := range formatErrors {
+			fmt.Print(cf.formatError(e))
 		}
+		Error("Formatting failed with %d errors", len(formatErrors))
 		return fmt.Errorf("formatting failed with %d errors", len(formatErrors))
 	}
 
 	if len(formatted) > 0 {
-		spinner.Success("Terraform files formatted successfully")
-		pterm.Info.Println("\nFormatted files:")
+		Success("Terraform files formatted successfully ✅")
+		Info("Formatted files:")
 		for _, file := range formatted {
-			pterm.Info.Printf("- %s\n", file)
+			fmt.Printf("   %s\n", CyanText(file))
 		}
 	} else {
-		spinner.Success("No files needed formatting")
+		Success("No Terraform file changes detected")
 	}
 
 	return nil
@@ -189,42 +179,44 @@ func (cf *CustomFormatter) parseFormatError(err error, file string) FormatError 
 		Description: err.Error(),
 		Location:    file,
 		LineNumber:  1,
-		LineContent: "",
-		HelpText:    "Please check the file syntax and try again",
+		HelpText:    "Please check file syntax and try again",
 	}
 }
 
+// GetFmtTerraform initializes and returns a Terraform executor
 func GetFmtTerraform() (*tfexec.Terraform, error) {
 	workDir, err := os.Getwd()
 	if err != nil {
+		Error("Failed to get working directory: %v", err)
 		return nil, fmt.Errorf("failed to get working directory: %w", err)
 	}
 
 	terraformPath, err := exec.LookPath("terraform")
 	if err != nil {
+		Error("Terraform executable not found: %v", err)
 		return nil, fmt.Errorf("terraform executable not found: %w", err)
 	}
 
 	tf, err := tfexec.NewTerraform(workDir, terraformPath)
 	if err != nil {
+		Error("Failed to create Terraform executor: %v", err)
 		return nil, fmt.Errorf("failed to create Terraform executor: %w", err)
 	}
 
 	return tf, nil
 }
 
-// Format applies a canonical format to Terraform configuration files.
-// It runs `terraform fmt` in the current directory to ensure that all
-// Terraform files adhere to the standard formatting conventions.
+// Format applies canonical formatting to all Terraform files.
 func Format(recursive bool) error {
-	workDir, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("failed to get working directory: %w", err)
-	}
-
 	tf, err := GetFmtTerraform()
 	if err != nil {
 		return err
+	}
+
+	workDir, err := os.Getwd()
+	if err != nil {
+		Error("Failed to get working directory: %v", err)
+		return fmt.Errorf("failed to get working directory: %w", err)
 	}
 
 	formatter := NewCustomFormatter(tf, workDir)

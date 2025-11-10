@@ -7,35 +7,38 @@ import (
 
 	"github.com/hashicorp/terraform-exec/tfexec"
 	tfjson "github.com/hashicorp/terraform-json"
-	"github.com/pterm/pterm"
 )
 
-// Graph generates a visual representation of Terraform resources
+// Graph generates a visual representation of Terraform resources.
+// It produces the Terraform DOT graph output, which can be visualized with Graphviz.
+// Uses Smurf unified logs for consistent and readable output.
 func Graph(dir string) error {
 	tf, err := GetTerraform(dir)
 	if err != nil {
+		Error("Failed to initialize Terraform: %v", err)
 		return err
 	}
 
-	spinner, err := pterm.DefaultSpinner.Start("Reading state...")
-	if err != nil {
-		spinner.Fail("Failed to read state")
-	}
+	Info("Starting Terraform graph generation...")
+
 	graphDOT, err := tf.Graph(context.Background(), tfexec.DrawCycles(true))
 	if err != nil {
-		spinner.Fail("Failed to generate graph")
-		return fmt.Errorf("error generating graph: %v", err)
+		Error("Error generating Terraform graph: %v", err)
+		return err
 	}
 
-	fmt.Print(graphDOT)
-
-	spinner.Success("Graph generated successfully")
+	fmt.Println()
+	Success("Terraform Dependency Graph (DOT Format):")
+	fmt.Println("-------------------------------------------------")
+	fmt.Println(graphDOT)
+	fmt.Println("-------------------------------------------------")
+	Info("You can visualize this graph using Graphviz, e.g.:\n  dot -Tpng graph.dot -o graph.png")
 
 	return nil
 }
 
-// generateDOTGraph generates a DOT graph from the Terraform state
-// that can be rendered using Graphviz
+// generateDOTGraph creates a DOT graph from the Terraform state.
+// This is an alternate approach for rendering using tfjson.State.
 func generateDOTGraph(state *tfjson.State) string {
 	var sb strings.Builder
 
@@ -48,12 +51,11 @@ func generateDOTGraph(state *tfjson.State) string {
 	}
 
 	sb.WriteString("}\n")
-
 	return sb.String()
 }
 
-// processModule processes a module and its resources to generate a DOT graph
-// representation of the Terraform state
+// processModule processes a Terraform module and its resources
+// to generate a DOT-compatible graph structure.
 func processModule(sb *strings.Builder, module *tfjson.StateModule, prefix string, processedNodes map[string]bool) {
 	if module == nil {
 		return
@@ -62,8 +64,8 @@ func processModule(sb *strings.Builder, module *tfjson.StateModule, prefix strin
 	moduleName := strings.TrimPrefix(prefix, ".")
 	if moduleName != "" {
 		sb.WriteString(fmt.Sprintf("  subgraph \"cluster_%s\" {\n", moduleName))
-		sb.WriteString(fmt.Sprintf("    label = \"%s\"\n", moduleName))
-		sb.WriteString("    fontname = \"sans-serif\"\n")
+		sb.WriteString(fmt.Sprintf("    label = \"%s\";\n", moduleName))
+		sb.WriteString("    fontname = \"sans-serif\";\n")
 	}
 
 	for _, resource := range module.Resources {
@@ -101,7 +103,7 @@ func processModule(sb *strings.Builder, module *tfjson.StateModule, prefix strin
 	}
 }
 
-// getResourceAddress returns the full address of a resource
+// getResourceAddress returns the full resource address including prefixes.
 func getResourceAddress(resource *tfjson.StateResource, prefix string) string {
 	if prefix == "" {
 		return resource.Address
