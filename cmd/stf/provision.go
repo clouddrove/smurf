@@ -21,11 +21,11 @@ var provisionCmd = &cobra.Command{
 			return err
 		}
 
-		if err := terraform.Plan(varNameValue, varFile, provisionDir, planDestroy); err != nil {
+		if err := terraform.Plan(varNameValue, varFile, provisionDir, planDestroy, planTarget); err != nil {
 			return err
 		}
 
-		if err := terraform.Apply(provisionApprove, varNameValue, varFile, lock, provisionDir); err != nil {
+		if err := terraform.Apply(provisionApprove, varNameValue, varFile, lock, provisionDir, applyTarget); err != nil {
 			return err
 		}
 

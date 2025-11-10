@@ -12,7 +12,7 @@ import (
 // It allows setting variables either via command-line arguments or variable files.
 // The function provides user feedback through spinners and colored messages,
 // and handles any errors that occur during the planning process.
-func Plan(vars []string, varFiles []string, dir string, destroy bool) error {
+func Plan(vars []string, varFiles []string, dir string, destroy bool, targets []string) error {
 	tf, err := GetTerraform(dir)
 	if err != nil {
 		Error("Failed to initialize Terraform client: %v", err)
@@ -46,6 +46,15 @@ func Plan(vars []string, varFiles []string, dir string, destroy bool) error {
 		for _, vf := range varFiles {
 			Info("Loading variable file: %s", vf)
 			planOptions = append(planOptions, tfexec.VarFile(vf))
+		}
+	}
+
+	// Handle targets
+	if len(targets) > 0 {
+		Info("Targeting %d resource(s)...", len(targets))
+		for _, target := range targets {
+			Info("Using target: %s", target)
+			planOptions = append(planOptions, tfexec.Target(target))
 		}
 	}
 

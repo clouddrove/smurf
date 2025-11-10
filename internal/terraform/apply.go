@@ -14,7 +14,7 @@ import (
 // It initializes the Terraform client, runs the apply operation with a spinner for user feedback,
 // and handles any errors that occur during the process. Upon successful completion,
 // it sets custom writers for stdout and stderr to handle colored output. lock is by default false
-func Apply(approve bool, vars []string, varFiles []string, lock bool, dir string) error {
+func Apply(approve bool, vars []string, varFiles []string, lock bool, dir string, targets []string) error { // Update function signature
 	Step("Initializing Terraform client...")
 	tf, err := GetTerraform(dir)
 	if err != nil {
@@ -41,6 +41,15 @@ func Apply(approve bool, vars []string, varFiles []string, lock bool, dir string
 		for _, vf := range varFiles {
 			Info("Using var-file: %s", vf)
 			applyOptions = append(applyOptions, tfexec.VarFile(vf))
+		}
+	}
+
+	// Handle targets
+	if targets != nil {
+		Info("Targeting %d resource(s)...", len(targets))
+		for _, target := range targets {
+			Info("Using target: %s", target)
+			applyOptions = append(applyOptions, tfexec.Target(target))
 		}
 	}
 
@@ -98,12 +107,19 @@ func Apply(approve bool, vars []string, varFiles []string, lock bool, dir string
 	tf.SetStdout(os.Stdout)
 	tf.SetStderr(os.Stderr)
 
-	Options := []tfexec.ApplyOption{
+	applyOpts := []tfexec.ApplyOption{
 		tfexec.Lock(lock),
 		tfexec.DirOrPlan("plan.out"),
 	}
 
-	err = tf.Apply(context.Background(), Options...)
+	// Add target options to apply as well
+	if len(targets) > 0 {
+		for _, target := range targets {
+			applyOpts = append(applyOpts, tfexec.Target(target))
+		}
+	}
+
+	err = tf.Apply(context.Background(), applyOpts...)
 	if err != nil {
 		Error("Terraform apply failed: %v", err)
 		return err
