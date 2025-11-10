@@ -56,7 +56,7 @@ Use the smurf.yaml configuration file to perform Smurf Helm both locally and in 
 ```bash
 smurf selm init
 ```
-it create the `smurf.yaml` configure for docker 
+This creates the `smurf.yaml` configuration file for Helm.
 ```yaml
 selm:
   releaseName: "Release Name"
