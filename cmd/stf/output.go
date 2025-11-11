@@ -1,6 +1,8 @@
 package stf
 
 import (
+	"os"
+
 	"github.com/clouddrove/smurf/internal/terraform"
 	"github.com/spf13/cobra"
 )
@@ -9,10 +11,15 @@ var outputDir string
 
 // outputCmd defines a subcommand that generates output for the current state of Terraform Infrastructure.
 var outputCmd = &cobra.Command{
-	Use:   "output",
-	Short: "Generate output for the current state of Terraform Infrastructure",
+	Use:           "output",
+	Short:         "Generate output for the current state of Terraform Infrastructure",
+	SilenceErrors: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return terraform.Output(outputDir)
+		err := terraform.Output(outputDir)
+		if err != nil {
+			os.Exit(1)
+		}
+		return nil
 	},
 	Example: `
 	smurf stf output

@@ -9,8 +9,9 @@ var stateListDir string
 
 // stateListCmd represents the command to list resources in the Terraform state
 var stateListCmd = &cobra.Command{
-	Use:   "state-list",
-	Short: "List resources in the Terraform state",
+	Use:          "state-list",
+	Short:        "List resources in the Terraform state",
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		err := terraform.StateList(stateListDir)
 

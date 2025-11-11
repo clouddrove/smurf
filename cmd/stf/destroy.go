@@ -1,6 +1,8 @@
 package stf
 
 import (
+	"os"
+
 	"github.com/clouddrove/smurf/internal/terraform"
 	"github.com/spf13/cobra"
 )
@@ -12,12 +14,17 @@ var destroyDir string
 
 // destroyCmd defines a subcommand that destroys the Terraform Infrastructure.
 var destroyCmd = &cobra.Command{
-	Use:   "destroy",
-	Short: "Destroy the Terraform Infrastructure",
+	Use:          "destroy",
+	Short:        "Destroy the Terraform Infrastructure",
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Use either approve or auto-approve flag
 		approve := destroyApprove || destroyAutoApprove
-		return terraform.Destroy(approve, destroyLock, destroyDir)
+		err := terraform.Destroy(approve, destroyLock, destroyDir)
+		if err != nil {
+			os.Exit(1)
+		}
+		return nil
 	},
 	Example: `
 	smurf stf destroy

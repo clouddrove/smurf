@@ -6,16 +6,16 @@ import (
 	"os"
 
 	"github.com/hashicorp/terraform-exec/tfexec"
-	"github.com/pterm/pterm"
 )
 
 // Plan runs 'terraform plan' and outputs the plan to the console.
 // It allows setting variables either via command-line arguments or variable files.
 // The function provides user feedback through spinners and colored messages,
 // and handles any errors that occur during the planning process.
-func Plan(vars []string, varFiles []string, dir string, destroy bool) error {
+func Plan(vars []string, varFiles []string, dir string, destroy bool, targets []string) error {
 	tf, err := GetTerraform(dir)
 	if err != nil {
+		Error("Failed to initialize Terraform client: %v", err)
 		return err
 	}
 
@@ -28,38 +28,48 @@ func Plan(vars []string, varFiles []string, dir string, destroy bool) error {
 	tf.SetStdout(customWriter)
 	tf.SetStderr(os.Stderr)
 
-	pterm.Info.Println("Infrastucture planning...")
-	spinner, _ := pterm.DefaultSpinner.Start("Infrastructure planning...")
+	// Start planning process
+	Info("Starting infrastructure planning in directory: %s", dir)
 
 	planOptions := []tfexec.PlanOption{}
 
-	if vars != nil {
-		pterm.Info.Printf("Setting variable: %s\n", vars)
+	// Apply variables
+	if len(vars) > 0 {
 		for _, v := range vars {
+			Info("Applying variable: %s", v)
 			planOptions = append(planOptions, tfexec.Var(v))
 		}
 	}
 
-	if varFiles != nil {
-		pterm.Info.Printf("Setting variable file: %s\n", varFiles)
+	// Apply variable files
+	if len(varFiles) > 0 {
 		for _, vf := range varFiles {
+			Info("Loading variable file: %s", vf)
 			planOptions = append(planOptions, tfexec.VarFile(vf))
 		}
 	}
 
-	// Add destroy flag if set
+	// Handle targets
+	if len(targets) > 0 {
+		Info("Targeting %d resource(s)...", len(targets))
+		for _, target := range targets {
+			Info("Using target: %s", target)
+			planOptions = append(planOptions, tfexec.Target(target))
+		}
+	}
+
+	// Destroy flag support
 	if destroy {
-		pterm.Info.Println("Planning for destruction")
+		Warn("Planning for destruction of infrastructure resources...")
 		planOptions = append(planOptions, tfexec.Destroy(true))
 	}
 
+	// Execute Terraform plan
 	_, err = tf.Plan(context.Background(), planOptions...)
 	if err != nil {
-		spinner.Fail("Plan failed")
-		pterm.Error.Printf("Plan failed: %v\n", err)
 		return err
 	}
 
-	spinner.Success("Infrastructure planning completed successfully")
+	Success("Terraform plan executed successfully. Review the changes above before applying.")
 	return nil
 }

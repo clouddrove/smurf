@@ -57,7 +57,7 @@ Use the smurf.yaml configuration file to perform Smurf Docker both locally and i
 ```bash
 smurf sdkr init
 ```
-This creates the `smurf.yaml` configuration file for Docker.
+it create the `smurf.yaml` configure for docker 
 ```yaml
 sdkr:
   imageName: "my-application"

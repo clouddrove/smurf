@@ -1,6 +1,8 @@
 package stf
 
 import (
+	"os"
+
 	"github.com/clouddrove/smurf/internal/terraform"
 	"github.com/spf13/cobra"
 )
@@ -11,15 +13,20 @@ var applyVarFile []string
 var applyLock bool
 var applyDir string
 var applyAutoApprove bool
+var applyTarget []string
 
 // applyCmd defines a subcommand that applies the changes required to reach the desired state of Terraform Infrastructure.
-// applyCmd defines a subcommand that applies the changes required to reach the desired state of Terraform Infrastructure.
 var applyCmd = &cobra.Command{
-	Use:   "apply",
-	Short: "Apply the changes required to reach the desired state of Terraform Infrastructure",
+	Use:          "apply",
+	Short:        "Apply the changes required to reach the desired state of Terraform Infrastructure",
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		approve := applyApprove || applyAutoApprove
-		return terraform.Apply(approve, applyVarNameValue, applyVarFile, applyLock, applyDir)
+		err := terraform.Apply(approve, applyVarNameValue, applyVarFile, applyLock, applyDir, applyTarget)
+		if err != nil {
+			os.Exit(1)
+		}
+		return nil
 	},
 	Example: `
 	smurf stf apply
@@ -35,6 +42,11 @@ var applyCmd = &cobra.Command{
 
 	# Specify a custom directory
 	smurf stf apply --dir=/path/to/terraform/files
+
+	# Target specific resources
+	smurf stf apply --target=aws_instance.web
+	smurf stf apply --target=module.vpc
+	smurf stf apply --target=aws_instance.web --target=aws_security_group.web
 	`,
 }
 
@@ -45,6 +57,7 @@ func init() {
 	applyCmd.Flags().BoolVar(&applyLock, "lock", true, "Don't hold a state lock during the operation. This is dangerous if others might concurrently run commands against the same workspace.")
 	applyCmd.Flags().StringVar(&applyDir, "dir", ".", "Specify the directory containing Terraform files")
 	applyCmd.Flags().BoolVar(&applyAutoApprove, "auto-approve", false, "Skip interactive approval of plan before applying")
+	applyCmd.Flags().StringArrayVar(&applyTarget, "target", []string{}, "Target specific resources, modules, or resources in modules") // Add this line
 
 	stfCmd.AddCommand(applyCmd)
 }

@@ -9,13 +9,16 @@ var planVarNameValue []string
 var planVarFile []string
 var planDir string
 var planDestroy bool
+var planTarget []string
 
 // planCmd defines a subcommand that generates and shows an execution plan for Terraform
 var planCmd = &cobra.Command{
-	Use:   "plan",
-	Short: "Generate and show an execution plan for Terraform",
+	Use:          "plan",
+	Short:        "Generate and show an execution plan for Terraform",
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return terraform.Plan(planVarNameValue, planVarFile, planDir, planDestroy)
+		terraform.Plan(planVarNameValue, planVarFile, planDir, planDestroy, planTarget)
+		return nil
 	},
 	Example: `
     smurf stf plan
@@ -31,6 +34,14 @@ var planCmd = &cobra.Command{
 
     # Plan for destroy
     smurf stf plan --destroy
+
+    # Target specific resources
+    smurf stf plan --target=aws_instance.web
+    smurf stf plan --target=module.vpc
+    smurf stf plan --target=aws_instance.web --target=aws_security_group.web
+
+    # Combine with other flags
+    smurf stf plan --target=aws_instance.web --destroy --var="instance_type=t2.micro"
     `,
 }
 
@@ -39,6 +50,7 @@ func init() {
 	planCmd.Flags().StringArrayVar(&planVarFile, "var-file", []string{}, "Specify a file containing variables")
 	planCmd.Flags().StringVar(&planDir, "dir", ".", "Specify the directory containing Terraform files")
 	planCmd.Flags().BoolVar(&planDestroy, "destroy", false, "Generate a destroy plan")
+	planCmd.Flags().StringArrayVar(&planTarget, "target", []string{}, "Target specific resources, modules, or resources in modules") // Add this line
 
 	stfCmd.AddCommand(planCmd)
 }

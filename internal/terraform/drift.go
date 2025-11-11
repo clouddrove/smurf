@@ -2,49 +2,51 @@ package terraform
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	"github.com/hashicorp/terraform-exec/tfexec"
-	"github.com/pterm/pterm"
 )
 
 // DetectDrift checks for drift between the Terraform state and the actual infrastructure.
 // It performs a `plan` with refresh enabled to detect any changes that differ
 // from the current state. If drift is detected, it lists the affected resources.
-// Provides user feedback through spinners and colored messages for better UX.
+// Provides user feedback through spinners and consistent Smurf log style.
 func DetectDrift(dir string) error {
 	tf, err := GetTerraform(dir)
 	if err != nil {
+		Error("Failed to initialize Terraform: %v", err)
 		return err
 	}
 
 	planFile := "drift.plan"
-	pterm.Info.Println("Checking for drift...")
-	spinner, _ := pterm.DefaultSpinner.Start("Running terraform plan for drift detection")
+
+	Info("Starting Terraform drift detection...")
+
+	// Generate drift plan
 	_, err = tf.Plan(context.Background(), tfexec.Out(planFile), tfexec.Refresh(true))
-
 	if err != nil {
-		spinner.Fail("Terraform plan for drift detection failed")
-		pterm.Error.Printf("Terraform plan for drift detection failed: %v\n", err)
-		return err
-	}
-	spinner.Success("Terraform drift detection plan completed")
-
-	plan, err := tf.ShowPlanFile(context.Background(), planFile)
-	if err != nil {
-		pterm.Error.Printf("Error showing plan file: %v\n", err)
+		Error("Failed to execute Terraform plan for drift detection: %v", err)
 		return err
 	}
 
 	tf.SetStderr(os.Stderr)
 
+	// Parse plan file
+	plan, err := tf.ShowPlanFile(context.Background(), planFile)
+	if err != nil {
+		Error("Failed to read drift plan file: %v", err)
+		return err
+	}
+
 	if len(plan.ResourceChanges) > 0 {
-		pterm.Warning.Println("Drift detected:")
+		Warn("Drift detected in your infrastructure:")
 		for _, change := range plan.ResourceChanges {
-			pterm.Println(pterm.Yellow("- %s: %s", change.Address, change.Change.Actions))
+			fmt.Printf("  - %s: %v\n", change.Address, change.Change.Actions)
 		}
+		Warn("Run 'terraform apply' to reconcile drifted resources.")
 	} else {
-		pterm.Success.Println("No drift detected.")
+		Success("No drift detected. Your infrastructure is in sync.")
 	}
 
 	return nil

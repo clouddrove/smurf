@@ -13,18 +13,19 @@ var upgrade bool
 var provisionDir string // Define provisionDir variable
 
 var provisionCmd = &cobra.Command{
-	Use:   "provision",
-	Short: "Its the combination of init, plan, apply, output for Terraform",
+	Use:          "provision",
+	Short:        "Its the combination of init, plan, apply, output for Terraform",
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := terraform.Init(provisionDir, upgrade); err != nil {
 			return err
 		}
 
-		if err := terraform.Plan(varNameValue, varFile, provisionDir, planDestroy); err != nil {
+		if err := terraform.Plan(varNameValue, varFile, provisionDir, planDestroy, planTarget); err != nil {
 			return err
 		}
 
-		if err := terraform.Apply(provisionApprove, varNameValue, varFile, lock, provisionDir); err != nil {
+		if err := terraform.Apply(provisionApprove, varNameValue, varFile, lock, provisionDir, applyTarget); err != nil {
 			return err
 		}
 

@@ -1,6 +1,8 @@
 package stf
 
 import (
+	"os"
+
 	"github.com/clouddrove/smurf/internal/terraform"
 	"github.com/spf13/cobra"
 )
@@ -9,11 +11,15 @@ var recursive bool
 
 // formatCmd defines a subcommand that formats the Terraform Infrastructure.
 var formatCmd = &cobra.Command{
-	Use:   "format",
-	Short: "Format the Terraform Infrastructure",
+	Use:          "format",
+	Short:        "Format the Terraform Infrastructure",
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-
-		return terraform.Format(recursive)
+		err := terraform.Format(recursive)
+		if err != nil {
+			os.Exit(1)
+		}
+		return nil
 	},
 	Example: `
 	smurf stf format
