@@ -11,11 +11,7 @@ import (
 )
 
 // Destroy executes 'destroy' to remove all managed infrastructure.
-// It initializes the Terraform client, sets up custom writers for colored output,
-// runs the destroy operation with a spinner for user feedback, and handles any
-// errors that occur during the process. Upon successful completion, it stops
-// the spinner with a success message.
-func Destroy(approve bool, lock bool, dir string) error {
+func Destroy(approve bool, lock bool, dir string, vars []string, varFiles []string) error { // UPDATED: added new parameters
 	tf, err := GetTerraform(dir)
 	if err != nil {
 		Error("Failed to initialize Terraform client: %v", err)
@@ -24,12 +20,34 @@ func Destroy(approve bool, lock bool, dir string) error {
 
 	Info("Preparing Terraform destroy operation in directory: %s", dir)
 
-	// Generate destroy plan
-	_, err = tf.Plan(
-		context.Background(),
+	// Build plan options
+	planOptions := []tfexec.PlanOption{
 		tfexec.Destroy(true),
 		tfexec.Out("plan.out"),
-	)
+	}
+
+	if len(vars) > 0 {
+		Info("Setting %d variable(s)...", len(vars))
+		for _, v := range vars {
+			Info("Using variable: %s", v)
+			planOptions = append(planOptions, tfexec.Var(v))
+		}
+	}
+
+	if len(varFiles) > 0 {
+		Info("Loading %d variable file(s)...", len(varFiles))
+		for _, vf := range varFiles {
+			if _, err := os.Stat(vf); os.IsNotExist(err) {
+				Error("Variable file not found: %s", vf)
+				return fmt.Errorf("variable file not found: %s", vf)
+			}
+			Info("Using var-file: %s", vf)
+			planOptions = append(planOptions, tfexec.VarFile(vf))
+		}
+	}
+
+	// Generate destroy plan
+	_, err = tf.Plan(context.Background(), planOptions...)
 	if err != nil {
 		Error("Failed to generate destroy plan: %v", err)
 		return err
@@ -75,12 +93,14 @@ func Destroy(approve bool, lock bool, dir string) error {
 	tf.SetStdout(os.Stdout)
 	tf.SetStderr(os.Stderr)
 
-	err = tf.Apply(
-		context.Background(),
+	// Build apply options for destroy
+	applyOptions := []tfexec.ApplyOption{
 		tfexec.Destroy(true),
 		tfexec.DirOrPlan("plan.out"),
 		tfexec.Lock(lock),
-	)
+	}
+
+	err = tf.Apply(context.Background(), applyOptions...)
 	if err != nil {
 		Error("Terraform destroy failed: %v", err)
 		return err
@@ -99,15 +119,12 @@ func Destroy(approve bool, lock bool, dir string) error {
 	return nil
 }
 
-// DestroyLogger extended to handle destroy-specific output
+// DestroyLogger remains the same...
 type DestroyLogger struct {
 	CustomColorWriter
 	isDestroy bool
 }
 
-// Write handles the output of the Terraform destroy command
-// and applies color to specific messages
-// Write enhances Terraform destroy logs with color and readability.
 func (l *DestroyLogger) Write(p []byte) (n int, err error) {
 	msg := string(p)
 

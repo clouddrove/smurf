@@ -12,7 +12,7 @@ import (
 // It allows setting variables either via command-line arguments or variable files.
 // The function provides user feedback through spinners and colored messages,
 // and handles any errors that occur during the planning process.
-func Plan(vars []string, varFiles []string, dir string, destroy bool, targets []string) error {
+func Plan(vars []string, varFiles []string, dir string, destroy bool, targets []string, refresh bool, state string) error {
 	tf, err := GetTerraform(dir)
 	if err != nil {
 		Error("Failed to initialize Terraform client: %v", err)
@@ -32,6 +32,12 @@ func Plan(vars []string, varFiles []string, dir string, destroy bool, targets []
 	Info("Starting infrastructure planning in directory: %s", dir)
 
 	planOptions := []tfexec.PlanOption{}
+
+	// Handle state file - add this block
+	if state != "" {
+		Info("Using custom state file: %s", state)
+		planOptions = append(planOptions, tfexec.State(state))
+	}
 
 	// Apply variables
 	if len(vars) > 0 {
@@ -62,6 +68,12 @@ func Plan(vars []string, varFiles []string, dir string, destroy bool, targets []
 	if destroy {
 		Warn("Planning for destruction of infrastructure resources...")
 		planOptions = append(planOptions, tfexec.Destroy(true))
+	}
+
+	// Refresh flag support
+	if !refresh {
+		Info("Skipping state refresh...")
+		planOptions = append(planOptions, tfexec.Refresh(false))
 	}
 
 	// Execute Terraform plan
