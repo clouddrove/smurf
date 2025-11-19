@@ -17,6 +17,7 @@ var (
 	createNamespace     bool
 	installIfNotPresent bool
 	wait                bool
+	historyMax          int
 )
 
 // upgradeCmd facilitates upgrading an existing Helm release or installing it if it's not present
@@ -105,6 +106,7 @@ var upgradeCmd = &cobra.Command{
 			pterm.Printf("  - Set literal: %v\n", configs.SetLiteral)
 			pterm.Printf("  - Repo URL: %s\n", RepoURL)
 			pterm.Printf("  - Version: %s\n", Version)
+			pterm.Printf("  - History Max: %d\n", historyMax)
 		}
 
 		// Check if release exists
@@ -160,6 +162,7 @@ var upgradeCmd = &cobra.Command{
 			RepoURL,
 			Version,
 			wait,
+			historyMax,
 		)
 		if err != nil {
 			os.Exit(1)
@@ -197,6 +200,7 @@ func init() {
 	upgradeCmd.Flags().BoolVar(&installIfNotPresent, "install", false, "Install the chart if it is not already installed")
 	upgradeCmd.Flags().StringVar(&RepoURL, "repo-url", "", "Helm repository URL")
 	upgradeCmd.Flags().StringVar(&Version, "version", "", "Helm chart version")
-	upgradeCmd.Flags().BoolVar(&configs.Wait, "wait", false, "Wait until all Pods, PVCs, Services, and minimum number of Pods of a Deployment are ready before marking success") // Changed default to false
+	upgradeCmd.Flags().BoolVar(&configs.Wait, "wait", false, "Wait until all Pods, PVCs, Services, and minimum number of Pods of a Deployment are ready before marking success")
+	upgradeCmd.Flags().IntVar(&historyMax, "history-max", 10, "Limit the maximum number of revisions saved per release")
 	selmCmd.AddCommand(upgradeCmd)
 }
