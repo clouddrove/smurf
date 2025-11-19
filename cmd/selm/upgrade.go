@@ -185,6 +185,9 @@ smurf selm upgrade my-release ./mychart --install
 
 # Install if not present with waiting
 smurf selm upgrade my-release ./mychart --install --wait
+
+# Upgrade with all options
+smurf selm upgrade my-release ./mychart --wait --timeout 300 --history-max 3 --atomic
 `,
 }
 
