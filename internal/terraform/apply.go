@@ -11,10 +11,9 @@ import (
 )
 
 // Apply executes 'apply' to apply the planned changes.
-// It initializes the Terraform client, runs the apply operation with a spinner for user feedback,
-// and handles any errors that occur during the process. Upon successful completion,
-// it sets custom writers for stdout and stderr to handle colored output. lock is by default false
-func Apply(approve bool, vars []string, varFiles []string, lock bool, dir string, targets []string) error { // Update function signature
+func Apply(approve bool, vars []string, varFiles []string, lock bool, dir string, targets []string, state string) error {
+	defer cleanupPlanFile()
+
 	Step("Initializing Terraform client...")
 	tf, err := GetTerraform(dir)
 	if err != nil {
@@ -26,6 +25,12 @@ func Apply(approve bool, vars []string, varFiles []string, lock bool, dir string
 		tfexec.Out("plan.out"),
 	}
 
+	// Handle state file
+	if state != "" {
+		Info("Using custom state file: %s", state)
+		applyOptions = append(applyOptions, tfexec.State(state))
+	}
+
 	// Handle inline variables
 	if vars != nil {
 		Info("Setting %d variable(s)...", len(vars))
@@ -35,10 +40,14 @@ func Apply(approve bool, vars []string, varFiles []string, lock bool, dir string
 		}
 	}
 
-	// Handle variable files
+	// Handle variable files with existence check
 	if varFiles != nil {
 		Info("Loading %d variable file(s)...", len(varFiles))
 		for _, vf := range varFiles {
+			if _, err := os.Stat(vf); os.IsNotExist(err) {
+				Error("Variable file not found: %s", vf)
+				return fmt.Errorf("variable file not found: %s", vf)
+			}
 			Info("Using var-file: %s", vf)
 			applyOptions = append(applyOptions, tfexec.VarFile(vf))
 		}
@@ -112,6 +121,11 @@ func Apply(approve bool, vars []string, varFiles []string, lock bool, dir string
 		tfexec.DirOrPlan("plan.out"),
 	}
 
+	// Add state option to apply as well
+	if state != "" {
+		applyOpts = append(applyOpts, tfexec.State(state))
+	}
+
 	// Add target options to apply as well
 	if len(targets) > 0 {
 		for _, target := range targets {
@@ -145,4 +159,11 @@ func Apply(approve bool, vars []string, varFiles []string, lock bool, dir string
 
 	Success("Apply complete! Resources: %d added, %d changed, %d destroyed", added, changed, destroyed)
 	return nil
+}
+
+// cleanupPlanFile removes the temporary plan file
+func cleanupPlanFile() {
+	if _, err := os.Stat("plan.out"); err == nil {
+		os.Remove("plan.out")
+	}
 }
