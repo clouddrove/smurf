@@ -18,6 +18,7 @@ var (
 	ProjectID        string
 	Region           string
 	Repository       string
+	UseGCR           bool
 )
 
 // types for SELM
@@ -81,6 +82,7 @@ type SdkrConfig struct {
 	AwsECR                       bool   `yaml:"awsECR"`
 	DockerHub                    bool   `yaml:"dockerHub"`
 	GHCRRepo                     bool   `yaml:"ghcrRepo"`
+	GCPRepo                      bool   `yaml:"gcpRepo"`
 }
 
 // types for SELM in the config file

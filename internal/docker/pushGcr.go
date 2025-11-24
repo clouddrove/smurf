@@ -2,10 +2,13 @@ package docker
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -54,6 +57,16 @@ func (l *ColorfulLogger) logSuccess(message string) {
 		colorReset)
 }
 
+func (l *ColorfulLogger) logWarning(message string) {
+	fmt.Printf("%s[%s] %s %s%s%s\n",
+		colorYellow,
+		time.Since(l.startTime).Round(time.Millisecond),
+		"⚠",
+		colorYellow,
+		message,
+		colorReset)
+}
+
 func (l *ColorfulLogger) logLayerPushed(layerID string) {
 	fmt.Printf("%s[%s] %s %s%s pushed%s\n",
 		colorYellow,
@@ -64,59 +77,141 @@ func (l *ColorfulLogger) logLayerPushed(layerID string) {
 		colorReset)
 }
 
+// VerifyGCloudAuth verifies Google Cloud authentication with multiple fallbacks
+func VerifyGCloudAuth() error {
+	ctx := context.Background()
+	logger := NewColorfulLogger()
+
+	logger.logStep("Checking Google Cloud authentication...")
+
+	// Method 1: Check if we can use gcloud CLI
+	if token, err := getGcloudAccessToken(); err == nil && token != "" {
+		logger.logSuccess("Authentication verified via gcloud CLI")
+		return nil
+	}
+
+	// Method 2: Check service account credentials
+	if credsPath := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS"); credsPath != "" {
+		if _, err := os.Stat(credsPath); err == nil {
+			data, err := os.ReadFile(credsPath)
+			if err == nil {
+				_, err := google.CredentialsFromJSON(ctx, data, "https://www.googleapis.com/auth/cloud-platform")
+				if err == nil {
+					logger.logSuccess("Authentication verified via service account credentials")
+					return nil
+				}
+			}
+		}
+	}
+
+	// Method 3: Check default credentials
+	creds, err := google.FindDefaultCredentials(ctx, "https://www.googleapis.com/auth/cloud-platform")
+	if err == nil && creds != nil {
+		// Try to get a token to verify
+		token, err := creds.TokenSource.Token()
+		if err == nil && token != nil && token.Valid() {
+			logger.logSuccess("Authentication verified via default credentials")
+			return nil
+		}
+	}
+
+	logger.logWarning("No valid Google Cloud authentication found")
+	return fmt.Errorf(`Google Cloud authentication required. Please run:
+
+  gcloud auth login
+
+Or set service account credentials:
+
+  export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account-key.json"`)
+}
+
+// getGcloudAccessToken tries to get access token using gcloud CLI
+func getGcloudAccessToken() (string, error) {
+	cmd := exec.Command("gcloud", "auth", "print-access-token")
+	output, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(output)), nil
+}
+
+// getDockerConfigAuth tries to get auth from Docker config (set by gcloud auth configure-docker)
+func getDockerConfigAuth(serverAddress string) (registry.AuthConfig, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return registry.AuthConfig{}, err
+	}
+
+	dockerConfigPath := filepath.Join(homeDir, ".docker", "config.json")
+	if _, err := os.Stat(dockerConfigPath); err != nil {
+		return registry.AuthConfig{}, err
+	}
+
+	data, err := os.ReadFile(dockerConfigPath)
+	if err != nil {
+		return registry.AuthConfig{}, err
+	}
+
+	var config struct {
+		Auths map[string]struct {
+			Auth string `json:"auth"`
+		} `json:"auths"`
+	}
+
+	if err := json.Unmarshal(data, &config); err != nil {
+		return registry.AuthConfig{}, err
+	}
+
+	if authData, exists := config.Auths[serverAddress]; exists && authData.Auth != "" {
+		decoded, err := base64.StdEncoding.DecodeString(authData.Auth)
+		if err != nil {
+			return registry.AuthConfig{}, err
+		}
+
+		parts := strings.SplitN(string(decoded), ":", 2)
+		if len(parts) == 2 {
+			return registry.AuthConfig{
+				Username:      parts[0],
+				Password:      parts[1],
+				ServerAddress: serverAddress,
+			}, nil
+		}
+	}
+
+	return registry.AuthConfig{}, fmt.Errorf("no auth found for %s", serverAddress)
+}
+
 func PushImageToGCR(projectID, imageNameWithTag string) error {
 	logger := NewColorfulLogger()
 	ctx := context.Background()
 
-	logger.logStep("Starting image push to GCR")
+	logger.logStep("Starting image push to Google Container Registry/Artifact Registry")
 
-	// Authentication
-	creds, err := google.FindDefaultCredentials(ctx, "https://www.googleapis.com/auth/cloud-platform")
-	if err != nil {
-		return fmt.Errorf("%sauthentication failed%s: %v", colorRed, colorReset, err)
-	}
-	logger.logSuccess("Authenticated with Google Cloud")
-
-	token, err := creds.TokenSource.Token()
-	if err != nil {
-		return fmt.Errorf("%stoken acquisition failed%s: %v", colorRed, colorReset, err)
-	}
-
-	// Docker client
+	// Get Docker client
 	dockerClient, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		return fmt.Errorf("%sdocker client creation failed%s: %v", colorRed, colorReset, err)
 	}
 
-	// Image tagging
-	parts := strings.Split(imageNameWithTag, ":")
-	imageName, imageTag := parts[0], "latest"
-	if len(parts) == 2 {
-		imageTag = parts[1]
+	// Use the image reference exactly as provided - DO NOT MODIFY IT
+	targetImage := imageNameWithTag
+	logger.logStep(fmt.Sprintf("Pushing image: %s", targetImage))
+
+	// Determine server address for authentication
+	serverAddress := extractServerAddress(targetImage)
+
+	// Get authentication using multiple methods
+	authConfig, err := getAuthConfig(serverAddress)
+	if err != nil {
+		return fmt.Errorf("%sauthentication failed%s: %v", colorRed, colorReset, err)
 	}
 
-	taggedImage := imageNameWithTag
-	if !strings.Contains(imageName, "gcr.io") && !strings.Contains(imageName, "docker.pkg.dev") {
-		taggedImage = fmt.Sprintf("gcr.io/%s/%s:%s", projectID, imageName, imageTag)
-	}
-
-	if err := dockerClient.ImageTag(ctx, imageNameWithTag, taggedImage); err != nil {
-		return fmt.Errorf("%simage tagging failed%s: %v", colorRed, colorReset, err)
-	}
-	logger.logSuccess(fmt.Sprintf("Tagged image: %s%s%s", colorCyan, taggedImage, colorReset))
-
-	// Image push
-	authConfig := registry.AuthConfig{
-		Username:      "oauth2accesstoken",
-		Password:      token.AccessToken,
-		ServerAddress: "https://gcr.io",
-	}
 	encodedAuth, err := encodeAuthToBase64(authConfig)
 	if err != nil {
 		return fmt.Errorf("%sauth encoding failed%s: %v", colorRed, colorReset, err)
 	}
 
-	pushResponse, err := dockerClient.ImagePush(ctx, taggedImage, image.PushOptions{
+	pushResponse, err := dockerClient.ImagePush(ctx, targetImage, image.PushOptions{
 		RegistryAuth: encodedAuth,
 	})
 	if err != nil {
@@ -138,31 +233,78 @@ func PushImageToGCR(projectID, imageNameWithTag string) error {
 			return fmt.Errorf("%spush failed%s: %v", colorRed, colorReset, event.Error)
 		}
 
-		// Only log when a layer is fully pushed
 		if event.Status == "Pushed" && event.ID != "" {
 			logger.logLayerPushed(event.ID)
 		}
 	}
 
-	// Final output
-	registryType := "gcr"
-	if strings.Contains(imageName, "docker.pkg.dev") {
-		registryType = "artifacts/repository"
-	}
-	link := fmt.Sprintf("https://console.cloud.google.com/%s/images/%s/%s?project=%s",
-		registryType, projectID, imageName, projectID)
+	logger.logSuccess("Image pushed successfully")
+	logger.logSuccess(fmt.Sprintf("Image reference: %s%s%s", colorCyan, targetImage, colorReset))
 
-	if outputPath := os.Getenv("GITHUB_OUTPUT"); outputPath != "" {
-		file, err := os.OpenFile(outputPath, os.O_APPEND|os.O_WRONLY, 0644)
-		if err == nil {
-			fmt.Fprintf(file, "image_url=%s\n", link)
-			file.Close()
+	return nil
+}
+
+// getAuthConfig tries multiple authentication methods in order
+func getAuthConfig(serverAddress string) (registry.AuthConfig, error) {
+	ctx := context.Background()
+
+	// Method 1: Try Docker config (set by gcloud auth configure-docker)
+	if auth, err := getDockerConfigAuth(serverAddress); err == nil {
+		return auth, nil
+	}
+
+	// Method 2: Try gcloud CLI access token
+	if token, err := getGcloudAccessToken(); err == nil {
+		return registry.AuthConfig{
+			Username:      "oauth2accesstoken",
+			Password:      token,
+			ServerAddress: serverAddress,
+		}, nil
+	}
+
+	// Method 3: Try service account credentials from environment variable
+	if credsPath := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS"); credsPath != "" {
+		if _, err := os.Stat(credsPath); err == nil {
+			data, err := os.ReadFile(credsPath)
+			if err == nil {
+				creds, err := google.CredentialsFromJSON(ctx, data, "https://www.googleapis.com/auth/cloud-platform")
+				if err == nil {
+					token, err := creds.TokenSource.Token()
+					if err == nil {
+						return registry.AuthConfig{
+							Username:      "oauth2accesstoken",
+							Password:      token.AccessToken,
+							ServerAddress: serverAddress,
+						}, nil
+					}
+				}
+			}
 		}
 	}
 
-	logger.logSuccess("Image pushed successfully")
-	logger.logSuccess(fmt.Sprintf("View in console: %s%s%s", colorCyan, link, colorReset))
-	logger.logSuccess(fmt.Sprintf("Image reference: %s%s%s", colorCyan, taggedImage, colorReset))
+	// Method 4: Try default credentials
+	creds, err := google.FindDefaultCredentials(ctx, "https://www.googleapis.com/auth/cloud-platform")
+	if err != nil {
+		return registry.AuthConfig{}, fmt.Errorf("no valid authentication methods found: %v", err)
+	}
 
-	return nil
+	token, err := creds.TokenSource.Token()
+	if err != nil {
+		return registry.AuthConfig{}, fmt.Errorf("failed to get authentication token: %v", err)
+	}
+
+	return registry.AuthConfig{
+		Username:      "oauth2accesstoken",
+		Password:      token.AccessToken,
+		ServerAddress: serverAddress,
+	}, nil
+}
+
+// extractServerAddress extracts server address from image name without modifying it
+func extractServerAddress(imageName string) string {
+	parts := strings.Split(imageName, "/")
+	if len(parts) > 0 {
+		return parts[0]
+	}
+	return imageName
 }

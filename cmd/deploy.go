@@ -39,6 +39,8 @@ var deployCmd = &cobra.Command{
 			imageRepo, imageTag, err = handleDockerHubPush(cfg)
 		case cfg.Sdkr.GHCRRepo:
 			imageRepo, imageTag, err = handleGHCRPush(cfg)
+		case cfg.Sdkr.GCPRepo:
+			imageRepo, imageTag, err = handleGCPPush(cfg)
 		default:
 			pterm.Warning.Println("No registry selected (awsECR/dockerHub/ghcrRepo). Skipping image push.")
 		}
@@ -215,6 +217,58 @@ func handleGHCRPush(cfg *configs.Config) (string, string, error) {
 	pterm.Success.Printf("✅ Successfully pushed to GHCR: %s\n", fullImage)
 	maybeCleanup(fullImage)
 
+	return repo, tag, nil
+}
+
+func handleGCPPush(cfg *configs.Config) (string, string, error) {
+	pterm.Info.Println("📦 Handling GCP push...")
+
+	imageName := cfg.Sdkr.ImageName
+	repo, tag := imageName, "latest"
+
+	// Parse tag
+	if parts := strings.SplitN(imageName, ":", 2); len(parts) == 2 {
+		repo, tag = parts[0], parts[1]
+	}
+
+	// Validate GCP Registry
+	if !strings.HasPrefix(repo, "gcr.io/") && !strings.Contains(repo, "-docker.pkg.dev/") {
+		return "", "", fmt.Errorf("invalid GCP registry. Must be gcr.io/ or *.pkg.dev")
+	}
+
+	// Extract local build image name
+	localRepo := repo
+	if strings.Contains(repo, "/") {
+		parts := strings.Split(repo, "/")
+		localRepo = parts[len(parts)-1]
+	}
+
+	// Build local image
+	localImageRef := fmt.Sprintf("%s:%s", localRepo, tag)
+	pterm.Info.Printf("🔧 Building image %s\n", localImageRef)
+	if err := buildImageWithOpts(localRepo, tag); err != nil {
+		return "", "", err
+	}
+
+	// FULL GCP image reference
+	fullRemote := fmt.Sprintf("%s:%s", repo, tag)
+	pterm.Info.Printf("🔖 Tagging image: %s → %s\n", localImageRef, fullRemote)
+
+	// Tag
+	tagOpts := docker.TagOptions{Source: localImageRef, Target: fullRemote}
+	if err := docker.TagImage(tagOpts); err != nil {
+		return "", "", fmt.Errorf("failed to tag image: %w", err)
+	}
+
+	// PUSH using GCP-specific function (like ECR does 🎯)
+	if err := docker.PushImageToGCR(configs.ProjectID, fullRemote); err != nil {
+		return "", "", err
+	}
+
+	pterm.Success.Printf("✅ Successfully pushed to GCP: %s\n", fullRemote)
+	maybeCleanup(localImageRef)
+
+	// Return repository + tag like ECR function does
 	return repo, tag, nil
 }
 

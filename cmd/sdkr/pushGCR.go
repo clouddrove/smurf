@@ -11,14 +11,21 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// pushGcrCmd defines the "gcp" subcommand for pushing Docker images to Google Container Registry (GCR).
-// It reads image references from either the command line or config files, supports environment
-// variables for authentication, and optionally deletes the local image after a successful push.
+// pushGcrCmd defines the "gcp" subcommand for pushing Docker images to Google Container Registry or Artifact Registry.
 var pushGcrCmd = &cobra.Command{
 	Use:   "gcp [IMAGE_NAME[:TAG]]",
-	Short: "Push Docker images to GCR",
-	Long: `Push Docker images to Google Container Registry. Set the GOOGLE_APPLICATION_CREDENTIALS environment variable to the path of your service account JSON key file, for example:
-  export GOOGLE_APPLICATION_CREDENTIALS="/path/to/your/service-account-key.json"`,
+	Short: "Push Docker images to Google Container Registry or Artifact Registry",
+	Long: `Push Docker images to Google Container Registry or Artifact Registry. 
+
+Authentication Methods:
+1. gcloud CLI (recommended): Run 'gcloud auth login' and 'gcloud auth configure-docker'
+2. Service Account: Set GOOGLE_APPLICATION_CREDENTIALS environment variable
+
+Supports:
+- GCR: gcr.io/PROJECT_ID/IMAGE_NAME:TAG
+- Artifact Registry: REGION-docker.pkg.dev/PROJECT_ID/REPOSITORY/IMAGE_NAME:TAG
+- Short form: IMAGE_NAME:TAG (automatically uses Artifact Registry)
+`,
 	Args:         cobra.MaximumNArgs(1),
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -41,7 +48,7 @@ var pushGcrCmd = &cobra.Command{
 			if configs.ProjectID == "" {
 				configs.ProjectID = data.Sdkr.ProvisionGcrProjectID
 			}
-			if os.Getenv("GOOGLE_APPLICATION_CREDENTIALS") == "" {
+			if os.Getenv("GOOGLE_APPLICATION_CREDENTIALS") == "" && data.Sdkr.GoogleApplicationCredentials != "" {
 				envVars = map[string]string{
 					"GOOGLE_APPLICATION_CREDENTIALS": data.Sdkr.GoogleApplicationCredentials,
 				}
@@ -51,29 +58,34 @@ var pushGcrCmd = &cobra.Command{
 					return err
 				}
 			}
-
-			if envVars["GOOGLE_APPLICATION_CREDENTIALS"] == "" {
-				pterm.Error.Println("Google Application Credentials is required")
-				return errors.New("google Application Credentials is required")
-			}
 		}
 
-		// Don't parse the image name here, let PushImageToGCR handle it
-		if configs.ProjectID == "" {
-			pterm.Error.Println("GCP project ID is required.")
-			return errors.New("GCP project ID is required.")
+		// Verify authentication before proceeding
+		pterm.Info.Println("Verifying Google Cloud authentication...")
+		if err := docker.VerifyGCloudAuth(); err != nil {
+			pterm.Error.Printf("Authentication verification failed: %v\n", err)
+			return err
 		}
 
-		pterm.Info.Println("Pushing image to Google Container Registry...")
+		// Determine registry type for better messaging
+		registryType := "Google Container Registry"
+		if strings.Contains(imageRef, ".pkg.dev") {
+			registryType = "Artifact Registry"
+		} else if !strings.Contains(imageRef, "gcr.io") && configs.ProjectID != "" {
+			// If it's a short name and we have project ID, we'll use Artifact Registry
+			registryType = "Artifact Registry"
+		}
+
+		pterm.Info.Printf("Pushing image to %s...\n", registryType)
 
 		// Pass the full image reference to PushImageToGCR
 		if err := docker.PushImageToGCR(configs.ProjectID, imageRef); err != nil {
-			pterm.Error.Println("Failed to push image to GCR:", err)
+			pterm.Error.Printf("Failed to push image to %s: %v\n", registryType, err)
 			return err
 		}
 
 		// Construct a success message after the push is successful
-		pterm.Success.Println("Successfully pushed image to GCR:", imageRef)
+		pterm.Success.Printf("Successfully pushed image to %s: %s\n", registryType, imageRef)
 
 		if configs.DeleteAfterPush {
 			// Extract base image name for deletion
@@ -84,20 +96,30 @@ var pushGcrCmd = &cobra.Command{
 
 			pterm.Info.Printf("Deleting local image %s...\n", baseName)
 			if err := docker.RemoveImage(baseName); err != nil {
-				pterm.Error.Println("Failed to delete local image:", err)
-				return err
+				pterm.Warning.Printf("Failed to delete local image %s: %v\n", baseName, err)
+				// Don't return error here, as the push was successful
+			} else {
+				pterm.Success.Println("Successfully deleted local image:", baseName)
 			}
-			pterm.Success.Println("Successfully deleted local image:", baseName)
 		}
 
 		return nil
 	},
-	Example: `  smurf sdkr push gcp myapp:v1 --project-id <project-id>
-  smurf sdkr push gcp myapp:v1 --project-id <project-id> --delete`,
+	Example: `  # Push to Artifact Registry with full image name
+  smurf sdkr push gcp us-central1-docker.pkg.dev/my-project/my-repo/myapp:v1
+
+  # Push to GCR with full image name
+  smurf sdkr push gcp gcr.io/my-project/myapp:v1
+
+  # Push with short name (uses Artifact Registry)
+  smurf sdkr push gcp myapp:v1 --project-id my-project
+
+  # Push and delete local image
+  smurf sdkr push gcp myapp:v1 --project-id my-project --delete`,
 }
 
 func init() {
-	pushGcrCmd.Flags().StringVar(&configs.ProjectID, "project-id", "", "GCP project ID (required)")
+	pushGcrCmd.Flags().StringVar(&configs.ProjectID, "project-id", "", "GCP project ID (required for short image names)")
 	pushGcrCmd.Flags().BoolVarP(&configs.DeleteAfterPush, "delete", "d", false, "Delete the local image after pushing")
 
 	pushCmd.AddCommand(pushGcrCmd)
