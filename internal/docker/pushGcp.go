@@ -19,6 +19,12 @@ import (
 	"golang.org/x/oauth2/google"
 )
 
+// Constants
+const (
+	// Google Cloud Platform authentication scope
+	GoogleCloudPlatformScope = "https://www.googleapis.com/auth/cloud-platform"
+)
+
 // Color codes
 const (
 	colorReset  = "\033[0m"
@@ -127,7 +133,7 @@ func (a *AuthProvider) verifyServiceAccount(ctx context.Context) error {
 		return err
 	}
 
-	creds, err := google.CredentialsFromJSON(ctx, data, "https://www.googleapis.com/auth/cloud-platform")
+	creds, err := google.CredentialsFromJSON(ctx, data, GoogleCloudPlatformScope)
 	if err != nil {
 		return err
 	}
@@ -136,7 +142,7 @@ func (a *AuthProvider) verifyServiceAccount(ctx context.Context) error {
 }
 
 func (a *AuthProvider) verifyDefaultCredentials(ctx context.Context) error {
-	creds, err := google.FindDefaultCredentials(ctx, "https://www.googleapis.com/auth/cloud-platform")
+	creds, err := google.FindDefaultCredentials(ctx, GoogleCloudPlatformScope)
 	if err != nil {
 		return err
 	}
@@ -218,7 +224,7 @@ func (a *AuthProvider) getServiceAccountAuth(serverAddress string) (registry.Aut
 
 func (a *AuthProvider) getDefaultCredentialsAuth(serverAddress string) (registry.AuthConfig, error) {
 	ctx := context.Background()
-	creds, err := google.FindDefaultCredentials(ctx, "https://www.googleapis.com/auth/cloud-platform")
+	creds, err := google.FindDefaultCredentials(ctx, GoogleCloudPlatformScope)
 	if err != nil {
 		return registry.AuthConfig{}, err
 	}
@@ -226,7 +232,7 @@ func (a *AuthProvider) getDefaultCredentialsAuth(serverAddress string) (registry
 }
 
 func (a *AuthProvider) getAuthFromCredentials(ctx context.Context, jsonData []byte, serverAddress string) (registry.AuthConfig, error) {
-	creds, err := google.CredentialsFromJSON(ctx, jsonData, "https://www.googleapis.com/auth/cloud-platform")
+	creds, err := google.CredentialsFromJSON(ctx, jsonData, GoogleCloudPlatformScope)
 	if err != nil {
 		return registry.AuthConfig{}, err
 	}

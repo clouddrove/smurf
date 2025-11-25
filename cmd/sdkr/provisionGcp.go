@@ -14,6 +14,23 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// Constants for registry types and URLs
+const (
+	// Registry domains
+	ArtifactRegistryDomain = ".pkg.dev"
+	GCRDomain              = "gcr.io"
+
+	// Registry types
+	ArtifactRegistryType = "Artifact Registry"
+	GCRRegistryType      = "Google Container Registry"
+
+	// Default values
+	DefaultTag             = "latest"
+	DefaultTimeout         = 1500
+	ArtifactRegistryFormat = "us-central1-docker.pkg.dev/%s/%s:%s"
+	GCRFormat              = "gcr.io/%s/%s:%s"
+)
+
 // ImageRegistry handles image registry operations and parsing
 type ImageRegistry struct {
 	ProjectID       string
@@ -48,11 +65,11 @@ func (ir *ImageRegistry) ParseImageReference(imageRef string) (*ImageReference, 
 	}
 
 	if localTag == "" {
-		localTag = "latest"
+		localTag = DefaultTag
 	}
 
 	// Check if the input is already a full registry path
-	if strings.Contains(imageRef, ".pkg.dev") || strings.Contains(imageRef, "gcr.io") {
+	if strings.Contains(imageRef, ArtifactRegistryDomain) || strings.Contains(imageRef, GCRDomain) {
 		return ir.parseFullRegistryPath(imageRef, localImageName, localTag)
 	}
 
@@ -71,10 +88,10 @@ func (ir *ImageRegistry) parseFullRegistryPath(imageRef, localImageName, localTa
 	buildImageName := parts[len(parts)-1]
 
 	var registryType string
-	if strings.Contains(imageRef, ".pkg.dev") {
-		registryType = "Artifact Registry"
+	if strings.Contains(imageRef, ArtifactRegistryDomain) {
+		registryType = ArtifactRegistryType
 	} else {
-		registryType = "Google Container Registry"
+		registryType = GCRRegistryType
 	}
 
 	pterm.Info.Printf("Using provided %s path: %s\n", registryType, fullRegistryImage)
@@ -97,12 +114,12 @@ func (ir *ImageRegistry) parseShortImageName(imageRef, localImageName, localTag 
 	var fullRegistryImage, registryType string
 	if ir.UseGCR {
 		// Use legacy GCR format
-		fullRegistryImage = fmt.Sprintf("gcr.io/%s/%s:%s", ir.ProjectID, localImageName, localTag)
-		registryType = "Google Container Registry"
+		fullRegistryImage = fmt.Sprintf(GCRFormat, ir.ProjectID, localImageName, localTag)
+		registryType = GCRRegistryType
 	} else {
 		// Use Artifact Registry format (default)
-		fullRegistryImage = fmt.Sprintf("us-central1-docker.pkg.dev/%s/%s:%s", ir.ProjectID, localImageName, localTag)
-		registryType = "Artifact Registry"
+		fullRegistryImage = fmt.Sprintf(ArtifactRegistryFormat, ir.ProjectID, localImageName, localTag)
+		registryType = ArtifactRegistryType
 	}
 
 	pterm.Info.Printf("Using %s: %s\n", registryType, fullRegistryImage)
@@ -118,9 +135,9 @@ func (ir *ImageRegistry) parseShortImageName(imageRef, localImageName, localTag 
 
 // GenerateRegistryURL generates the Google Cloud Console URL for the image
 func (ir *ImageRegistry) GenerateRegistryURL(imageRef *ImageReference) string {
-	if strings.Contains(imageRef.FullPath, "gcr.io") {
+	if strings.Contains(imageRef.FullPath, GCRDomain) {
 		return ir.generateGCRURL(imageRef)
-	} else if strings.Contains(imageRef.FullPath, ".pkg.dev") {
+	} else if strings.Contains(imageRef.FullPath, ArtifactRegistryDomain) {
 		return ir.generateArtifactRegistryURL(imageRef)
 	}
 	return ""
@@ -128,7 +145,7 @@ func (ir *ImageRegistry) GenerateRegistryURL(imageRef *ImageReference) string {
 
 func (ir *ImageRegistry) generateGCRURL(imageRef *ImageReference) string {
 	return fmt.Sprintf("https://console.cloud.google.com/gcr/images/%s?project=%s",
-		strings.ReplaceAll(strings.TrimPrefix(imageRef.FullPath, "gcr.io/"), ":", "%3A"), ir.ProjectID)
+		strings.ReplaceAll(strings.TrimPrefix(imageRef.FullPath, GCRDomain+"/"), ":", "%3A"), ir.ProjectID)
 }
 
 func (ir *ImageRegistry) generateArtifactRegistryURL(imageRef *ImageReference) string {
@@ -165,7 +182,7 @@ func NewBuildConfig() *BuildConfig {
 
 	return &BuildConfig{
 		ContextDir: wd,
-		Timeout:    1500,
+		Timeout:    DefaultTimeout,
 	}
 }
 
@@ -384,7 +401,7 @@ func init() {
 	provisionGcpCmd.Flags().StringVarP(&configs.Target, "target", "T", "", "Set the target build stage to build")
 	provisionGcpCmd.Flags().StringVarP(&configs.Platform, "platform", "P", "", "Set the platform for the image (e.g., linux/amd64)")
 	provisionGcpCmd.Flags().StringVar(&configs.ContextDir, "context", "", "Build context directory (default: current directory)")
-	provisionGcpCmd.Flags().IntVar(&configs.BuildTimeout, "timeout", 1500, "Build timeout in seconds")
+	provisionGcpCmd.Flags().IntVar(&configs.BuildTimeout, "timeout", DefaultTimeout, "Build timeout in seconds")
 
 	// Output and behavior flags
 	provisionGcpCmd.Flags().StringVarP(&configs.SarifFile, "output", "o", "", "Output file for SARIF report")
