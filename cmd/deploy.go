@@ -42,7 +42,7 @@ var deployCmd = &cobra.Command{
 		case cfg.Sdkr.GCPRepo:
 			imageRepo, imageTag, err = handleGCPPush(cfg)
 		default:
-			pterm.Warning.Println("No registry selected (awsECR/dockerHub/ghcrRepo). Skipping image push.")
+pterm.Warning.Println("No registry selected (awsECR/dockerHub/ghcrRepo/gcpRepo). Skipping image push.")
 		}
 
 		if err != nil {
