@@ -23,6 +23,17 @@ import (
 const (
 	// Google Cloud Platform authentication scope
 	GoogleCloudPlatformScope = "https://www.googleapis.com/auth/cloud-platform"
+
+	// Common gcloud binary paths
+	gcloudBinaryUnix     = "/usr/bin/gcloud"
+	gcloudBinaryHomebrew = "/usr/local/bin/gcloud"
+	gcloudBinarySDK      = "/opt/google-cloud-sdk/bin/gcloud"
+
+	// Safe PATH directories for Unix-like systems
+	safeUnixPaths = "/usr/local/bin:/usr/bin:/bin"
+
+	// Safe PATH directories for Windows
+	safeWindowsPaths = `C:\Windows\System32;C:\Windows;`
 )
 
 // Color codes
@@ -167,14 +178,175 @@ func (a *AuthProvider) validateCredentials(creds *google.Credentials) error {
 	return a.validateToken(token.AccessToken, nil)
 }
 
-// getGcloudAccessToken tries to get access token using gcloud CLI
+// getGcloudAccessToken tries to get access token using gcloud CLI with security fixes
 func (a *AuthProvider) getGcloudAccessToken() (string, error) {
-	cmd := exec.Command("gcloud", "auth", "print-access-token")
+	// Find gcloud binary securely
+	gcloudPath, err := a.findGcloudBinary()
+	if err != nil {
+		return "", fmt.Errorf("gcloud binary not found: %v", err)
+	}
+
+	// Use absolute path and explicit arguments
+	cmd := exec.Command(gcloudPath, "auth", "print-access-token")
+
+	// Set secure environment to prevent injection
+	cmd.Env = a.getSecureEnvironment()
+
 	output, err := cmd.Output()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("gcloud auth failed: %v", err)
 	}
 	return strings.TrimSpace(string(output)), nil
+}
+
+// findGcloudBinary finds gcloud binary securely
+func (a *AuthProvider) findGcloudBinary() (string, error) {
+	// Check common absolute paths first
+	possiblePaths := []string{
+		gcloudBinaryUnix,
+		gcloudBinaryHomebrew,
+		gcloudBinarySDK,
+	}
+
+	// Add user home directory path if available
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		possiblePaths = append(possiblePaths,
+			filepath.Join(homeDir, "google-cloud-sdk", "bin", "gcloud"),
+		)
+	}
+
+	for _, path := range possiblePaths {
+		if a.isSafeBinary(path) {
+			return path, nil
+		}
+	}
+
+	// Fallback to which/where command with secure execution
+	return a.findGcloudWithWhich()
+}
+
+// findGcloudWithWhich uses which/where command securely
+func (a *AuthProvider) findGcloudWithWhich() (string, error) {
+	var cmd *exec.Cmd
+
+	// Use OS-specific commands with absolute paths
+	if a.isWindows() {
+		cmd = exec.Command("where.exe", "gcloud")
+	} else {
+		// Use absolute paths for which command
+		whichPaths := []string{"/usr/bin/which", "/bin/which"}
+		for _, whichPath := range whichPaths {
+			if _, err := os.Stat(whichPath); err == nil {
+				cmd = exec.Command(whichPath, "gcloud")
+				break
+			}
+		}
+		if cmd == nil {
+			return "", fmt.Errorf("which command not found")
+		}
+	}
+
+	// Set secure environment
+	cmd.Env = a.getSecureEnvironment()
+
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("gcloud not found in PATH: %v", err)
+	}
+
+	path := strings.TrimSpace(string(output))
+	if path == "" {
+		return "", fmt.Errorf("gcloud binary not found")
+	}
+
+	// Validate the found path is safe
+	if !a.isSafeBinary(path) {
+		return "", fmt.Errorf("gcloud binary path is not safe: %s", path)
+	}
+
+	return path, nil
+}
+
+// isSafeBinary checks if a binary path is safe to execute
+func (a *AuthProvider) isSafeBinary(path string) bool {
+	// Clean the path
+	cleanPath := filepath.Clean(path)
+
+	// Check if path is absolute
+	if !filepath.IsAbs(cleanPath) {
+		return false
+	}
+
+	// Check if file exists and is executable
+	info, err := os.Stat(cleanPath)
+	if err != nil {
+		return false
+	}
+
+	// Check if it's a regular file
+	if !info.Mode().IsRegular() {
+		return false
+	}
+
+	// Check for dangerous patterns in path
+	dangerousPatterns := []string{
+		"/tmp/",
+		"/var/tmp/",
+		"/dev/",
+		"/proc/",
+		"..",
+		"./",
+		"~",
+	}
+
+	for _, pattern := range dangerousPatterns {
+		if strings.Contains(cleanPath, pattern) {
+			return false
+		}
+	}
+
+	// Check file permissions (should not be world-writable)
+	if info.Mode().Perm()&0002 != 0 {
+		return false
+	}
+
+	return true
+}
+
+// getSecureEnvironment returns a clean environment with only safe variables
+func (a *AuthProvider) getSecureEnvironment() []string {
+	// Start with minimal safe environment
+	env := []string{}
+
+	// Only include essential, safe environment variables
+	safeVars := []string{
+		"HOME",
+		"USER",
+		"TMPDIR",
+		"TEMP",
+		"TMP",
+		"USERPROFILE", // Windows
+	}
+
+	for _, key := range safeVars {
+		if value := os.Getenv(key); value != "" {
+			env = append(env, key+"="+value)
+		}
+	}
+
+	// Add safe PATH
+	if a.isWindows() {
+		env = append(env, "PATH="+safeWindowsPaths)
+	} else {
+		env = append(env, "PATH="+safeUnixPaths)
+	}
+
+	return env
+}
+
+// isWindows checks if running on Windows
+func (a *AuthProvider) isWindows() bool {
+	return os.PathSeparator == '\\' && strings.Contains(strings.ToLower(os.Getenv("OS")), "windows")
 }
 
 // getAuthConfig tries multiple authentication methods in order
