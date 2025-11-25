@@ -29,11 +29,19 @@ const (
 	gcloudBinaryHomebrew = "/usr/local/bin/gcloud"
 	gcloudBinarySDK      = "/opt/google-cloud-sdk/bin/gcloud"
 
+	// System binary paths for Unix-like systems
+	systemBinUnix      = "/usr/bin"
+	systemLocalBinUnix = "/usr/local/bin"
+
+	// System binary paths for Windows
+	systemBinWindows = `C:\Windows\System32`
+	systemWindows    = `C:\Windows`
+
 	// Safe PATH directories for Unix-like systems
 	safeUnixPaths = "/usr/local/bin:/usr/bin:/bin"
 
 	// Safe PATH directories for Windows
-	safeWindowsPaths = `C:\Windows\System32;C:\Windows;`
+	safeWindowsPaths = `C:\Windows\System32;C:\Windows`
 )
 
 // Color codes
@@ -119,7 +127,7 @@ func (a *AuthProvider) VerifyGCloudAuth() error {
 	}
 
 	a.logger.logWarning("No valid Google Cloud authentication found")
-	return fmt.Errorf(`google Cloud authentication required. Please run:
+	return fmt.Errorf(`Google Cloud authentication required. Please run:
 
   gcloud auth login
 
@@ -199,7 +207,7 @@ func (a *AuthProvider) getGcloudAccessToken() (string, error) {
 	return strings.TrimSpace(string(output)), nil
 }
 
-// findGcloudBinary finds gcloud binary securely
+// findGcloudBinary finds gcloud binary securely using only absolute paths
 func (a *AuthProvider) findGcloudBinary() (string, error) {
 	// Check common absolute paths first
 	possiblePaths := []string{
@@ -208,11 +216,12 @@ func (a *AuthProvider) findGcloudBinary() (string, error) {
 		gcloudBinarySDK,
 	}
 
-	// Add user home directory path if available
+	// Add user home directory path if available (only if safe)
 	if homeDir, err := os.UserHomeDir(); err == nil {
-		possiblePaths = append(possiblePaths,
-			filepath.Join(homeDir, "google-cloud-sdk", "bin", "gcloud"),
-		)
+		homeGcloudPath := filepath.Join(homeDir, "google-cloud-sdk", "bin", "gcloud")
+		if a.isSafeBinary(homeGcloudPath) {
+			possiblePaths = append(possiblePaths, homeGcloudPath)
+		}
 	}
 
 	for _, path := range possiblePaths {
@@ -221,37 +230,67 @@ func (a *AuthProvider) findGcloudBinary() (string, error) {
 		}
 	}
 
-	// Fallback to which/where command with secure execution
-	return a.findGcloudWithWhich()
-}
-
-// findGcloudWithWhich uses which/where command securely
-func (a *AuthProvider) findGcloudWithWhich() (string, error) {
-	var cmd *exec.Cmd
-
-	// Use OS-specific commands with absolute paths
+	// For Windows, use absolute path to where.exe with safe PATH
 	if a.isWindows() {
-		cmd = exec.Command("where.exe", "gcloud")
-	} else {
-		// Use absolute paths for which command
-		whichPaths := []string{"/usr/bin/which", "/bin/which"}
-		for _, whichPath := range whichPaths {
-			if _, err := os.Stat(whichPath); err == nil {
-				cmd = exec.Command(whichPath, "gcloud")
-				break
-			}
-		}
-		if cmd == nil {
-			return "", fmt.Errorf("which command not found")
-		}
+		return a.findGcloudWindows()
 	}
 
-	// Set secure environment
-	cmd.Env = a.getSecureEnvironment()
+	// For Unix-like systems, use absolute path to which with safe PATH
+	return a.findGcloudUnix()
+}
+
+// findGcloudWindows finds gcloud on Windows using absolute paths only
+func (a *AuthProvider) findGcloudWindows() (string, error) {
+	// Use absolute path to where.exe
+	whereExe := filepath.Join(systemBinWindows, "where.exe")
+	if !a.isSafeBinary(whereExe) {
+		return "", fmt.Errorf("where.exe not found in safe location")
+	}
+
+	cmd := exec.Command(whereExe, "gcloud")
+	cmd.Env = []string{"PATH=" + safeWindowsPaths}
 
 	output, err := cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("gcloud not found in PATH: %v", err)
+		return "", fmt.Errorf("gcloud not found via where.exe: %v", err)
+	}
+
+	path := strings.TrimSpace(string(output))
+	if path == "" {
+		return "", fmt.Errorf("gcloud binary not found")
+	}
+
+	// Validate the found path is safe
+	if !a.isSafeBinary(path) {
+		return "", fmt.Errorf("gcloud binary path is not safe: %s", path)
+	}
+
+	return path, nil
+}
+
+// findGcloudUnix finds gcloud on Unix-like systems using absolute paths only
+func (a *AuthProvider) findGcloudUnix() (string, error) {
+	// Try absolute paths for which command
+	whichPaths := []string{"/usr/bin/which", "/bin/which"}
+	var whichCmd string
+
+	for _, whichPath := range whichPaths {
+		if a.isSafeBinary(whichPath) {
+			whichCmd = whichPath
+			break
+		}
+	}
+
+	if whichCmd == "" {
+		return "", fmt.Errorf("which command not found in safe locations")
+	}
+
+	cmd := exec.Command(whichCmd, "gcloud")
+	cmd.Env = []string{"PATH=" + safeUnixPaths}
+
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("gcloud not found via which: %v", err)
 	}
 
 	path := strings.TrimSpace(string(output))
@@ -299,9 +338,26 @@ func (a *AuthProvider) isSafeBinary(path string) bool {
 		"~",
 	}
 
+	lowerPath := strings.ToLower(cleanPath)
 	for _, pattern := range dangerousPatterns {
-		if strings.Contains(cleanPath, pattern) {
+		if strings.Contains(lowerPath, strings.ToLower(pattern)) {
 			return false
+		}
+	}
+
+	// On Windows, check for unsafe locations
+	if a.isWindows() {
+		unsafeWindowsPaths := []string{
+			`\users\`,
+			`\programdata\`,
+			`\temp\`,
+			`\tmp\`,
+			`\appdata\`,
+		}
+		for _, unsafePath := range unsafeWindowsPaths {
+			if strings.Contains(lowerPath, unsafePath) {
+				return false
+			}
 		}
 	}
 
@@ -334,7 +390,7 @@ func (a *AuthProvider) getSecureEnvironment() []string {
 		}
 	}
 
-	// Add safe PATH
+	// Add safe PATH - only system directories
 	if a.isWindows() {
 		env = append(env, "PATH="+safeWindowsPaths)
 	} else {
