@@ -17,6 +17,7 @@ var (
 	createNamespace     bool
 	installIfNotPresent bool
 	wait                bool
+	historyMax          int
 )
 
 // upgradeCmd facilitates upgrading an existing Helm release or installing it if it's not present
@@ -105,6 +106,7 @@ var upgradeCmd = &cobra.Command{
 			pterm.Printf("  - Set literal: %v\n", configs.SetLiteral)
 			pterm.Printf("  - Repo URL: %s\n", RepoURL)
 			pterm.Printf("  - Version: %s\n", Version)
+			pterm.Printf("  - History Max: %d\n", historyMax)
 		}
 
 		// Check if release exists
@@ -160,6 +162,7 @@ var upgradeCmd = &cobra.Command{
 			RepoURL,
 			Version,
 			wait,
+			historyMax,
 		)
 		if err != nil {
 			os.Exit(1)
@@ -168,21 +171,27 @@ var upgradeCmd = &cobra.Command{
 		return nil
 	},
 	Example: `
-# Upgrade without waiting (default behavior)
-smurf selm upgrade my-release ./mychart
+			# Upgrade without waiting (default behavior)
+			smurf selm upgrade my-release ./mychart
 
-# Upgrade and wait for resources to be ready
-smurf selm upgrade my-release ./mychart --wait
+			# Upgrade and wait for resources to be ready
+			smurf selm upgrade my-release ./mychart --wait
 
-# Upgrade with custom timeout and waiting
-smurf selm upgrade my-release ./mychart --timeout 600 --wait
+			# Upgrade with custom timeout and waiting
+			smurf selm upgrade my-release ./mychart --timeout 600 --wait
 
-# Install if not present without waiting (default)
-smurf selm upgrade my-release ./mychart --install
+			# Install if not present without waiting (default)
+			smurf selm upgrade my-release ./mychart --install
 
-# Install if not present with waiting
-smurf selm upgrade my-release ./mychart --install --wait
-`,
+			# Install if not present with waiting
+			smurf selm upgrade my-release ./mychart --install --wait
+
+			# Upgrade with limited history
+			smurf selm upgrade my-release ./mychart --history-max 5
+
+			# Upgrade with all options
+			smurf selm upgrade my-release ./mychart --wait --timeout 300 --history-max 3 --atomic
+	`,
 }
 
 func init() {
@@ -197,6 +206,7 @@ func init() {
 	upgradeCmd.Flags().BoolVar(&installIfNotPresent, "install", false, "Install the chart if it is not already installed")
 	upgradeCmd.Flags().StringVar(&RepoURL, "repo-url", "", "Helm repository URL")
 	upgradeCmd.Flags().StringVar(&Version, "version", "", "Helm chart version")
-	upgradeCmd.Flags().BoolVar(&configs.Wait, "wait", false, "Wait until all Pods, PVCs, Services, and minimum number of Pods of a Deployment are ready before marking success") // Changed default to false
+	upgradeCmd.Flags().BoolVar(&configs.Wait, "wait", false, "Wait until all Pods, PVCs, Services, and minimum number of Pods of a Deployment are ready before marking success")
+	upgradeCmd.Flags().IntVar(&historyMax, "history-max", 10, "Limit the maximum number of revisions saved per release") // Add this line
 	selmCmd.AddCommand(upgradeCmd)
 }

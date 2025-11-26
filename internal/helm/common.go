@@ -220,44 +220,6 @@ func parseResourcesFromManifest(manifest string) ([]Resource, error) {
 	return resources, nil
 }
 
-// monitorResources monitors the resources created by the Helm release until they are all ready.
-// It checks the status of the resources in the Kubernetes API and waits until they are all ready.
-// The function returns an error if the resources are not ready within the specified timeout.
-func monitorResources(rel *release.Release, namespace string, timeout time.Duration) (err error) {
-	resources, err := parseResourcesFromManifest(rel.Manifest)
-	if err != nil {
-		return err
-	}
-
-	clientset, err := getKubeClient()
-	if err != nil {
-		return err
-	}
-
-	spinner, _ := pterm.DefaultSpinner.Start("Checking resource readiness... \n")
-	defer spinner.Stop()
-
-	deadline := time.Now().Add(timeout)
-	for {
-		allReady, notReadyResources, err := resourcesReady(clientset, namespace, resources)
-		if err != nil {
-			return err
-		}
-		if allReady {
-			spinner.Success("All resources are ready. \n")
-			return nil
-		}
-		if time.Now().After(deadline) {
-			spinner.Fail("Timeout waiting for all resources to become ready \n")
-			return errors.New("timeout waiting for all resources to become ready")
-		}
-
-		spinner.UpdateText(fmt.Sprintf("Waiting for resources: %s \n", strings.Join(notReadyResources, ", ")))
-
-		time.Sleep(5 * time.Second)
-	}
-}
-
 // resourcesReady checks if the specified resources are ready in the Kubernetes API.
 // It returns a boolean indicating if all resources are ready, a slice of not ready resources, and an error if any.
 // The function checks the status of Deployments and Pods to determine if they are ready.
