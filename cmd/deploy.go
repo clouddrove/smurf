@@ -348,7 +348,7 @@ func handleHelmDeploy(data *configs.Config, imageRepo, imageTag string) error {
 		"",
 		"",
 		true,
-		5,
+		3,
 	)
 }
 
