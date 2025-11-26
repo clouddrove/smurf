@@ -15,7 +15,7 @@ import (
 // It initializes the Helm action configuration, sets up the rollback parameters,
 // executes the rollback, and then retrieves the status of the release post-rollback.
 // Detailed error logging is performed if any step fails.
-func HelmRollback(releaseName string, revision int, opts RollbackOptions) error {
+func HelmRollback(releaseName string, revision int, opts RollbackOptions, historyMax int) error {
 	if releaseName == "" {
 		pterm.Error.Printfln("release name cannot be empty")
 		return errors.New("release name cannot be empty")
@@ -45,6 +45,7 @@ func HelmRollback(releaseName string, revision int, opts RollbackOptions) error 
 	rollbackAction.Force = opts.Force
 	rollbackAction.Timeout = time.Duration(opts.Timeout) * time.Second
 	rollbackAction.Wait = opts.Wait
+	rollbackAction.MaxHistory = historyMax
 
 	if err := rollbackAction.Run(releaseName); err != nil {
 		logDetailedError("helm rollback", err, opts.Namespace, releaseName)
