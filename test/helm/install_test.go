@@ -100,6 +100,7 @@ image:
 				tt.repoURL,
 				tt.version,
 				tt.wait,
+				false,
 			)
 
 			if tt.wantErr {

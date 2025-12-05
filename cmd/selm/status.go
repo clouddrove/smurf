@@ -52,7 +52,7 @@ var statusCmd = &cobra.Command{
 			configs.Namespace = "default"
 		}
 
-		err := helm.HelmStatus(releaseName, configs.Namespace)
+		err := helm.HelmStatus(releaseName, configs.Namespace, useAI)
 		if err != nil {
 			os.Exit(1)
 		}
@@ -72,5 +72,6 @@ var statusCmd = &cobra.Command{
 
 func init() {
 	statusCmd.Flags().StringVarP(&configs.Namespace, "namespace", "n", "", "Specify the namespace to get status of the Helm chart")
+	statusCmd.Flags().BoolVar(&useAI, "ai", false, "Enable AI help mode")
 	selmCmd.AddCommand(statusCmd)
 }

@@ -14,7 +14,7 @@ var repoUpdateCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var helmConfigDir string
 		helmConfigDir = configs.HelmConfigDir
-		return helm.Repo_Update(args, helmConfigDir)
+		return helm.Repo_Update(args, helmConfigDir, useAI)
 	},
 	Example: `   # Update all chart repositories
    smurf selm repo update
@@ -26,6 +26,6 @@ var repoUpdateCmd = &cobra.Command{
 func init() {
 	// Add helm-config flag for consistency
 	repoUpdateCmd.Flags().StringVar(&configs.HelmConfigDir, "helm-config", "", "Helm configuration directory (default: $HELM_HOME or ~/.config/helm)")
-
+	repoUpdateCmd.Flags().BoolVar(&useAI, "ai", false, "Enable AI help mode")
 	repoCmd.AddCommand(repoUpdateCmd)
 }

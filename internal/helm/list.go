@@ -13,9 +13,10 @@ import (
 )
 
 // ListReleases returns and displays Helm releases with flexible output formats
-func ListReleases(namespace, format string) ([]*release.Release, error) {
+func ListReleases(namespace, format string, useAI bool) ([]*release.Release, error) {
 	cfg := new(action.Configuration)
 	if err := cfg.Init(settings.RESTClientGetter(), namespace, os.Getenv("HELM_DRIVER"), debugLog); err != nil {
+		aiExplainError(useAI, err.Error())
 		return nil, fmt.Errorf("helm init failed: %w", err)
 	}
 
@@ -25,10 +26,12 @@ func ListReleases(namespace, format string) ([]*release.Release, error) {
 
 	releases, err := client.Run()
 	if err != nil {
+		aiExplainError(useAI, err.Error())
 		return nil, fmt.Errorf("release listing failed: %w", err)
 	}
 
 	if err := printOutput(releases, format, namespace); err != nil {
+
 		return releases, err // Return releases even if printing fails
 	}
 

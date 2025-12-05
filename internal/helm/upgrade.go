@@ -29,6 +29,7 @@ func HelmUpgrade(
 	repoURL string, version string,
 	wait bool,
 	historyMax int,
+	useAI bool,
 ) error {
 	startTime := time.Now()
 
@@ -57,6 +58,7 @@ func HelmUpgrade(
 		}
 		if err := ensureNamespace(namespace, debug); err != nil {
 			printErrorSummary("namespace creation failed", releaseName, namespace, chartRef, err)
+			aiExplainError(useAI, err.Error())
 			return fmt.Errorf("namespace creation failed: %w", err)
 		}
 	}
@@ -66,12 +68,14 @@ func HelmUpgrade(
 	actionConfig, err := initActionConfig(namespace, debug)
 	if err != nil {
 		printErrorSummary("failed to initialize helm", releaseName, namespace, chartRef, err)
+		aiExplainError(useAI, err.Error())
 		return fmt.Errorf("failed to initialize helm: %w", err)
 	}
 
 	// Verify release exists or not
 	if err := verifyReleaseExists(actionConfig, releaseName, namespace, debug); err != nil {
 		printErrorSummary("release verification failed", releaseName, namespace, chartRef, err)
+		aiExplainError(useAI, err.Error())
 		return fmt.Errorf("release verification failed: %w", err)
 	}
 
@@ -80,6 +84,7 @@ func HelmUpgrade(
 	chart, err := loadChart(chartRef, repoURL, version, debug)
 	if err != nil {
 		printErrorSummary("failed to load chart", releaseName, namespace, chartRef, err)
+		aiExplainError(useAI, err.Error())
 		return fmt.Errorf("failed to load chart: %w", err)
 	}
 	if debug {
@@ -91,6 +96,7 @@ func HelmUpgrade(
 	vals, err := loadAndMergeValuesWithSets(valuesFiles, setValues, setLiteral, debug)
 	if err != nil {
 		printErrorSummary("failed to load values", releaseName, namespace, chartRef, err)
+		aiExplainError(useAI, err.Error())
 		return fmt.Errorf("failed to load values: %w", err)
 	}
 
@@ -117,6 +123,7 @@ func HelmUpgrade(
 	if err != nil {
 		printReleaseResources(namespace, releaseName)
 		printErrorSummary("Helm upgradation", releaseName, namespace, chartRef, err)
+		aiExplainError(useAI, err.Error())
 
 		// Debug pod info if upgrade fails
 		if debug {
@@ -138,6 +145,7 @@ func HelmUpgrade(
 			pterm.Printf("Waiting for resources to be ready (timeout: %v)\n", readinessTimeout)
 		}
 		if err := verifyFinalReadiness(namespace, releaseName, readinessTimeout, debug); err != nil {
+			aiExplainError(useAI, err.Error())
 			return fmt.Errorf("readiness verification failed: %w", err)
 		}
 	} else if debug {

@@ -15,7 +15,7 @@ import (
 	"helm.sh/helm/v3/pkg/repo"
 )
 
-func Repo_Update(args []string, helmConfigDir string) error {
+func Repo_Update(args []string, helmConfigDir string, useAI bool) error {
 	// Use Helm's default settings
 	settings := helmCLI.New()
 
@@ -39,6 +39,7 @@ func Repo_Update(args []string, helmConfigDir string) error {
 			return errors.New("no repositories found")
 		}
 		pterm.Error.Printfln("✗ Failed to load repository config: %v", err)
+		aiExplainError(useAI, err.Error())
 		return fmt.Errorf("failed to load repository config: %v", err)
 	}
 
@@ -54,6 +55,7 @@ func Repo_Update(args []string, helmConfigDir string) error {
 		r, err := repo.NewChartRepository(cfg, getter.All(settings))
 		if err != nil {
 			pterm.Warning.Printfln("⚠ Failed to create chart repository for %s: %v", cfg.Name, err)
+			aiExplainError(useAI, err.Error())
 			continue
 		}
 		repos = append(repos, r)

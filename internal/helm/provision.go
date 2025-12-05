@@ -34,11 +34,11 @@ func HelmProvision(releaseName, chartPath, namespace string) error {
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		lintErr = HelmLint(chartPath, nil)
+		lintErr = HelmLint(chartPath, nil, false)
 	}()
 	go func() {
 		defer wg.Done()
-		templateErr = HelmTemplate(releaseName, chartPath, namespace, "", []string{})
+		templateErr = HelmTemplate(releaseName, chartPath, namespace, "", []string{}, false)
 	}()
 
 	// Perform install/upgrade after lint/template
@@ -62,6 +62,7 @@ func HelmProvision(releaseName, chartPath, namespace string) error {
 			"",            // version
 			true,
 			5,
+			false,
 		)
 
 		if dryRunErr != nil {
@@ -84,6 +85,7 @@ func HelmProvision(releaseName, chartPath, namespace string) error {
 			"",            // version
 			true,
 			5,
+			false,
 		)
 	} else {
 		pterm.Info.Printfln("Release %s does not exist, performing install...", releaseName)
@@ -100,6 +102,7 @@ func HelmProvision(releaseName, chartPath, namespace string) error {
 			"",
 			"",
 			true,
+			false,
 		)
 	}
 	wg.Wait()

@@ -90,6 +90,7 @@ var installCmd = &cobra.Command{
 			RepoURL,
 			Version,
 			configs.Wait,
+			useAI,
 		)
 		if err != nil {
 			os.Exit(1)
@@ -121,6 +122,7 @@ func init() {
 	installCmd.Flags().StringSliceVar(&configs.SetLiteral, "set-literal", []string{}, "Set literal values on the command line")
 	installCmd.Flags().StringVar(&RepoURL, "repo", "", "Specify the chart repository URL for remote charts")
 	installCmd.Flags().StringVar(&Version, "version", "", "Specify the chart version to install")
-	installCmd.Flags().BoolVar(&configs.Wait, "wait", true, "Wait for all resources to be ready before marking the release as successful") // Default to true
+	installCmd.Flags().BoolVar(&configs.Wait, "wait", true, "Wait for all resources to be ready before marking the release as successful")
+	installCmd.Flags().BoolVar(&useAI, "ai", false, "Enable AI help mode")
 	selmCmd.AddCommand(installCmd)
 }
