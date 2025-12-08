@@ -72,7 +72,7 @@ Error to analyze: %s
 }
 
 // Generic AI call
-func AskAI(prompt string) (string, error) {
+func AskAI(ctx context.Context, prompt string) (string, error) {
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {
 		return "", errors.New("OPENAI_API_KEY is not set")
