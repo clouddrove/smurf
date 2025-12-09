@@ -226,7 +226,6 @@ func formatFallbackResponse(response string) string {
 			}
 		}
 	} else {
-		// Just print the response as is with a header
 		green.Fprint(&output, "🤖 AI ANALYSIS:\n")
 		white.Fprint(&output, response)
 	}
