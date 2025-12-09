@@ -110,59 +110,80 @@ func AskAI(prompt string) (string, error) {
 func formatAIResponse(response string) string {
 	var output strings.Builder
 
-	// Define colors
-	red := color.New(color.FgRed, color.Bold)
-	yellow := color.New(color.FgYellow, color.Bold)
-	cyan := color.New(color.FgCyan, color.Bold)
-	green := color.New(color.FgGreen, color.Bold)
-	white := color.New(color.FgWhite)
-
-	// Try to extract sections using regex patterns
 	sections := extractSections(response)
-
-	if len(sections) > 0 {
-		// Print ERROR ANALYSIS section
-		if analysis, ok := sections["ERROR ANALYSIS"]; ok {
-			red.Fprint(&output, "🚨 ERROR ANALYSIS\n")
-			white.Fprint(&output, strings.TrimSpace(analysis)+"\n\n")
-		}
-
-		// Print ROOT CAUSE section
-		if cause, ok := sections["ROOT CAUSE"]; ok {
-			yellow.Fprint(&output, "🔍 ROOT CAUSE\n")
-			white.Fprint(&output, strings.TrimSpace(cause)+"\n\n")
-		}
-
-		// Print STEPS TO RESOLVE section
-		if steps, ok := sections["STEPS TO RESOLVE"]; ok {
-			green.Fprint(&output, "📋 STEPS TO RESOLVE\n")
-
-			// Extract numbered steps
-			stepRegex := regexp.MustCompile(`(\d+)\.\s+(.+)`)
-			stepMatches := stepRegex.FindAllStringSubmatch(steps, -1)
-
-			if len(stepMatches) > 0 {
-				for _, match := range stepMatches {
-					if len(match) >= 3 {
-						// Use Fprint for colored text
-						cyan.Fprint(&output, match[1]+". ")
-						white.Fprint(&output, match[2]+"\n")
-					}
-				}
-			} else {
-				// If regex doesn't match, just print the steps as is
-				white.Fprint(&output, strings.TrimSpace(steps)+"\n")
-			}
-		} else {
-			// Fallback: Try to find steps in the response
-			output.WriteString(formatFallbackResponse(response))
-		}
-	} else {
-		// Fallback formatting
-		output.WriteString(formatFallbackResponse(response))
+	if len(sections) == 0 {
+		return formatFallbackResponse(response)
 	}
 
+	renderErrorAnalysis(&output, sections)
+	renderRootCause(&output, sections)
+	renderSteps(&output, sections, response)
+
 	return output.String()
+}
+
+func renderErrorAnalysis(output *strings.Builder, sections map[string]string) {
+	red := color.New(color.FgRed, color.Bold)
+	white := color.New(color.FgWhite)
+
+	analysis, ok := sections["ERROR ANALYSIS"]
+	if !ok {
+		return
+	}
+
+	red.Fprint(output, "🚨 ERROR ANALYSIS\n")
+	white.Fprint(output, strings.TrimSpace(analysis)+"\n\n")
+}
+
+func renderRootCause(output *strings.Builder, sections map[string]string) {
+	yellow := color.New(color.FgYellow, color.Bold)
+	white := color.New(color.FgWhite)
+
+	cause, ok := sections["ROOT CAUSE"]
+	if !ok {
+		return
+	}
+
+	yellow.Fprint(output, "🔍 ROOT CAUSE\n")
+	white.Fprint(output, strings.TrimSpace(cause)+"\n\n")
+}
+
+func renderSteps(
+	output *strings.Builder,
+	sections map[string]string,
+	response string,
+) {
+	green := color.New(color.FgGreen, color.Bold)
+
+	steps, ok := sections["STEPS TO RESOLVE"]
+	if !ok {
+		output.WriteString(formatFallbackResponse(response))
+		return
+	}
+
+	green.Fprint(output, "📋 STEPS TO RESOLVE\n")
+	printSteps(output, steps)
+}
+
+func printSteps(output *strings.Builder, steps string) {
+	cyan := color.New(color.FgCyan, color.Bold)
+	white := color.New(color.FgWhite)
+
+	stepRegex := regexp.MustCompile(`(\d+)\.\s+(.+)`)
+	matches := stepRegex.FindAllStringSubmatch(steps, -1)
+
+	if len(matches) == 0 {
+		white.Fprint(output, strings.TrimSpace(steps)+"\n")
+		return
+	}
+
+	for _, match := range matches {
+		if len(match) < 3 {
+			continue
+		}
+		cyan.Fprint(output, match[1]+". ")
+		white.Fprint(output, match[2]+"\n")
+	}
 }
 
 // extractSections attempts to extract sections from the AI response

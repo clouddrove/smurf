@@ -13,7 +13,10 @@ import (
 	"helm.sh/helm/v3/pkg/repo"
 )
 
-func Repo_Add(args []string, username, password, certFile, keyFile, caFile, helmConfigDir string, useAI bool) error {
+func Repo_Add(args []string,
+	username, password, certFile, keyFile, caFile, helmConfigDir string,
+	useAI bool,
+) error {
 	repoName := args[0]
 	repoURL := args[1]
 

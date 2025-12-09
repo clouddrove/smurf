@@ -16,6 +16,7 @@ func HelmReleaseExists(releaseName, namespace string, debug bool, useAI bool) (b
 
 	actionConfig, err := initActionConfig(namespace, debug)
 	if err != nil {
+		aiExplainError(useAI, err.Error())
 		return false, err
 	}
 
