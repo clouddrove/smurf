@@ -12,7 +12,7 @@ import (
 // It allows setting variables either via command-line arguments or variable files.
 // The function provides user feedback through spinners and colored messages,
 // and handles any errors that occur during the planning process.
-func Plan(vars []string, varFiles []string, dir string, destroy bool, targets []string, refresh bool, state string) error {
+func Plan(vars []string, varFiles []string, dir string, destroy bool, targets []string, refresh bool, state string, out string) error {
 	tf, err := GetTerraform(dir)
 	if err != nil {
 		Error("Failed to initialize Terraform client: %v", err)
@@ -37,6 +37,12 @@ func Plan(vars []string, varFiles []string, dir string, destroy bool, targets []
 	if state != "" {
 		Info("Using custom state file: %s", state)
 		planOptions = append(planOptions, tfexec.State(state))
+	}
+
+	// Handle output plan file
+	if out != "" {
+		Info("Saving execution plan to: %s", out)
+		planOptions = append(planOptions, tfexec.Out(out))
 	}
 
 	// Apply variables
@@ -82,6 +88,13 @@ func Plan(vars []string, varFiles []string, dir string, destroy bool, targets []
 		return err
 	}
 
-	Success("Terraform plan executed successfully. Review the changes above before applying.")
+	if out != "" {
+		Success("Terraform plan saved to: %s", out)
+		Info("To apply this plan, run: smurf stf apply %s", out)
+	} else {
+		Success("Terraform plan executed successfully. Review the changes above before applying.")
+		Warn("Note: No plan file was saved. To save and apply later, use: smurf stf plan --out=plan.tfplan")
+	}
+
 	return nil
 }
