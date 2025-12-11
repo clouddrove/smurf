@@ -42,7 +42,7 @@ var deployCmd = &cobra.Command{
 		case cfg.Sdkr.GCPRepo:
 			imageRepo, imageTag, err = handleGCPPush(cfg)
 		default:
-			pterm.Warning.Println("No registry selected (awsECR/dockerHub/ghcrRepo). Skipping image push.")
+			pterm.Warning.Println("No registry selected (awsECR/dockerHub/ghcrRepo/gcpRepo). Skipping image push.")
 		}
 
 		if err != nil {
@@ -481,39 +481,4 @@ func getValuesFilePath(selmConfig configs.SelmConfig, chartPath string) (string,
 	}
 
 	return "", fmt.Errorf("could not find values.yaml file. Please specify fileName in config")
-}
-
-// Helper function to get Dockerfile path
-func getDockerfilePath(sdkrConfig configs.SdkrConfig, contextDir string) (string, error) {
-	// If Dockerfile is provided in config, use it
-	if sdkrConfig.Dockerfile != "" {
-		// Check if it's an absolute path
-		if filepath.IsAbs(sdkrConfig.Dockerfile) {
-			if _, err := os.Stat(sdkrConfig.Dockerfile); err == nil {
-				return sdkrConfig.Dockerfile, nil
-			}
-		}
-
-		// If it's relative, check if it exists relative to current directory
-		if _, err := os.Stat(sdkrConfig.Dockerfile); err == nil {
-			return sdkrConfig.Dockerfile, nil
-		}
-
-		// If not found, try relative to context directory
-		potentialPath := filepath.Join(contextDir, sdkrConfig.Dockerfile)
-		if _, err := os.Stat(potentialPath); err == nil {
-			return potentialPath, nil
-		}
-
-		// Try the path as is (might be relative to current working directory)
-		return sdkrConfig.Dockerfile, nil
-	}
-
-	// Default Dockerfile in context directory
-	defaultDockerfile := filepath.Join(contextDir, "Dockerfile")
-	if _, err := os.Stat(defaultDockerfile); err == nil {
-		return defaultDockerfile, nil
-	}
-
-	return "", fmt.Errorf("could not find Dockerfile. Please specify dockerfile in config or ensure Dockerfile exists in context directory")
 }

@@ -176,7 +176,7 @@ func Apply(approve bool, vars []string, varFiles []string, lock bool, dir string
 		}
 	}
 
-	// Success("Apply complete! Resources: %d added, %d changed, %d destroyed", added, changed, destroyed)
+	Success("Apply complete! Resources: %d added, %d changed, %d destroyed", added, changed, destroyed)
 	return nil
 }
 

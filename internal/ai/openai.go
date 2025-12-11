@@ -203,12 +203,14 @@ func extractSections(response string) map[string]string {
 		// Check if line is a section header
 		isHeader := false
 		for _, header := range headers {
-			if strings.Contains(upperLine, header) && strings.HasSuffix(upperLine, ":") {
+			if strings.HasPrefix(upperLine, header+":") {
 				currentSection = header
-				// Remove the header part to get clean content
-				content := strings.TrimPrefix(trimmed, header+":")
-				content = strings.TrimPrefix(content, header)
-				content = strings.TrimSpace(content)
+				// Find the colon's index in the original trimmed string to correctly split.
+				colonIndex := strings.Index(trimmed, ":")
+				content := ""
+				if colonIndex != -1 {
+					content = strings.TrimSpace(trimmed[colonIndex+1:])
+				}
 				if content != "" {
 					sections[currentSection] = content + "\n"
 				} else {
