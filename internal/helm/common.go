@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/clouddrove/smurf/internal/ai"
 	"github.com/pterm/pterm"
 	"gopkg.in/yaml.v2"
 	"helm.sh/helm/v3/pkg/release"
@@ -702,5 +703,13 @@ func printResourcesFromRelease(rel *release.Release) {
 
 			pterm.Println()
 		}
+	}
+}
+
+func aiExplainError(useAI bool, errTest string) {
+	if useAI && ai.IsEnabled() {
+		fmt.Println("\n🤖 AI Analysis...")
+		answer, _ := ai.ExplainError(errTest)
+		fmt.Println(answer)
 	}
 }

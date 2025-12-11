@@ -25,24 +25,27 @@ type UninstallOptions struct {
 }
 
 // HelmUninstall performs a complete uninstallation of a Helm release
-func HelmUninstall(opts UninstallOptions) error {
+func HelmUninstall(opts UninstallOptions, useAI bool) error {
 	spinner, _ := pterm.DefaultSpinner.Start(fmt.Sprintf("Uninstalling release %s...", opts.ReleaseName))
 	defer spinner.Stop()
 
 	// Initialize Helm configuration
 	actionConfig := new(action.Configuration)
 	if err := initializeActionConfig(actionConfig, opts.Namespace); err != nil {
+		aiExplainError(useAI, err.Error())
 		return fmt.Errorf("failed to initialize Helm: %w", err)
 	}
 
 	// Perform Helm uninstall
 	resp, err := performUninstall(actionConfig, opts)
 	if err != nil {
+		aiExplainError(useAI, err.Error())
 		pterm.Warning.Printfln("Initial uninstall attempt failed, attempting cleanup")
 	}
 
 	// Verify and cleanup remaining resources
 	if err := verifyAndCleanupResources(opts, resp); err != nil {
+		aiExplainError(useAI, err.Error())
 		return fmt.Errorf("resource cleanup failed: %w", err)
 	}
 

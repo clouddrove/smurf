@@ -18,6 +18,7 @@ var (
 	installIfNotPresent bool
 	wait                bool
 	historyMax          int
+	useAI               bool
 )
 
 // upgradeCmd facilitates upgrading an existing Helm release or installing it if it's not present
@@ -110,7 +111,7 @@ var upgradeCmd = &cobra.Command{
 		}
 
 		// Check if release exists
-		exists, err := helm.HelmReleaseExists(releaseName, configs.Namespace, configs.Debug)
+		exists, err := helm.HelmReleaseExists(releaseName, configs.Namespace, configs.Debug, useAI)
 		if err != nil {
 			return err
 		}
@@ -120,7 +121,7 @@ var upgradeCmd = &cobra.Command{
 				if configs.Debug {
 					pterm.Println("Release not found, installing...")
 				}
-				if err := helm.HelmInstall(releaseName, chartPath, configs.Namespace, configs.File, timeoutDuration, configs.Atomic, configs.Debug, configs.Set, configs.SetLiteral, RepoURL, Version, wait); err != nil {
+				if err := helm.HelmInstall(releaseName, chartPath, configs.Namespace, configs.File, timeoutDuration, configs.Atomic, configs.Debug, configs.Set, configs.SetLiteral, RepoURL, Version, wait, useAI); err != nil {
 					return err
 				}
 				if configs.Debug {
@@ -163,6 +164,7 @@ var upgradeCmd = &cobra.Command{
 			Version,
 			wait,
 			historyMax,
+			useAI,
 		)
 		if err != nil {
 			os.Exit(1)
@@ -207,6 +209,7 @@ func init() {
 	upgradeCmd.Flags().StringVar(&RepoURL, "repo-url", "", "Helm repository URL")
 	upgradeCmd.Flags().StringVar(&Version, "version", "", "Helm chart version")
 	upgradeCmd.Flags().BoolVar(&configs.Wait, "wait", false, "Wait until all Pods, PVCs, Services, and minimum number of Pods of a Deployment are ready before marking success")
-	upgradeCmd.Flags().IntVar(&historyMax, "history-max", 10, "Limit the maximum number of revisions saved per release") // Add this line
+	upgradeCmd.Flags().IntVar(&historyMax, "history-max", 10, "Limit the maximum number of revisions saved per release")
+	upgradeCmd.PersistentFlags().BoolVar(&useAI, "ai", false, "Enable AI help mode")
 	selmCmd.AddCommand(upgradeCmd)
 }

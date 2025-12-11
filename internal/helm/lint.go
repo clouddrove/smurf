@@ -12,7 +12,7 @@ import (
 // optionally merging values from given YAML files and parsing additional values,
 // passed through the --set mechanism. Upon completion, it displays any detected
 // linting messages, listing severity and location, or indicates if no issues were found
-func HelmLint(chartPath string, fileValues []string) error {
+func HelmLint(chartPath string, fileValues []string, useAI bool) error {
 	spinner, _ := pterm.DefaultSpinner.Start("Linting chart")
 	defer spinner.Stop()
 
@@ -23,6 +23,7 @@ func HelmLint(chartPath string, fileValues []string) error {
 		additionalVals, err := chartutil.ReadValuesFile(f)
 		if err != nil {
 			pterm.Error.Printfln("Failed to read values file '%s': %v \n", f, err)
+			aiExplainError(useAI, err.Error())
 			return err
 		}
 		for key, value := range additionalVals {

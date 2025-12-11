@@ -10,13 +10,14 @@ import (
 // HelmStatus retrieves and displays the status of a specified Helm release within a given namespace.
 // It initializes the Helm action configuration, fetches the release status, and presents it in a formatted table.
 // Additionally, it checks the readiness of the associated Kubernetes resources and provides detailed feedback.
-func HelmStatus(releaseName, namespace string) error {
+func HelmStatus(releaseName, namespace string, useAI bool) error {
 	spinner, _ := pterm.DefaultSpinner.Start(fmt.Sprintf("Retrieving status for release: %s", releaseName))
 	defer spinner.Stop()
 
 	actionConfig := new(action.Configuration)
 	if err := actionConfig.Init(settings.RESTClientGetter(), namespace, "secrets", nil); err != nil {
 		logDetailedError("helm status", err, namespace, releaseName)
+		aiExplainError(useAI, err.Error())
 		return err
 	}
 
@@ -24,6 +25,7 @@ func HelmStatus(releaseName, namespace string) error {
 	rel, err := statusAction.Run(releaseName)
 	if err != nil {
 		logDetailedError("helm status", err, namespace, releaseName)
+		aiExplainError(useAI, err.Error())
 		return err
 	}
 
@@ -48,18 +50,21 @@ func HelmStatus(releaseName, namespace string) error {
 	resources, err := parseResourcesFromManifest(rel.Manifest)
 	if err != nil {
 		pterm.Error.Printfln("Error parsing manifest for readiness check: %v \n", err)
+		aiExplainError(useAI, err.Error())
 		return nil
 	}
 
 	clientset, err := getKubeClient()
 	if err != nil {
 		pterm.Error.Printfln("Error getting kube client for readiness check: %v \n", err)
+		aiExplainError(useAI, err.Error())
 		return err
 	}
 
 	allReady, notReadyResources, err := resourcesReady(clientset, rel.Namespace, resources)
 	if err != nil {
 		pterm.Error.Printfln("Error checking resource readiness: %v \n", err)
+		aiExplainError(useAI, err.Error())
 		return err
 	}
 

@@ -35,7 +35,7 @@ var lintCmd = &cobra.Command{
 			}
 		}
 
-		err := helm.HelmLint(chartPath, configs.File)
+		err := helm.HelmLint(chartPath, configs.File, useAI)
 		if err != nil {
 			return err
 		}
@@ -51,5 +51,6 @@ smurf selm lint
 
 func init() {
 	lintCmd.Flags().StringArrayVarP(&configs.File, "values", "f", []string{}, "Specify values in a YAML file")
+	lintCmd.Flags().BoolVar(&useAI, "ai", false, "Enable AI help mode")
 	selmCmd.AddCommand(lintCmd)
 }

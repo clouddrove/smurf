@@ -59,7 +59,7 @@ var templateCmd = &cobra.Command{
 			configs.Namespace = "default"
 		}
 
-		err := helm.HelmTemplate(releaseName, chartPath, configs.Namespace, repoURL, configs.File)
+		err := helm.HelmTemplate(releaseName, chartPath, configs.Namespace, repoURL, configs.File, useAI)
 		if err != nil {
 			os.Exit(1)
 		}
@@ -81,5 +81,6 @@ func init() {
 	templateCmd.Flags().StringVarP(&configs.Namespace, "namespace", "n", "", "Specify the namespace to template the Helm chart")
 	templateCmd.Flags().StringArrayVarP(&configs.File, "values", "f", []string{}, "Specify values in a YAML file")
 	templateCmd.Flags().StringVarP(&repoURL, "repo", "r", "", "Specify Helm chart repository URL")
+	templateCmd.Flags().BoolVar(&useAI, "ai", false, "Enable AI help mode")
 	selmCmd.AddCommand(templateCmd)
 }

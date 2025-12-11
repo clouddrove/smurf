@@ -96,7 +96,7 @@ The first argument is the name of the release to roll back, and the second is th
 			Wait:      configs.Wait,
 		}
 
-		err := helm.HelmRollback(releaseName, revision, rollbackOpts, historyMax)
+		err := helm.HelmRollback(releaseName, revision, rollbackOpts, historyMax, useAI)
 		if err != nil {
 			return err
 		}
@@ -112,5 +112,6 @@ func init() {
 	rollbackCmd.Flags().IntVar(&configs.Timeout, "timeout", 300, "Timeout for the rollback operation in seconds")
 	rollbackCmd.Flags().BoolVar(&configs.Wait, "wait", true, "Wait until all resources are rolled back successfully")
 	rollbackCmd.Flags().IntVar(&historyMax, "history-max", 10, "Limit the maximum number of revisions saved per release")
+	rollbackCmd.Flags().BoolVar(&useAI, "ai", false, "Enable ai help mode")
 	selmCmd.AddCommand(rollbackCmd)
 }

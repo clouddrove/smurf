@@ -12,9 +12,10 @@ import (
 )
 
 // HelmHistory shows the revision history of a Helm release using pterm.Table
-func HelmHistory(releaseName, namespace string, max int) error {
+func HelmHistory(releaseName, namespace string, max int, useAI bool) error {
 	actionConfig := new(action.Configuration)
 	if err := actionConfig.Init(settings.RESTClientGetter(), namespace, os.Getenv("HELM_DRIVER"), debugLog); err != nil {
+		aiExplainError(useAI, err.Error())
 		return fmt.Errorf("failed to initialize Helm action configuration: %v", err)
 	}
 
@@ -23,6 +24,7 @@ func HelmHistory(releaseName, namespace string, max int) error {
 
 	releases, err := client.Run(releaseName)
 	if err != nil {
+		aiExplainError(useAI, err.Error())
 		return fmt.Errorf("failed to get release history: %v", err)
 	}
 

@@ -21,7 +21,7 @@ The repository can be accessed by its name in other commands.`,
 		keyFile = configs.KeyFile
 		caFile = configs.CaFile
 		helmConfigDir = configs.HelmConfigDir
-		return helm.Repo_Add(args, username, password, certFile, keyFile, caFile, helmConfigDir)
+		return helm.Repo_Add(args, username, password, certFile, keyFile, caFile, helmConfigDir, useAI)
 	},
 	Example: `
   # Add a chart repository
@@ -42,6 +42,7 @@ func init() {
 	repoAddCmd.Flags().StringVar(&configs.KeyFile, "key-file", "", "Identify HTTPS client using this SSL key file")
 	repoAddCmd.Flags().StringVar(&configs.CaFile, "ca-file", "", "Verify certificates of HTTPS-enabled servers using this CA bundle")
 	repoAddCmd.Flags().StringVar(&configs.HelmConfigDir, "helm-config", "", "Helm configuration directory (default: $HELM_HOME or ~/.config/helm)")
+	repoAddCmd.Flags().BoolVar(&useAI, "ai", false, "Enable AI help mode")
 
 	// Add commands to root
 	repoCmd.AddCommand(repoAddCmd)

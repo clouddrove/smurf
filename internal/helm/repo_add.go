@@ -13,7 +13,10 @@ import (
 	"helm.sh/helm/v3/pkg/repo"
 )
 
-func Repo_Add(args []string, username, password, certFile, keyFile, caFile, helmConfigDir string) error {
+func Repo_Add(args []string,
+	username, password, certFile, keyFile, caFile, helmConfigDir string,
+	useAI bool,
+) error {
 	repoName := args[0]
 	repoURL := args[1]
 
@@ -28,17 +31,20 @@ func Repo_Add(args []string, username, password, certFile, keyFile, caFile, helm
 	// Ensure directories exist with correct permissions
 	if err := os.MkdirAll(filepath.Dir(settings.RepositoryConfig), 0755); err != nil {
 		pterm.Error.Printfln("✗ Failed to create config directory: %v", err)
+		aiExplainError(useAI, err.Error())
 		return fmt.Errorf("failed to create config directory: %v", err)
 	}
 
 	if err := os.MkdirAll(settings.RepositoryCache, 0755); err != nil {
 		pterm.Error.Printfln("✗ Failed to create cache directory: %v", err)
+		aiExplainError(useAI, err.Error())
 		return fmt.Errorf("failed to create cache directory: %v", err)
 	}
 
 	// Load or create repository file
 	repoFile, err := loadOrCreateRepoFile(settings.RepositoryConfig)
 	if err != nil {
+		aiExplainError(useAI, err.Error())
 		return err
 	}
 
@@ -51,11 +57,14 @@ func Repo_Add(args []string, username, password, certFile, keyFile, caFile, helm
 		pterm.Error.Printfln("✗ Repository %s already exists with different URL", repoName)
 		pterm.Println("  Existing URL:", existing.URL)
 		pterm.Println("  New URL:     ", repoURL)
-		return fmt.Errorf("repository %s already exists", repoName)
+		errMsg := fmt.Sprintf("repository %s already exists", repoName)
+		aiExplainError(useAI, errMsg)
+		return fmt.Errorf("%v", errMsg)
 	}
 
 	// Create and test the repository
 	if err := createAndTestRepository(repoFile, repoName, repoURL, username, password, certFile, keyFile, caFile, settings); err != nil {
+		aiExplainError(useAI, err.Error())
 		return err
 	}
 

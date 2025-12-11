@@ -64,7 +64,7 @@ are properly deleted. It automatically handles cleanup of remaining resources.`,
 			Cascade:      cascade,
 		}
 
-		err := helm.HelmUninstall(opts)
+		err := helm.HelmUninstall(opts, useAI)
 		if err != nil {
 			return err
 		}
@@ -87,5 +87,6 @@ func init() {
 	uninstallCmd.Flags().Duration("timeout", 10*time.Minute, "Time to wait for deletion")
 	uninstallCmd.Flags().Bool("no-hooks", false, "Prevent hooks from running during uninstall")
 	uninstallCmd.Flags().String("cascade", "background", "Delete cascading policy (background, foreground, orphan)")
+	uninstallCmd.Flags().BoolVar(&useAI, "ai", false, "Enable AI help mode")
 	selmCmd.AddCommand(uninstallCmd)
 }

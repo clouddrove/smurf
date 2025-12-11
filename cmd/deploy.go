@@ -42,7 +42,7 @@ var deployCmd = &cobra.Command{
 		case cfg.Sdkr.GCPRepo:
 			imageRepo, imageTag, err = handleGCPPush(cfg)
 		default:
-pterm.Warning.Println("No registry selected (awsECR/dockerHub/ghcrRepo/gcpRepo). Skipping image push.")
+			pterm.Warning.Println("No registry selected (awsECR/dockerHub/ghcrRepo). Skipping image push.")
 		}
 
 		if err != nil {
@@ -310,7 +310,7 @@ func handleHelmDeploy(data *configs.Config, imageRepo, imageTag string) error {
 
 	timeoutDuration := time.Duration(configs.Timeout) * time.Second
 
-	exists, err := helm.HelmReleaseExists(releaseName, namespace, configs.Debug)
+	exists, err := helm.HelmReleaseExists(releaseName, namespace, configs.Debug, false)
 	if err != nil {
 		return err
 	}
@@ -330,6 +330,7 @@ func handleHelmDeploy(data *configs.Config, imageRepo, imageTag string) error {
 			"",
 			"",
 			true,
+			false,
 		)
 	}
 
@@ -349,6 +350,7 @@ func handleHelmDeploy(data *configs.Config, imageRepo, imageTag string) error {
 		"",
 		true,
 		3,
+		false,
 	)
 }
 

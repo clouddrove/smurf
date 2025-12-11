@@ -28,7 +28,7 @@ Defaults to showing releases in the default namespace unless specified.`,
 			pterm.Warning.Println("--namespace is ignored when --all-namespaces is specified")
 		}
 
-		_, err := helm.ListReleases(namespace, outputFormat)
+		_, err := helm.ListReleases(namespace, outputFormat, useAI)
 		return err
 	},
 	Example: `
@@ -53,6 +53,7 @@ func init() {
 	listCmd.Flags().BoolVarP(&allNamespaces, "all-namespaces", "A", false, "list across all namespaces")
 	listCmd.Flags().StringVarP(&namespace, "namespace", "n", "default", "namespace scope for listing")
 	listCmd.Flags().StringVarP(&outputFormat, "output", "o", "table", "output format (table|json|yaml)")
+	listCmd.Flags().BoolVar(&useAI, "ai", false, "Enable AI help mode")
 
 	// Register completion functions
 	listCmd.RegisterFlagCompletionFunc("output", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
