@@ -4,7 +4,7 @@ All notable and important changes to **Smurf Tool** are documented here.
 
 ---
 
-## [v0.0.8] — 2025-11-26
+## [v0.0.9] — 2025-11-26
 ### Added
 - Add smurf sdkr for google cloud platform(GCP)
 - Add history max flag for smurf selm
