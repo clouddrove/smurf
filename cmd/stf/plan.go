@@ -11,7 +11,8 @@ var planDir string
 var planDestroy bool
 var planTarget []string
 var planRefresh bool
-var planState string // Added state flag
+var planState string
+var planOut string
 
 // planCmd defines a subcommand that generates and shows an execution plan for Terraform
 var planCmd = &cobra.Command{
@@ -19,7 +20,7 @@ var planCmd = &cobra.Command{
 	Short:        "Generate and show an execution plan for Terraform",
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		terraform.Plan(planVarNameValue, planVarFile, planDir, planDestroy, planTarget, planRefresh, planState)
+		terraform.Plan(planVarNameValue, planVarFile, planDir, planDestroy, planTarget, planRefresh, planState, planOut)
 		return nil
 	},
 	Example: `
@@ -51,6 +52,7 @@ var planCmd = &cobra.Command{
 
     # Combine with other flags
     smurf stf plan --target=aws_instance.web --destroy --var="instance_type=t2.micro" --refresh=false --state=prod.tfstate
+    smurf stf plan --out=prod.plan --var-file=vars.tfvars
     `,
 }
 
@@ -62,6 +64,6 @@ func init() {
 	planCmd.Flags().StringArrayVar(&planTarget, "target", []string{}, "Target specific resources, modules, or resources in modules")
 	planCmd.Flags().BoolVar(&planRefresh, "refresh", true, "Update state prior to checking for differences")
 	planCmd.Flags().StringVar(&planState, "state", "", "Path to read and save the Terraform state")
-
+	planCmd.Flags().StringVar(&planOut, "out", "", "Path to save the generated execution plan")
 	stfCmd.AddCommand(planCmd)
 }

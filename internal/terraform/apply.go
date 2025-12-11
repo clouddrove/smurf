@@ -84,7 +84,25 @@ func Apply(approve bool, vars []string, varFiles []string, lock bool, dir string
 		Buffer: &outputBuffer,
 		Writer: os.Stdout,
 	}
-	customWriter.Write([]byte(planDetail))
+
+	// NEW: Colorize the "No changes" message if present
+	planStr := string(planDetail)
+	if strings.Contains(planStr, "No changes.") {
+		// Find and colorize the "No changes" section
+		lines := strings.Split(planStr, "\n")
+		for i, line := range lines {
+			if strings.Contains(line, "No changes.") ||
+				strings.Contains(line, "Your infrastructure matches the configuration") ||
+				strings.Contains(line, "found no differences") ||
+				strings.Contains(line, "so no changes are needed") {
+				// Colorize these lines in green (like Terraform CLI does)
+				lines[i] = fmt.Sprintf("\033[32m%s\033[0m", line)
+			}
+		}
+		planStr = strings.Join(lines, "\n")
+	}
+
+	customWriter.Write([]byte(planStr))
 
 	show, err := tf.ShowPlanFile(context.Background(), "plan.out")
 	if err != nil {
@@ -93,6 +111,7 @@ func Apply(approve bool, vars []string, varFiles []string, lock bool, dir string
 	}
 
 	if len(show.ResourceChanges) == 0 {
+		// Also colorize the warning message when no changes are found
 		Warn("No changes to apply. Everything is up to date.")
 		return nil
 	}

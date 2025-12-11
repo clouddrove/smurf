@@ -709,7 +709,11 @@ func printResourcesFromRelease(rel *release.Release) {
 func aiExplainError(useAI bool, errTest string) {
 	if useAI && ai.IsEnabled() {
 		fmt.Println("\n🤖 AI Analysis...")
-		answer, _ := ai.ExplainError(errTest)
+		answer, err := ai.ExplainError(errTest)
+		if err != nil {
+			pterm.Error.Printf("AI analysis failed: %v\n", err)
+			return
+		}
 		fmt.Println(answer)
 	}
 }

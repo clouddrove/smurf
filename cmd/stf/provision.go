@@ -21,7 +21,7 @@ var provisionCmd = &cobra.Command{
 			return err
 		}
 
-		if err := terraform.Plan(varNameValue, varFile, provisionDir, planDestroy, planTarget, planRefresh, planState); err != nil {
+		if err := terraform.Plan(varNameValue, varFile, provisionDir, planDestroy, planTarget, planRefresh, planState, planOut); err != nil {
 			return err
 		}
 
@@ -47,6 +47,7 @@ func init() {
 	provisionCmd.Flags().BoolVar(&provisionApprove, "approve", true, "Skip interactive approval of plan before applying")
 	provisionCmd.Flags().BoolVar(&lock, "lock", false, "Don't hold a state lock during the operation. This is dangerous if others might concurrently run commands against the same workspace.")
 	provisionCmd.Flags().BoolVar(&upgrade, "upgrade", false, "Upgrade the Terraform modules and plugins to the latest versions")
-	provisionCmd.Flags().StringVar(&provisionDir, "dir", "", "Specify the directory for Terraform operations") // Added flag
+	provisionCmd.Flags().StringVar(&provisionDir, "dir", "", "Specify the directory for Terraform operations")
+	provisionCmd.Flags().StringVar(&planOut, "out", "", "Path to save the generated execution plan")
 	stfCmd.AddCommand(provisionCmd)
 }
