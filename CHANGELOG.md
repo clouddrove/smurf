@@ -97,3 +97,4 @@ All notable and important changes to **Smurf Tool** are documented here.
 - commands
     - `smurf sdkr --help`
     - `smurf selm --help`
+
