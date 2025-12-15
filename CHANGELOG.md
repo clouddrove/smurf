@@ -4,6 +4,33 @@ All notable and important changes to **Smurf Tool** are documented here.
 
 ---
 
+## [v0.0.9] — 2025-11-26
+### Added
+- Add smurf sdkr for google cloud platform(GCP)
+- Add history max flag for smurf selm
+- Add GHCR repo feature
+- Add `smurf deploy` command
+- add smurf selm init command
+
+### Fixed
+- Update `smurf stf format` command
+- Update smurf provision GHCR logs
+- Improve code suggested by Gemini AI
+
+---
+
+## [v0.0.8] — 2025-11-11
+### Added
+- Add smurf terraform
+- Added commands to manage Terraform operations (plan, apply, destroy) using Smurf.
+
+### Fixed
+- Removed duplicate logic detected by SonarQube Cloud.
+- Update docs with latest changes
+- Improve code suggested by Gemini AI
+
+---
+
 ## [v0.0.7] — 2025-11-04
 ### Added
 - Introduced **GitHub Container Registry (GHCR)** support.
@@ -70,3 +97,4 @@ All notable and important changes to **Smurf Tool** are documented here.
 - commands
     - `smurf sdkr --help`
     - `smurf selm --help`
+

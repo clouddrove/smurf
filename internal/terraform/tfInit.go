@@ -25,8 +25,15 @@ func (l *CustomLogger) Write(p []byte) (n int, err error) {
 	switch {
 	case strings.Contains(msg, "Downloading"):
 		parts := strings.Fields(msg)
-		if len(parts) >= 4 {
-			Info("Downloading %s %s for %s...", pterm.Cyan(parts[1]), pterm.Yellow(parts[2]), pterm.Cyan(strings.TrimSpace(parts[4])))
+		// Check for enough parts to safely access indices
+		if len(parts) >= 5 { // Changed from >= 4 to >= 5 since we need parts[4]
+			Info("Downloading %s %s for %s...",
+				pterm.Cyan(parts[1]),
+				pterm.Yellow(parts[2]),
+				pterm.Cyan(strings.TrimSpace(parts[4])))
+		} else {
+			// Fallback to generic message if format doesn't match
+			Info("Downloading: %s", strings.TrimSpace(msg))
 		}
 		return len(p), nil
 
@@ -54,6 +61,7 @@ func (l *CustomLogger) Write(p []byte) (n int, err error) {
 		return len(p), nil
 	}
 
+	// For any other output, write it as-is
 	return l.writer.Write(p)
 }
 
