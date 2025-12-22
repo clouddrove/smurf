@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	version = "v1.0.0"  // will be overridden by ldflags during build
+	version = "dev"     // will be overridden by ldflags during build
 	commit  = "none"    // will be set by ldflags
 	date    = "unknown" // will be set by ldflags
 )
