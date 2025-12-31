@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/clouddrove/smurf/internal/ai"
 	"github.com/pterm/pterm"
 	"gopkg.in/yaml.v3"
 	"helm.sh/helm/v3/pkg/action"
@@ -16,7 +17,7 @@ import (
 func ListReleases(namespace, format string, useAI bool) ([]*release.Release, error) {
 	cfg := new(action.Configuration)
 	if err := cfg.Init(settings.RESTClientGetter(), namespace, os.Getenv("HELM_DRIVER"), debugLog); err != nil {
-		aiExplainError(useAI, err.Error())
+		ai.AIExplainError(useAI, err.Error())
 		return nil, fmt.Errorf("helm init failed: %w", err)
 	}
 
@@ -26,7 +27,7 @@ func ListReleases(namespace, format string, useAI bool) ([]*release.Release, err
 
 	releases, err := client.Run()
 	if err != nil {
-		aiExplainError(useAI, err.Error())
+		ai.AIExplainError(useAI, err.Error())
 		return nil, fmt.Errorf("release listing failed: %w", err)
 	}
 

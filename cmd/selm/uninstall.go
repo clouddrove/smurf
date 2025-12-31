@@ -87,6 +87,6 @@ func init() {
 	uninstallCmd.Flags().Duration("timeout", 10*time.Minute, "Time to wait for deletion")
 	uninstallCmd.Flags().Bool("no-hooks", false, "Prevent hooks from running during uninstall")
 	uninstallCmd.Flags().String("cascade", "background", "Delete cascading policy (background, foreground, orphan)")
-	uninstallCmd.Flags().BoolVar(&useAI, "ai", false, "Enable AI help mode")
+	uninstallCmd.Flags().BoolVar(&useAI, "ai", false, "To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.")
 	selmCmd.AddCommand(uninstallCmd)
 }

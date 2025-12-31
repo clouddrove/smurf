@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/clouddrove/smurf/internal/ai"
 	"github.com/pterm/pterm"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart"
@@ -15,7 +16,7 @@ import (
 func HelmHistory(releaseName, namespace string, max int, useAI bool) error {
 	actionConfig := new(action.Configuration)
 	if err := actionConfig.Init(settings.RESTClientGetter(), namespace, os.Getenv("HELM_DRIVER"), debugLog); err != nil {
-		aiExplainError(useAI, err.Error())
+		ai.AIExplainError(useAI, err.Error())
 		return fmt.Errorf("failed to initialize Helm action configuration: %v", err)
 	}
 
@@ -24,7 +25,7 @@ func HelmHistory(releaseName, namespace string, max int, useAI bool) error {
 
 	releases, err := client.Run(releaseName)
 	if err != nil {
-		aiExplainError(useAI, err.Error())
+		ai.AIExplainError(useAI, err.Error())
 		return fmt.Errorf("failed to get release history: %v", err)
 	}
 

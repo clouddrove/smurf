@@ -53,7 +53,7 @@ var tagCmd = &cobra.Command{
 			Source: source,
 			Target: target,
 		}
-		if err := docker.TagImage(opts); err != nil {
+		if err := docker.TagImage(opts, useAI); err != nil {
 			pterm.Error.Printfln("failed to tag image: %v", err)
 			return fmt.Errorf("failed to tag image: %v", err)
 		}
@@ -68,5 +68,6 @@ var tagCmd = &cobra.Command{
 }
 
 func init() {
+	tagCmd.Flags().BoolVar(&useAI, "ai", false, "To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.")
 	sdkrCmd.AddCommand(tagCmd)
 }

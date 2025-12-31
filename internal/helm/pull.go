@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/clouddrove/smurf/internal/ai"
 	"github.com/pterm/pterm"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/cli"
@@ -13,7 +14,7 @@ import (
 func Pull(chartRef, version, destination string, untar bool, untarDir string,
 	verify bool, keyring string, repoURL string, username string, password string,
 	certFile string, keyFile string, caFile string, insecure bool, plainHttp bool,
-	passCredentials bool, devel bool, prov bool, helmConfigDir string) error {
+	passCredentials bool, devel bool, prov bool, helmConfigDir string, useAI bool) error {
 
 	pterm.Info.Printfln("Pulling chart: %s", chartRef)
 
@@ -23,6 +24,7 @@ func Pull(chartRef, version, destination string, untar bool, untarDir string,
 	// Ensure destination directory exists
 	if err := os.MkdirAll(destination, 0755); err != nil {
 		pterm.Error.Printfln("✗ Failed to create destination directory: %v", err)
+		ai.AIExplainError(useAI, err.Error())
 		return fmt.Errorf("failed to create destination directory: %v", err)
 	}
 
@@ -36,6 +38,7 @@ func Pull(chartRef, version, destination string, untar bool, untarDir string,
 
 	if err := actionConfig.Init(settings.RESTClientGetter(), settings.Namespace(), os.Getenv("HELM_DRIVER"), debugLog); err != nil {
 		pterm.Error.Printfln("✗ Failed to initialize Helm action config: %v", err)
+		ai.AIExplainError(useAI, err.Error())
 		return fmt.Errorf("failed to initialize Helm action config: %v", err)
 	}
 
@@ -69,6 +72,7 @@ func Pull(chartRef, version, destination string, untar bool, untarDir string,
 	result, err := pull.Run(chartRef)
 	if err != nil {
 		pterm.Error.Printfln("✗ Failed to pull chart: %v", err)
+		ai.AIExplainError(useAI, err.Error())
 		return fmt.Errorf("failed to pull chart: %v", err)
 	}
 
@@ -86,6 +90,7 @@ func Pull(chartRef, version, destination string, untar bool, untarDir string,
 		provFile := result + ".prov"
 		if _, err := os.Stat(provFile); err == nil {
 			pterm.Success.Printfln("✓ Provenance file downloaded: %s", filepath.Base(provFile))
+			ai.AIExplainError(useAI, err.Error())
 		} else {
 			pterm.Info.Println("No provenance file found for this chart")
 		}

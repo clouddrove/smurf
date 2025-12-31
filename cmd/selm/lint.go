@@ -51,6 +51,6 @@ smurf selm lint
 
 func init() {
 	lintCmd.Flags().StringArrayVarP(&configs.File, "values", "f", []string{}, "Specify values in a YAML file")
-	lintCmd.Flags().BoolVar(&useAI, "ai", false, "Enable AI help mode")
+	lintCmd.Flags().BoolVar(&useAI, "ai", false, "To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.")
 	selmCmd.AddCommand(lintCmd)
 }

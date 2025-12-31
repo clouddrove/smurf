@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/clouddrove/smurf/internal/ai"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/jsonmessage"
@@ -89,7 +90,7 @@ func printBuildSummary(inspect types.ImageInspect, fullImageName string) {
 	printDivider()
 }
 
-func Build(imageName, tag string, opts BuildOptions) error {
+func Build(imageName, tag string, opts BuildOptions, useAI bool) error {
 	tracker := newStepTracker(3)
 
 	tracker.logStep("Initializing build...")
@@ -102,6 +103,7 @@ func Build(imageName, tag string, opts BuildOptions) error {
 	)
 	if err != nil {
 		tracker.completeStep(false, fmt.Sprintf("Docker client init failed: %v", err))
+		ai.AIExplainError(useAI, err.Error())
 		return fmt.Errorf("%v", err.Error())
 	}
 	defer cli.Close()
@@ -121,6 +123,7 @@ func Build(imageName, tag string, opts BuildOptions) error {
 	buildCtx, err := createTarball(opts.ContextDir, opts.Excludes)
 	if err != nil {
 		tracker.completeStep(false, fmt.Sprintf("Context creation failed: %v", err))
+		ai.AIExplainError(useAI, err.Error())
 		return fmt.Errorf("%v", err.Error())
 	}
 	defer buildCtx.Close()

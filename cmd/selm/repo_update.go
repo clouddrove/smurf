@@ -26,6 +26,6 @@ var repoUpdateCmd = &cobra.Command{
 func init() {
 	// Add helm-config flag for consistency
 	repoUpdateCmd.Flags().StringVar(&configs.HelmConfigDir, "helm-config", "", "Helm configuration directory (default: $HELM_HOME or ~/.config/helm)")
-	repoUpdateCmd.Flags().BoolVar(&useAI, "ai", false, "Enable AI help mode")
+	repoUpdateCmd.Flags().BoolVar(&useAI, "ai", false, "To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.")
 	repoCmd.AddCommand(repoUpdateCmd)
 }

@@ -34,7 +34,7 @@ var scanCmd = &cobra.Command{
 		}
 
 		pterm.Info.Printf("Scanning Docker image %q...\n", imageRef)
-		err := docker.Trivy(imageRef)
+		err := docker.Trivy(imageRef, useAI)
 		if err != nil {
 			return err
 		}
@@ -50,5 +50,6 @@ var scanCmd = &cobra.Command{
 }
 
 func init() {
+	scanCmd.Flags().BoolVar(&useAI, "ai", false, "To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.")
 	sdkrCmd.AddCommand(scanCmd)
 }

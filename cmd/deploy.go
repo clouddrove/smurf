@@ -66,7 +66,7 @@ func buildImageWithOpts(imageName, tag string) error {
 	if err != nil {
 		return err
 	}
-	return docker.Build(imageName, tag, opts)
+	return docker.Build(imageName, tag, opts, false)
 }
 
 func prepareDockerBuild() (docker.BuildOptions, error) {
@@ -101,7 +101,7 @@ func prepareDockerBuild() (docker.BuildOptions, error) {
 
 func maybeCleanup(image string) {
 	if configs.DeleteAfterPush {
-		_ = docker.RemoveImage(image)
+		_ = docker.RemoveImage(image, false)
 		pterm.Info.Printf("🧹 Deleted local image: %s\n", image)
 	}
 }
@@ -126,7 +126,7 @@ func handleECRPush(cfg *configs.Config) (string, string, error) {
 	fullRemote := fmt.Sprintf("%s.dkr.ecr.%s.amazonaws.com/%s:%s", accountID, region, repo, tag)
 	pterm.Info.Printf("🚀 Pushing to ECR: %s\n", fullRemote)
 
-	if err := docker.PushImageToECR(fullRemote, region, repo); err != nil {
+	if err := docker.PushImageToECR(fullRemote, region, repo, false); err != nil {
 		return "", "", err
 	}
 
@@ -166,7 +166,7 @@ func handleDockerHubPush(cfg *configs.Config) (string, string, error) {
 	if err := docker.PushImage(docker.PushOptions{
 		ImageName: fullImage,
 		Timeout:   1000 * time.Second,
-	}); err != nil {
+	}, false); err != nil {
 		return "", "", err
 	}
 
@@ -210,7 +210,7 @@ func handleGHCRPush(cfg *configs.Config) (string, string, error) {
 	if err := docker.PushToGHCR(docker.PushOptions{
 		ImageName: fullImage,
 		Timeout:   1000 * time.Second,
-	}); err != nil {
+	}, false); err != nil {
 		return "", "", err
 	}
 
@@ -256,12 +256,12 @@ func handleGCPPush(cfg *configs.Config) (string, string, error) {
 
 	// Tag
 	tagOpts := docker.TagOptions{Source: localImageRef, Target: fullRemote}
-	if err := docker.TagImage(tagOpts); err != nil {
+	if err := docker.TagImage(tagOpts, false); err != nil {
 		return "", "", fmt.Errorf("failed to tag image: %w", err)
 	}
 
 	// PUSH using GCP-specific function (like ECR does 🎯)
-	if err := docker.PushImageToGCR(configs.ProjectID, fullRemote); err != nil {
+	if err := docker.PushImageToGCR(configs.ProjectID, fullRemote, false); err != nil {
 		return "", "", err
 	}
 

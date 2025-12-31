@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/clouddrove/smurf/internal/ai"
 	"github.com/pterm/pterm"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart/loader"
@@ -19,7 +20,7 @@ func HelmTemplate(releaseName, chartPath, namespace, repoURL string, valuesFiles
 
 	if err := actionConfig.Init(settings.RESTClientGetter(), namespace, os.Getenv("HELM_DRIVER"), nil); err != nil {
 		pterm.Error.Printfln("Failed to initialize action configuration: %v", err)
-		aiExplainError(useAI, err.Error())
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 
@@ -37,7 +38,7 @@ func HelmTemplate(releaseName, chartPath, namespace, repoURL string, valuesFiles
 	chartPathFinal, err := client.ChartPathOptions.LocateChart(chartPath, settings)
 	if err != nil {
 		spinner.Fail(fmt.Sprintf("Failed to locate chart '%s': %v", chartPath, err))
-		aiExplainError(useAI, err.Error())
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 	spinner.Success(fmt.Sprintf("Chart located: %s", chartPathFinal))
@@ -46,7 +47,7 @@ func HelmTemplate(releaseName, chartPath, namespace, repoURL string, valuesFiles
 	chart, err := loader.Load(chartPathFinal)
 	if err != nil {
 		spinner.Fail(fmt.Sprintf("Failed to load chart: %v", err))
-		aiExplainError(useAI, err.Error())
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 	spinner.Success("Chart loaded successfully")
@@ -58,7 +59,7 @@ func HelmTemplate(releaseName, chartPath, namespace, repoURL string, valuesFiles
 		additionalVals, err := chartutil.ReadValuesFile(f)
 		if err != nil {
 			spinner.Fail(fmt.Sprintf("Error reading values file '%s': %v", f, err))
-			aiExplainError(useAI, err.Error())
+			ai.AIExplainError(useAI, err.Error())
 			return err
 		}
 
@@ -73,7 +74,7 @@ func HelmTemplate(releaseName, chartPath, namespace, repoURL string, valuesFiles
 	rel, err := client.Run(chart, vals)
 	if err != nil {
 		spinner.Fail(fmt.Sprintf("Failed to render templates: %v", err))
-		aiExplainError(useAI, err.Error())
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 	spinner.Success("Templates rendered successfully")

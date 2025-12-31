@@ -4,16 +4,19 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/clouddrove/smurf/internal/ai"
 )
 
 // Push to GitHub Container Registry (GHCR)
-func PushToGHCR(opts PushOptions) error {
+func PushToGHCR(opts PushOptions, useAI bool) error {
 	if !strings.HasPrefix(opts.ImageName, "ghcr.io/") {
 		return fmt.Errorf("image name must start with 'ghcr.io/' for GHCR")
 	}
 
 	cli, ctx, cancel, err := initDockerClient(opts.Timeout)
 	if err != nil {
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 	defer cancel()
@@ -22,6 +25,7 @@ func PushToGHCR(opts PushOptions) error {
 	fmt.Printf("Preparing GHCR authentication...\n")
 	authStr, err := prepareAuth(os.Getenv("USERNAME_GITHUB"), os.Getenv("TOKEN_GITHUB"), "ghcr.io")
 	if err != nil {
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 
@@ -31,6 +35,7 @@ func PushToGHCR(opts PushOptions) error {
 
 	err = pushImage(cli, ctx, opts.ImageName, authStr)
 	if err != nil {
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 

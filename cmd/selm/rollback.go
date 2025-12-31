@@ -112,6 +112,6 @@ func init() {
 	rollbackCmd.Flags().IntVar(&configs.Timeout, "timeout", 300, "Timeout for the rollback operation in seconds")
 	rollbackCmd.Flags().BoolVar(&configs.Wait, "wait", true, "Wait until all resources are rolled back successfully")
 	rollbackCmd.Flags().IntVar(&historyMax, "history-max", 10, "Limit the maximum number of revisions saved per release")
-	rollbackCmd.Flags().BoolVar(&useAI, "ai", false, "Enable AI help mode")
+	rollbackCmd.Flags().BoolVar(&useAI, "ai", false, "To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.")
 	selmCmd.AddCommand(rollbackCmd)
 }

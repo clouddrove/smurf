@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/clouddrove/smurf/internal/ai"
 	"github.com/pterm/pterm"
 	helmCLI "helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/getter"
@@ -31,20 +32,20 @@ func Repo_Add(args []string,
 	// Ensure directories exist with correct permissions
 	if err := os.MkdirAll(filepath.Dir(settings.RepositoryConfig), 0755); err != nil {
 		pterm.Error.Printfln("✗ Failed to create config directory: %v", err)
-		aiExplainError(useAI, err.Error())
+		ai.AIExplainError(useAI, err.Error())
 		return fmt.Errorf("failed to create config directory: %v", err)
 	}
 
 	if err := os.MkdirAll(settings.RepositoryCache, 0755); err != nil {
 		pterm.Error.Printfln("✗ Failed to create cache directory: %v", err)
-		aiExplainError(useAI, err.Error())
+		ai.AIExplainError(useAI, err.Error())
 		return fmt.Errorf("failed to create cache directory: %v", err)
 	}
 
 	// Load or create repository file
 	repoFile, err := loadOrCreateRepoFile(settings.RepositoryConfig)
 	if err != nil {
-		aiExplainError(useAI, err.Error())
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 
@@ -58,13 +59,13 @@ func Repo_Add(args []string,
 		pterm.Println("  Existing URL:", existing.URL)
 		pterm.Println("  New URL:     ", repoURL)
 		errMsg := fmt.Sprintf("repository %s already exists", repoName)
-		aiExplainError(useAI, errMsg)
+		ai.AIExplainError(useAI, errMsg)
 		return fmt.Errorf("%v", errMsg)
 	}
 
 	// Create and test the repository
 	if err := createAndTestRepository(repoFile, repoName, repoURL, username, password, certFile, keyFile, caFile, settings); err != nil {
-		aiExplainError(useAI, err.Error())
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 

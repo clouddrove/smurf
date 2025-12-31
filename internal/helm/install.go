@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/clouddrove/smurf/internal/ai"
 	"github.com/pterm/pterm"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart"
@@ -46,7 +47,7 @@ func HelmInstall(
 
 	if err := actionConfig.Init(settings.RESTClientGetter(), namespace, os.Getenv("HELM_DRIVER"), logFn); err != nil {
 		printErrorSummary("Helm Configuration", releaseName, namespace, chartRef, err)
-		aiExplainError(useAI, err.Error())
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 
@@ -66,7 +67,7 @@ func HelmInstall(
 	chartObj, err = LoadChart(chartRef, repoURL, version, settings)
 	if err != nil {
 		printErrorSummary("Chart Loading", releaseName, namespace, chartRef, err)
-		aiExplainError(useAI, err.Error())
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 
@@ -75,7 +76,7 @@ func HelmInstall(
 	vals, err := loadAndMergeValuesWithSets(valuesFiles, setValues, setLiteralValues, debug)
 	if err != nil {
 		printErrorSummary("Values Processing", releaseName, namespace, chartRef, err)
-		aiExplainError(useAI, err.Error())
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 
@@ -86,7 +87,7 @@ func HelmInstall(
 	if err != nil {
 		printReleaseResources(namespace, releaseName)
 		printErrorSummary("Chart Installation", releaseName, namespace, chartRef, err)
-		aiExplainError(useAI, err.Error())
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 
@@ -95,7 +96,7 @@ func HelmInstall(
 	if err := verifyInstallationHealth(namespace, releaseName, duration, debug); err != nil {
 		printReleaseResources(namespace, releaseName)
 		printErrorSummary("Chart Installation", releaseName, namespace, chartRef, err)
-		aiExplainError(useAI, err.Error())
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 

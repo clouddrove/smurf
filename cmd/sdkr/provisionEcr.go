@@ -88,7 +88,7 @@ var provisionEcrCmd = &cobra.Command{
 			Timeout:        time.Duration(configs.BuildTimeout) * time.Second,
 		}
 
-		if err := docker.Build(localImageName, localTag, buildOpts); err != nil {
+		if err := docker.Build(localImageName, localTag, buildOpts, useAI); err != nil {
 			return fmt.Errorf("build failed: %v", err)
 		}
 
@@ -115,14 +115,14 @@ var provisionEcrCmd = &cobra.Command{
 			accountID, ecrRegionName, ecrRepositoryName, ecrImageTag,
 		)
 		pterm.Info.Printf("Pushing image %s to ECR...\n", pushImage)
-		if err := docker.PushImageToECR(ecrImage, ecrRegionName, ecrRepositoryName); err != nil {
+		if err := docker.PushImageToECR(ecrImage, ecrRegionName, ecrRepositoryName, useAI); err != nil {
 			return err
 		}
 		pterm.Success.Println("Push to ECR completed successfully.")
 
 		if configs.DeleteAfterPush {
 			pterm.Info.Printf("Deleting local image %s...\n", fullEcrImage)
-			if err := docker.RemoveImage(fullEcrImage); err != nil {
+			if err := docker.RemoveImage(fullEcrImage, useAI); err != nil {
 				return err
 			}
 			pterm.Success.Println("Successfully deleted local image:", fullEcrImage)
@@ -160,6 +160,6 @@ func init() {
 
 	provisionEcrCmd.Flags().BoolVarP(&configs.ConfirmAfterPush, "yes", "y", false, "Push the image to ECR without confirmation")
 	provisionEcrCmd.Flags().BoolVarP(&configs.DeleteAfterPush, "delete", "d", false, "Delete the local image after pushing")
-
+	provisionEcrCmd.Flags().BoolVar(&useAI, "ai", false, "To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.")
 	sdkrCmd.AddCommand(provisionEcrCmd)
 }

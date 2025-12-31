@@ -1,6 +1,7 @@
 package helm
 
 import (
+	"github.com/clouddrove/smurf/internal/ai"
 	"github.com/pterm/pterm"
 	"helm.sh/helm/v3/pkg/action"
 )
@@ -16,7 +17,7 @@ func HelmReleaseExists(releaseName, namespace string, debug bool, useAI bool) (b
 
 	actionConfig, err := initActionConfig(namespace, debug)
 	if err != nil {
-		aiExplainError(useAI, err.Error())
+		ai.AIExplainError(useAI, err.Error())
 		return false, err
 	}
 

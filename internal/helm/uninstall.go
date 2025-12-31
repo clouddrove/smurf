@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/clouddrove/smurf/internal/ai"
 	"github.com/pterm/pterm"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/release"
@@ -32,20 +33,20 @@ func HelmUninstall(opts UninstallOptions, useAI bool) error {
 	// Initialize Helm configuration
 	actionConfig := new(action.Configuration)
 	if err := initializeActionConfig(actionConfig, opts.Namespace); err != nil {
-		aiExplainError(useAI, err.Error())
+		ai.AIExplainError(useAI, err.Error())
 		return fmt.Errorf("failed to initialize Helm: %w", err)
 	}
 
 	// Perform Helm uninstall
 	resp, err := performUninstall(actionConfig, opts)
 	if err != nil {
-		aiExplainError(useAI, err.Error())
+		ai.AIExplainError(useAI, err.Error())
 		pterm.Warning.Printfln("Initial uninstall attempt failed, attempting cleanup")
 	}
 
 	// Verify and cleanup remaining resources
 	if err := verifyAndCleanupResources(opts, resp); err != nil {
-		aiExplainError(useAI, err.Error())
+		ai.AIExplainError(useAI, err.Error())
 		return fmt.Errorf("resource cleanup failed: %w", err)
 	}
 

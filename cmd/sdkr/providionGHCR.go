@@ -100,7 +100,7 @@ func runProvisionGHCR(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if err := docker.Build(imageName, tag, buildOpts); err != nil {
+	if err := docker.Build(imageName, tag, buildOpts, false); err != nil {
 		return fmt.Errorf("build failed: %v", err)
 	}
 	pterm.Success.Println("✅ Build completed successfully.")
@@ -203,7 +203,7 @@ func pushToGHCR(fullImage string) error {
 		ImageName: fullImage,
 		Timeout:   1000 * time.Second,
 	}
-	if err := docker.PushToGHCR(pushOpts); err != nil {
+	if err := docker.PushToGHCR(pushOpts, useAI); err != nil {
 		pterm.Error.Printfln("Push failed: %v", err)
 		return err
 	}
@@ -213,7 +213,7 @@ func pushToGHCR(fullImage string) error {
 
 func cleanupLocalImage(fullImage string) {
 	pterm.Info.Printf("🧹 Deleting local image %s...\n", fullImage)
-	if err := docker.RemoveImage(fullImage); err != nil {
+	if err := docker.RemoveImage(fullImage, useAI); err != nil {
 		pterm.Warning.Printfln("Failed to delete local image: %v", err)
 	} else {
 		pterm.Success.Println("Local image deleted successfully.")

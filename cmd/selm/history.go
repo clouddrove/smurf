@@ -52,6 +52,6 @@ smurf selm history my-release --max 5
 func init() {
 	historyCmd.Flags().Int("max", 256, "maximum number of revisions to show")
 	historyCmd.Flags().StringVarP(&configs.Namespace, "namespace", "n", "", "namespace of the release")
-	historyCmd.PersistentFlags().BoolVar(&useAI, "ai", false, "Enable AI help mode")
+	historyCmd.PersistentFlags().BoolVar(&useAI, "ai", false, "To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.")
 	selmCmd.AddCommand(historyCmd)
 }
