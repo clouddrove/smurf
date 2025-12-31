@@ -93,6 +93,5 @@ func init() {
 	pushAcrCmd.Flags().StringVarP(&configs.RegistryName, "registry-name", "g", "", "Azure Container Registry name (required)")
 	pushAcrCmd.Flags().BoolVarP(&configs.DeleteAfterPush, "delete", "d", false, "Delete the local image after pushing")
 	pushAcrCmd.Flags().BoolVar(&useAI, "ai", false, "To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.")
-	pushAcrCmd.Flags().BoolVar(&useAI, "ai", false, "To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.")
 	pushCmd.AddCommand(pushAcrCmd)
 }

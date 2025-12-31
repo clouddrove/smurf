@@ -35,7 +35,7 @@ CMD ["echo", "hello"]`
 
 	imageName := "test-image"
 	tag := "latest"
-	err = docker.Build(imageName, tag, opts)
+	err = docker.Build(imageName, tag, opts, false)
 	require.NoError(t, err)
 
 	cli, err := client.NewClientWithOpts(client.FromEnv)
