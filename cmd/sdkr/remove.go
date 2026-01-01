@@ -36,7 +36,7 @@ var removeCmd = &cobra.Command{
 		}
 
 		pterm.Info.Printfln("Removing Docker image %v...\n", imageRef)
-		err := docker.RemoveImage(imageRef)
+		err := docker.RemoveImage(imageRef, useAI)
 		if err != nil {
 			return err
 		}
@@ -51,5 +51,6 @@ var removeCmd = &cobra.Command{
 }
 
 func init() {
+	removeCmd.Flags().BoolVar(&useAI, "ai", false, "To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.")
 	sdkrCmd.AddCommand(removeCmd)
 }

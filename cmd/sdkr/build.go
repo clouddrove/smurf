@@ -95,7 +95,7 @@ var buildCmd = &cobra.Command{
 			BuildKit:       configs.BuildKit,
 		}
 
-		err := docker.Build(imageName, tag, opts)
+		err := docker.Build(imageName, tag, opts, useAI)
 		if err != nil {
 			return err
 		}
@@ -118,6 +118,7 @@ func init() {
 	buildCmd.Flags().StringVar(&configs.Platform, "platform", "", "Set the platform for the build (e.g., linux/amd64, linux/arm64)")
 	buildCmd.Flags().IntVar(&configs.BuildTimeout, "timeout", 1500, "Set the build timeout")
 	buildCmd.Flags().BoolVar(&configs.BuildKit, "buildkit", false, "Enable BuildKit for advanced Dockerfile features")
+	buildCmd.Flags().BoolVar(&useAI, "ai", false, "To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.")
 
 	sdkrCmd.AddCommand(buildCmd)
 }

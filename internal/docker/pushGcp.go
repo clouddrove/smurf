@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/clouddrove/smurf/internal/ai"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/registry"
 	"github.com/docker/docker/client"
@@ -532,7 +533,7 @@ func extractServerAddress(imageName string) string {
 }
 
 // PushImageToGCR pushes image to Google Container Registry/Artifact Registry
-func PushImageToGCR(projectID, imageNameWithTag string) error {
+func PushImageToGCR(projectID, imageNameWithTag string, useAI bool) error {
 	logger := NewColorfulLogger()
 	authProvider := NewAuthProvider()
 	ctx := context.Background()
@@ -542,6 +543,7 @@ func PushImageToGCR(projectID, imageNameWithTag string) error {
 	// Get Docker client
 	dockerClient, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
+		ai.AIExplainError(useAI, err.Error())
 		return fmt.Errorf("%sdocker client creation failed%s: %v", colorRed, colorReset, err)
 	}
 
@@ -555,11 +557,13 @@ func PushImageToGCR(projectID, imageNameWithTag string) error {
 	// Get authentication using multiple methods
 	authConfig, err := authProvider.getAuthConfig(serverAddress)
 	if err != nil {
+		ai.AIExplainError(useAI, err.Error())
 		return fmt.Errorf("%sauthentication failed%s: %v", colorRed, colorReset, err)
 	}
 
 	encodedAuth, err := encodeAuthToBase64(authConfig)
 	if err != nil {
+		ai.AIExplainError(useAI, err.Error())
 		return fmt.Errorf("%sauth encoding failed%s: %v", colorRed, colorReset, err)
 	}
 

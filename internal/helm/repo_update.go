@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/clouddrove/smurf/internal/ai"
 	"github.com/pterm/pterm"
 	helmCLI "helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/getter"
@@ -39,7 +40,7 @@ func Repo_Update(args []string, helmConfigDir string, useAI bool) error {
 			return errors.New("no repositories found")
 		}
 		pterm.Error.Printfln("✗ Failed to load repository config: %v", err)
-		aiExplainError(useAI, err.Error())
+		ai.AIExplainError(useAI, err.Error())
 		return fmt.Errorf("failed to load repository config: %v", err)
 	}
 
@@ -55,7 +56,7 @@ func Repo_Update(args []string, helmConfigDir string, useAI bool) error {
 		r, err := repo.NewChartRepository(cfg, getter.All(settings))
 		if err != nil {
 			pterm.Warning.Printfln("⚠ Failed to create chart repository for %s: %v", cfg.Name, err)
-			aiExplainError(useAI, err.Error())
+			ai.AIExplainError(useAI, err.Error())
 			continue
 		}
 		repos = append(repos, r)

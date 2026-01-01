@@ -43,7 +43,7 @@ Examples:
 			configs.UntarDir, configs.Verify, configs.Keyring, configs.RepoURL,
 			configs.Username, configs.Password, configs.CertFile, configs.KeyFile,
 			configs.CaFile, configs.Insecure, configs.PlainHttp, configs.PassCredentials,
-			configs.Devel, configs.Prov, configs.HelmConfigDir)
+			configs.Devel, configs.Prov, configs.HelmConfigDir, useAI)
 	},
 }
 
@@ -67,6 +67,7 @@ func init() {
 	pullCmd.Flags().BoolVar(&configs.Devel, "devel", false, "Use development versions (alpha, beta, and release candidate releases)")
 	pullCmd.Flags().BoolVar(&configs.Prov, "prov", false, "Fetch the provenance file, but don't perform verification")
 	pullCmd.Flags().StringVar(&configs.HelmConfigDir, "helm-config", "", "Helm configuration directory")
+	pullCmd.Flags().BoolVar(&useAI, "ai", false, "To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.")
 
 	// Add to selm command
 	selmCmd.AddCommand(pullCmd)

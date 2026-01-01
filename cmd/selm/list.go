@@ -53,7 +53,7 @@ func init() {
 	listCmd.Flags().BoolVarP(&allNamespaces, "all-namespaces", "A", false, "list across all namespaces")
 	listCmd.Flags().StringVarP(&namespace, "namespace", "n", "default", "namespace scope for listing")
 	listCmd.Flags().StringVarP(&outputFormat, "output", "o", "table", "output format (table|json|yaml)")
-	listCmd.Flags().BoolVar(&useAI, "ai", false, "Enable AI help mode")
+	listCmd.Flags().BoolVar(&useAI, "ai", false, "To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.")
 
 	// Register completion functions
 	listCmd.RegisterFlagCompletionFunc("output", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {

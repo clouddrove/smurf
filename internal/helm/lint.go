@@ -3,6 +3,7 @@ package helm
 import (
 	"fmt"
 
+	"github.com/clouddrove/smurf/internal/ai"
 	"github.com/pterm/pterm"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chartutil"
@@ -23,7 +24,7 @@ func HelmLint(chartPath string, fileValues []string, useAI bool) error {
 		additionalVals, err := chartutil.ReadValuesFile(f)
 		if err != nil {
 			pterm.Error.Printfln("Failed to read values file '%s': %v \n", f, err)
-			aiExplainError(useAI, err.Error())
+			ai.AIExplainError(useAI, err.Error())
 			return err
 		}
 		for key, value := range additionalVals {

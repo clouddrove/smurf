@@ -13,6 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ecr"
+	"github.com/clouddrove/smurf/internal/ai"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/registry"
 	"github.com/docker/docker/client"
@@ -67,7 +68,7 @@ func (l *ECRLogger) logError(message string, err error) {
 		colorReset)
 }
 
-func PushImageToECR(imageName, region, repositoryName string) error {
+func PushImageToECR(imageName, region, repositoryName string, useAI bool) error {
 	logger := NewECRLogger()
 	ctx := context.Background()
 
@@ -79,6 +80,7 @@ func PushImageToECR(imageName, region, repositoryName string) error {
 	})
 	if err != nil {
 		logger.logError("Failed to create AWS session", err)
+		ai.AIExplainError(useAI, err.Error())
 		return fmt.Errorf("failed to create AWS session: %v", err)
 	}
 
@@ -98,11 +100,13 @@ func PushImageToECR(imageName, region, repositoryName string) error {
 			_, err = ecrClient.CreateRepository(createRepositoryInput)
 			if err != nil {
 				logger.logError("Failed to create ECR repository", err)
+				ai.AIExplainError(useAI, err.Error())
 				return fmt.Errorf("failed to create ECR repository: %v", err)
 			}
 			logger.logSuccess(fmt.Sprintf("Created ECR repository: %s%s%s", colorCyan, repositoryName, colorReset))
 		} else {
 			logger.logError("Failed to describe ECR repositories", err)
+			ai.AIExplainError(useAI, err.Error())
 			return fmt.Errorf("failed to describe ECR repositories: %v", err)
 		}
 	}
@@ -111,6 +115,7 @@ func PushImageToECR(imageName, region, repositoryName string) error {
 	authTokenOutput, err := ecrClient.GetAuthorizationToken(&ecr.GetAuthorizationTokenInput{})
 	if err != nil {
 		logger.logError("Failed to get ECR authorization token", err)
+		ai.AIExplainError(useAI, err.Error())
 		return fmt.Errorf("failed to get ECR authorization token: %v", err)
 	}
 	if len(authTokenOutput.AuthorizationData) == 0 {
@@ -122,6 +127,7 @@ func PushImageToECR(imageName, region, repositoryName string) error {
 	authToken, err := base64.StdEncoding.DecodeString(*authData.AuthorizationToken)
 	if err != nil {
 		logger.logError("Failed to decode authorization token", err)
+		ai.AIExplainError(useAI, err.Error())
 		return fmt.Errorf("failed to decode authorization token: %v", err)
 	}
 
@@ -137,6 +143,7 @@ func PushImageToECR(imageName, region, repositoryName string) error {
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		logger.logError("Failed to create Docker client", err)
+		ai.AIExplainError(useAI, err.Error())
 		return fmt.Errorf("failed to create Docker client: %v", err)
 	}
 
@@ -149,6 +156,7 @@ func PushImageToECR(imageName, region, repositoryName string) error {
 	encodedJSON, err := json.Marshal(authConfig)
 	if err != nil {
 		logger.logError("Failed to encode auth config", err)
+		ai.AIExplainError(useAI, err.Error())
 		return fmt.Errorf("failed to encode auth config: %v", err)
 	}
 	authStr := base64.URLEncoding.EncodeToString(encodedJSON)
@@ -158,6 +166,7 @@ func PushImageToECR(imageName, region, repositoryName string) error {
 	ecrImage := fmt.Sprintf("%s/%s:%s", ecrURL, repositoryName, tag)
 	if err := cli.ImageTag(ctx, imageName, ecrImage); err != nil {
 		logger.logError("Failed to tag image", err)
+		ai.AIExplainError(useAI, err.Error())
 		return fmt.Errorf("failed to tag image: %v", err)
 	}
 	logger.logSuccess(fmt.Sprintf("Tagged image: %s%s%s", colorCyan, ecrImage, colorReset))
@@ -168,6 +177,7 @@ func PushImageToECR(imageName, region, repositoryName string) error {
 	})
 	if err != nil {
 		logger.logError("Failed to push image to ECR", err)
+		ai.AIExplainError(useAI, err.Error())
 		return fmt.Errorf("failed to push image to ECR: %v", err)
 	}
 	defer pushResponse.Close()
@@ -183,6 +193,7 @@ func PushImageToECR(imageName, region, repositoryName string) error {
 				break
 			}
 			logger.logError("Error decoding JSON message from push", err)
+			ai.AIExplainError(useAI, err.Error())
 			return fmt.Errorf("error decoding JSON message from push: %v", err)
 		}
 

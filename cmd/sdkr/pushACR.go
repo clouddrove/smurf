@@ -65,7 +65,7 @@ var pushAcrCmd = &cobra.Command{
 		acrImage := fmt.Sprintf("%s.azurecr.io/%s:%s", configs.RegistryName, repoName, tag)
 
 		pterm.Info.Println("Pushing image to Azure Container Registry...")
-		if err := docker.PushImageToACR(configs.SubscriptionID, configs.ResourceGroup, configs.RegistryName, repoName); err != nil {
+		if err := docker.PushImageToACR(configs.SubscriptionID, configs.ResourceGroup, configs.RegistryName, repoName, useAI); err != nil {
 			pterm.Error.Println("Failed to push image:", err)
 			return err
 		}
@@ -73,7 +73,7 @@ var pushAcrCmd = &cobra.Command{
 
 		if configs.DeleteAfterPush {
 			pterm.Info.Printf("Deleting local image %s...\n", repoName)
-			if err := docker.RemoveImage(repoName); err != nil {
+			if err := docker.RemoveImage(repoName, useAI); err != nil {
 				return err
 			}
 			pterm.Success.Println("Successfully deleted local image:", repoName)
@@ -92,6 +92,6 @@ func init() {
 	pushAcrCmd.Flags().StringVarP(&configs.ResourceGroup, "resource-group", "r", "", "Azure resource group name (required)")
 	pushAcrCmd.Flags().StringVarP(&configs.RegistryName, "registry-name", "g", "", "Azure Container Registry name (required)")
 	pushAcrCmd.Flags().BoolVarP(&configs.DeleteAfterPush, "delete", "d", false, "Delete the local image after pushing")
-
+	pushAcrCmd.Flags().BoolVar(&useAI, "ai", false, "To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.")
 	pushCmd.AddCommand(pushAcrCmd)
 }

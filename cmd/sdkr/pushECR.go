@@ -51,7 +51,7 @@ var pushEcrCmd = &cobra.Command{
 
 		pterm.Info.Println("Pushing image to AWS ECR...")
 
-		if err := docker.PushImageToECR(ecrImage, ecrRegionName, ecrRepositoryName); err != nil {
+		if err := docker.PushImageToECR(ecrImage, ecrRegionName, ecrRepositoryName, useAI); err != nil {
 			pterm.Error.Println("Failed to push image to ECR:", err)
 			return err
 		}
@@ -59,7 +59,7 @@ var pushEcrCmd = &cobra.Command{
 
 		if configs.DeleteAfterPush {
 			pterm.Info.Printf("Deleting local image %s...\n", imageRef)
-			if err := docker.RemoveImage(imageRef); err != nil {
+			if err := docker.RemoveImage(imageRef, useAI); err != nil {
 				pterm.Error.Println("Failed to delete local image:", err)
 				return err
 			}
@@ -81,6 +81,8 @@ func init() {
 	pushEcrCmd.Flags().BoolVarP(&configs.DeleteAfterPush, "delete", "d", false,
 		"Delete the local image after pushing",
 	)
-
+	pushEcrCmd.Flags().BoolVar(&useAI, "ai", false,
+		"To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.",
+	)
 	pushCmd.AddCommand(pushEcrCmd)
 }

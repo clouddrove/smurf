@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
+	"github.com/pterm/pterm"
 	"github.com/sashabaranov/go-openai"
 )
 
@@ -254,4 +255,16 @@ func formatFallbackResponse(response string) string {
 	}
 
 	return output.String()
+}
+
+func AIExplainError(useAI bool, errTest string) {
+	if useAI && IsEnabled() {
+		fmt.Println("\n🤖 Smurf AI Analysis...")
+		answer, err := ExplainError(errTest)
+		if err != nil {
+			pterm.Error.Printf("AI analysis failed: %v\n", err)
+			return
+		}
+		fmt.Println(answer)
+	}
 }

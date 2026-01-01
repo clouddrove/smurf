@@ -113,7 +113,7 @@ var provisionHubCmd = &cobra.Command{
 		}
 
 		pterm.Info.Println("Starting build...")
-		if err := docker.Build(localImageName, localTag, buildOpts); err != nil {
+		if err := docker.Build(localImageName, localTag, buildOpts, useAI); err != nil {
 			return err
 		}
 		pterm.Success.Println("Build completed successfully.")
@@ -135,14 +135,14 @@ var provisionHubCmd = &cobra.Command{
 			ImageName: fullImageName,
 			Timeout:   1000000000000,
 		}
-		if err := docker.PushImage(pushOpts); err != nil {
+		if err := docker.PushImage(pushOpts, useAI); err != nil {
 			pterm.Error.Println("Push failed:", err)
 			return err
 		}
 
 		if configs.DeleteAfterPush {
 			pterm.Info.Printf("Deleting local image %s...\n", fullImageName)
-			if err := docker.RemoveImage(fullImageName); err != nil {
+			if err := docker.RemoveImage(fullImageName, useAI); err != nil {
 				pterm.Error.Println("Failed to delete local image:", err)
 				return err
 			}
@@ -218,6 +218,7 @@ func init() {
 		false,
 		"Delete the local image after pushing",
 	)
+	provisionHubCmd.Flags().BoolVar(&useAI, "ai", false, "To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.")
 
 	sdkrCmd.AddCommand(provisionHubCmd)
 }

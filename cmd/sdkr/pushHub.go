@@ -84,7 +84,7 @@ Export DOCKER_USERNAME and DOCKER_PASSWORD as environment variables for Docker H
 			ImageName: fullImageName,
 			Timeout:   time.Duration(configs.BuildTimeout) * time.Second,
 		}
-		if err := docker.PushImage(opts); err != nil {
+		if err := docker.PushImage(opts, useAI); err != nil {
 			pterm.Error.Println("Failed to push image to Docker Hub:", err)
 			return err
 		}
@@ -92,7 +92,7 @@ Export DOCKER_USERNAME and DOCKER_PASSWORD as environment variables for Docker H
 
 		if configs.DeleteAfterPush {
 			pterm.Info.Printf("Deleting local image %s...\n", fullImageName)
-			if err := docker.RemoveImage(fullImageName); err != nil {
+			if err := docker.RemoveImage(fullImageName, useAI); err != nil {
 				return err
 			}
 			pterm.Success.Println("Successfully deleted local image:", fullImageName)
@@ -109,5 +109,6 @@ Export DOCKER_USERNAME and DOCKER_PASSWORD as environment variables for Docker H
 func init() {
 	pushHubCmd.Flags().BoolVarP(&configs.DeleteAfterPush, "delete", "d", false, "Delete the local image after pushing")
 	pushHubCmd.Flags().IntVar(&configs.BuildTimeout, "timeout", 1500, "Timeout for the push operation in minutes")
+	pushHubCmd.Flags().BoolVar(&useAI, "ai", false, "To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.")
 	pushCmd.AddCommand(pushHubCmd)
 }

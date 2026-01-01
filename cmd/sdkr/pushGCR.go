@@ -79,7 +79,7 @@ Supports:
 		pterm.Info.Printf("Pushing image to %s...\n", registryType)
 
 		// Pass the full image reference to PushImageToGCR
-		if err := docker.PushImageToGCR(configs.ProjectID, imageRef); err != nil {
+		if err := docker.PushImageToGCR(configs.ProjectID, imageRef, useAI); err != nil {
 			pterm.Error.Printf("Failed to push image to %s: %v\n", registryType, err)
 			return err
 		}
@@ -95,7 +95,7 @@ Supports:
 			}
 
 			pterm.Info.Printf("Deleting local image %s...\n", baseName)
-			if err := docker.RemoveImage(baseName); err != nil {
+			if err := docker.RemoveImage(baseName, useAI); err != nil {
 				pterm.Warning.Printf("Failed to delete local image %s: %v\n", baseName, err)
 				// Don't return error here, as the push was successful
 			} else {
@@ -121,6 +121,6 @@ Supports:
 func init() {
 	pushGcrCmd.Flags().StringVar(&configs.ProjectID, "project-id", "", "GCP project ID (required for short image names)")
 	pushGcrCmd.Flags().BoolVarP(&configs.DeleteAfterPush, "delete", "d", false, "Delete the local image after pushing")
-
+	pushGcrCmd.Flags().BoolVar(&useAI, "ai", false, "To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.")
 	pushCmd.AddCommand(pushGcrCmd)
 }

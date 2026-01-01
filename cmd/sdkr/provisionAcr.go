@@ -102,7 +102,7 @@ var provisionAcrCmd = &cobra.Command{
 			localTag = "latest"
 		}
 
-		if err := docker.Build(localImageName, localTag, buildOpts); err != nil {
+		if err := docker.Build(localImageName, localTag, buildOpts, useAI); err != nil {
 			return err
 		}
 		pterm.Success.Println("Build completed successfully.")
@@ -124,6 +124,7 @@ var provisionAcrCmd = &cobra.Command{
 			configs.ResourceGroup,
 			configs.RegistryName,
 			localImageName,
+			useAI,
 		); err != nil {
 			pterm.Error.Println("Push to ACR failed:", err)
 			return err
@@ -132,7 +133,7 @@ var provisionAcrCmd = &cobra.Command{
 
 		if configs.DeleteAfterPush {
 			pterm.Info.Printf("Deleting local image %s...\n", fullAcrImage)
-			if err := docker.RemoveImage(fullAcrImage); err != nil {
+			if err := docker.RemoveImage(fullAcrImage, useAI); err != nil {
 				pterm.Error.Println("Failed to delete local image:", err)
 				return fmt.Errorf("failed to delete local image: %v", err)
 			}
@@ -165,6 +166,6 @@ func init() {
 
 	provisionAcrCmd.Flags().BoolVarP(&configs.ConfirmAfterPush, "yes", "y", false, "Push the image to ACR without confirmation")
 	provisionAcrCmd.Flags().BoolVarP(&configs.DeleteAfterPush, "delete", "d", false, "Delete the local image after pushing")
-
+	provisionAcrCmd.Flags().BoolVar(&useAI, "ai", false, "To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.")
 	sdkrCmd.AddCommand(provisionAcrCmd)
 }

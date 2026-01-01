@@ -261,12 +261,12 @@ func cleanupImages(imageRef *ImageReference, registry *ImageRegistry) {
 	localImageRef := imageRef.BuildImageName + ":" + imageRef.LocalTag
 
 	// Delete the tagged registry image
-	if err := docker.RemoveImage(imageRef.FullPath); err != nil {
+	if err := docker.RemoveImage(imageRef.FullPath, useAI); err != nil {
 		pterm.Warning.Printf("Failed to delete tagged image %s: %v\n", imageRef.FullPath, err)
 	}
 
 	// Delete the original local image
-	if err := docker.RemoveImage(localImageRef); err != nil {
+	if err := docker.RemoveImage(localImageRef, useAI); err != nil {
 		pterm.Warning.Printf("Failed to delete local image %s: %v\n", localImageRef, err)
 	}
 
@@ -331,7 +331,7 @@ Supports:
 		pterm.Info.Println("Starting Docker build...")
 		localImageRef := parsedImage.BuildImageName + ":" + parsedImage.LocalTag
 
-		if err := docker.Build(parsedImage.BuildImageName, parsedImage.LocalTag, buildOpts); err != nil {
+		if err := docker.Build(parsedImage.BuildImageName, parsedImage.LocalTag, buildOpts, useAI); err != nil {
 			return err
 		}
 
@@ -341,14 +341,14 @@ Supports:
 			Source: localImageRef,
 			Target: parsedImage.FullPath,
 		}
-		if err := docker.TagImage(tagOpts); err != nil {
+		if err := docker.TagImage(tagOpts, useAI); err != nil {
 			pterm.Error.Printf("Failed to tag image: %v\n", err)
 			return fmt.Errorf("failed to tag image: %w", err)
 		}
 
 		// Push to registry
 		pterm.Info.Printf("Pushing image %s to %s...\n", parsedImage.FullPath, parsedImage.RegistryType)
-		if err := docker.PushImageToGCR(configs.ProjectID, parsedImage.FullPath); err != nil {
+		if err := docker.PushImageToGCR(configs.ProjectID, parsedImage.FullPath, useAI); err != nil {
 			return err
 		}
 
@@ -407,6 +407,6 @@ func init() {
 	provisionGcpCmd.Flags().StringVarP(&configs.SarifFile, "output", "o", "", "Output file for SARIF report")
 	provisionGcpCmd.Flags().BoolVarP(&configs.ConfirmAfterPush, "yes", "y", false, "Push the image to registry without confirmation")
 	provisionGcpCmd.Flags().BoolVarP(&configs.DeleteAfterPush, "delete", "d", false, "Delete the local image after pushing")
-
+	provisionGcpCmd.Flags().BoolVar(&useAI, "ai", false, "To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.")
 	sdkrCmd.AddCommand(provisionGcpCmd)
 }

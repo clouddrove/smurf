@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/clouddrove/smurf/internal/ai"
 	"github.com/pterm/pterm"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/cli"
@@ -37,7 +38,7 @@ func HelmRollback(releaseName string, revision int, opts RollbackOptions, histor
 		}
 	}); err != nil {
 		logDetailedError("helm rollback", err, opts.Namespace, releaseName)
-		aiExplainError(useAI, err.Error())
+		ai.AIExplainError(useAI, err.Error())
 		return fmt.Errorf("failed to initialize Helm action configuration: %v", err)
 	}
 
@@ -50,13 +51,13 @@ func HelmRollback(releaseName string, revision int, opts RollbackOptions, histor
 
 	if err := rollbackAction.Run(releaseName); err != nil {
 		logDetailedError("helm rollback", err, opts.Namespace, releaseName)
-		aiExplainError(useAI, err.Error())
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 
 	if err := HelmStatus(releaseName, opts.Namespace, useAI); err != nil {
 		pterm.FgYellow.Print("Rollback completed, but status retrieval failed. Check the release status manually.\n")
-		aiExplainError(useAI, err.Error())
+		ai.AIExplainError(useAI, err.Error())
 		return nil
 	}
 

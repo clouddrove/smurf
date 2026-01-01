@@ -8,6 +8,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerregistry/armcontainerregistry"
+	"github.com/clouddrove/smurf/internal/ai"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/registry"
 	"github.com/docker/docker/client"
@@ -20,13 +21,14 @@ import (
 // and pushes it to the registry. It displays a spinner with progress updates and prints the
 // push response messages. Upon successful completion, it prints a success message with a link
 // to the pushed image in the ACR.
-func PushImageToACR(subscriptionID, resourceGroupName, registryName, imageName string) error {
+func PushImageToACR(subscriptionID, resourceGroupName, registryName, imageName string, useAI bool) error {
 	ctx := context.Background()
 
 	spinner, _ := pterm.DefaultSpinner.Start("Authenticating with Azure...")
 	cred, err := azidentity.NewDefaultAzureCredential(nil)
 	if err != nil {
 		spinner.Fail("Failed to authenticate with Azure\n")
+		ai.AIExplainError(useAI, err.Error())
 		return fmt.Errorf("failed to authenticate with Azure : %v", err)
 	}
 	spinner.Success("Authenticated with Azure\n")
@@ -35,6 +37,7 @@ func PushImageToACR(subscriptionID, resourceGroupName, registryName, imageName s
 	registryClient, err := armcontainerregistry.NewRegistriesClient(subscriptionID, cred, nil)
 	if err != nil {
 		spinner.Fail("Failed to create registry client\n")
+		ai.AIExplainError(useAI, err.Error())
 		return fmt.Errorf("failed to create registry client : %v", err)
 	}
 	spinner.Success("Registry client created\n")
@@ -43,6 +46,7 @@ func PushImageToACR(subscriptionID, resourceGroupName, registryName, imageName s
 	registryResp, err := registryClient.Get(ctx, resourceGroupName, registryName, nil)
 	if err != nil {
 		spinner.Fail("Failed to retrieve registry details\n")
+		ai.AIExplainError(useAI, err.Error())
 		return fmt.Errorf("failed to retrieve registry details : %v", err)
 	}
 	loginServer := *registryResp.Properties.LoginServer
@@ -52,10 +56,12 @@ func PushImageToACR(subscriptionID, resourceGroupName, registryName, imageName s
 	credentialsResp, err := registryClient.ListCredentials(ctx, resourceGroupName, registryName, nil)
 	if err != nil {
 		spinner.Fail("Failed to retrieve registry credentials\n")
+		ai.AIExplainError(useAI, err.Error())
 		return fmt.Errorf("failed to retrieve registry credentials : %v", err)
 	}
 	if credentialsResp.Username == nil || len(credentialsResp.Passwords) == 0 || credentialsResp.Passwords[0].Value == nil {
 		spinner.Fail("Registry credentials are not available\n")
+		ai.AIExplainError(useAI, err.Error())
 		return fmt.Errorf("registry credentials are not available")
 	}
 	username := *credentialsResp.Username
@@ -66,6 +72,7 @@ func PushImageToACR(subscriptionID, resourceGroupName, registryName, imageName s
 	dockerClient, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		spinner.Fail("Failed to create Docker client\n")
+		ai.AIExplainError(useAI, err.Error())
 		return fmt.Errorf("failed to create Docker client : %v", err)
 	}
 	spinner.Success("Docker client created\n")
@@ -75,6 +82,7 @@ func PushImageToACR(subscriptionID, resourceGroupName, registryName, imageName s
 	err = dockerClient.ImageTag(ctx, imageName, taggedImage)
 	if err != nil {
 		spinner.Fail("Failed to tag the image\n")
+		ai.AIExplainError(useAI, err.Error())
 		return fmt.Errorf("failed to tag the image : %v", err)
 	}
 	spinner.Success("Image tagged\n")
@@ -88,6 +96,7 @@ func PushImageToACR(subscriptionID, resourceGroupName, registryName, imageName s
 	encodedAuth, err := encodeAuthToBase64(authConfig)
 	if err != nil {
 		spinner.Fail("Failed to encode authentication credentials\n")
+		ai.AIExplainError(useAI, err.Error())
 		return fmt.Errorf("failed to encode authentication credentials : %v", err)
 	}
 
@@ -98,6 +107,7 @@ func PushImageToACR(subscriptionID, resourceGroupName, registryName, imageName s
 	pushResponse, err := dockerClient.ImagePush(ctx, taggedImage, pushOptions)
 	if err != nil {
 		spinner.Fail("Failed to push the image\n")
+		ai.AIExplainError(useAI, err.Error())
 		return fmt.Errorf("failed to push the image : %v", err)
 	}
 	defer pushResponse.Close()
@@ -110,6 +120,7 @@ func PushImageToACR(subscriptionID, resourceGroupName, registryName, imageName s
 				break
 			}
 			spinner.Fail("Failed to read push response\n")
+			ai.AIExplainError(useAI, err.Error())
 			return fmt.Errorf("failed to read push response : %v", err)
 		}
 		if event.Error != nil {

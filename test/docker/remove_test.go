@@ -23,7 +23,7 @@ func TestRemoveImage(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("successful removal", func(t *testing.T) {
-		err := docker.RemoveImage("alpine:latest")
+		err := docker.RemoveImage("alpine:latest", false)
 		assert.NoError(t, err)
 
 		_, _, err = cli.ImageInspectWithRaw(context.Background(), "alpine:latest")
@@ -31,7 +31,7 @@ func TestRemoveImage(t *testing.T) {
 	})
 
 	t.Run("non-existent image", func(t *testing.T) {
-		err := docker.RemoveImage("nonexistent-image:latest")
+		err := docker.RemoveImage("nonexistent-image:latest", false)
 		assert.Error(t, err)
 	})
 }

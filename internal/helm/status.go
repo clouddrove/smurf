@@ -3,6 +3,7 @@ package helm
 import (
 	"fmt"
 
+	"github.com/clouddrove/smurf/internal/ai"
 	"github.com/pterm/pterm"
 	"helm.sh/helm/v3/pkg/action"
 )
@@ -17,7 +18,7 @@ func HelmStatus(releaseName, namespace string, useAI bool) error {
 	actionConfig := new(action.Configuration)
 	if err := actionConfig.Init(settings.RESTClientGetter(), namespace, "secrets", nil); err != nil {
 		logDetailedError("helm status", err, namespace, releaseName)
-		aiExplainError(useAI, err.Error())
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 
@@ -25,7 +26,7 @@ func HelmStatus(releaseName, namespace string, useAI bool) error {
 	rel, err := statusAction.Run(releaseName)
 	if err != nil {
 		logDetailedError("helm status", err, namespace, releaseName)
-		aiExplainError(useAI, err.Error())
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 
@@ -50,21 +51,21 @@ func HelmStatus(releaseName, namespace string, useAI bool) error {
 	resources, err := parseResourcesFromManifest(rel.Manifest)
 	if err != nil {
 		pterm.Error.Printfln("Error parsing manifest for readiness check: %v \n", err)
-		aiExplainError(useAI, err.Error())
+		ai.AIExplainError(useAI, err.Error())
 		return nil
 	}
 
 	clientset, err := getKubeClient()
 	if err != nil {
 		pterm.Error.Printfln("Error getting kube client for readiness check: %v \n", err)
-		aiExplainError(useAI, err.Error())
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 
 	allReady, notReadyResources, err := resourcesReady(clientset, rel.Namespace, resources)
 	if err != nil {
 		pterm.Error.Printfln("Error checking resource readiness: %v \n", err)
-		aiExplainError(useAI, err.Error())
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 
