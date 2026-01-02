@@ -20,8 +20,7 @@ var planCmd = &cobra.Command{
 	Short:        "Generate and show an execution plan for Terraform",
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		terraform.Plan(planVarNameValue, planVarFile, planDir, planDestroy, planTarget, planRefresh, planState, planOut, useAI)
-		return nil
+		return terraform.Plan(planVarNameValue, planVarFile, planDir, planDestroy, planTarget, planRefresh, planState, planOut, useAI)
 	},
 	Example: `
     smurf stf plan
