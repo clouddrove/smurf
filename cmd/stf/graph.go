@@ -15,7 +15,7 @@ var graphCmd = &cobra.Command{
 	Short:         "Generate a visual graph of Terraform resources",
 	SilenceErrors: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		err := terraform.Graph(graphDir)
+		err := terraform.Graph(graphDir, useAI)
 		if err != nil {
 			os.Exit(1)
 		}
@@ -29,5 +29,6 @@ var graphCmd = &cobra.Command{
 
 func init() {
 	graphCmd.Flags().StringVar(&graphDir, "dir", ".", "Specify the directory containing Terraform configurations")
+	graphCmd.Flags().BoolVar(&useAI, "ai", false, "To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.")
 	stfCmd.AddCommand(graphCmd)
 }

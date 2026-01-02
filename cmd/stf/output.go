@@ -15,7 +15,7 @@ var outputCmd = &cobra.Command{
 	Short:         "Generate output for the current state of Terraform Infrastructure",
 	SilenceErrors: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		err := terraform.Output(outputDir)
+		err := terraform.Output(outputDir, useAI)
 		if err != nil {
 			os.Exit(1)
 		}
@@ -29,5 +29,6 @@ var outputCmd = &cobra.Command{
 
 func init() {
 	outputCmd.Flags().StringVar(&outputDir, "dir", ".", "Specify the Terraform directory")
+	outputCmd.Flags().BoolVar(&useAI, "ai", false, "To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.")
 	stfCmd.AddCommand(outputCmd)
 }
