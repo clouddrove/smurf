@@ -45,11 +45,11 @@ resource "null_resource" "example" {
 	require.NoError(t, err)
 
 	tempDir := ""
-	err = mytf.Init(tempDir, true)
+	err = mytf.Init(tempDir, true, false)
 	require.NoError(t, err)
 
 	t.Run("apply with auto-approve", func(t *testing.T) {
-		err := mytf.Apply(true, nil, nil, false, tempDir, nil, "")
+		err := mytf.Apply(true, nil, nil, false, tempDir, nil, "", false)
 		assert.NoError(t, err)
 	})
 
@@ -64,7 +64,7 @@ resource "null_resource" "example" {
 			w.Close()
 		}()
 
-		err := mytf.Apply(true, nil, nil, false, tempDir, nil, "")
+		err := mytf.Apply(true, nil, nil, false, tempDir, nil, "", false)
 		assert.NoError(t, err)
 	})
 }

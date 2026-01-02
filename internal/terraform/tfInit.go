@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/clouddrove/smurf/internal/ai"
 	"github.com/hashicorp/terraform-exec/tfexec"
 	"github.com/pterm/pterm"
 )
@@ -69,10 +70,11 @@ func (l *CustomLogger) Write(p []byte) (n int, err error) {
 // It sets up the Terraform client, executes the initialization with upgrade options,
 // and provides user feedback through spinners and colored messages.
 // Upon successful initialization, it configures custom writers for enhanced output.
-func Init(dir string, upgrade bool) error {
+func Init(dir string, upgrade, useAI bool) error {
 	tf, err := GetTerraform(dir)
 	if err != nil {
 		Error("Failed to initialize Terraform client: %v", err)
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 
@@ -94,6 +96,7 @@ func Init(dir string, upgrade bool) error {
 	err = tf.Init(context.Background(), initOptions)
 	if err != nil {
 		Error("Error: %v", err)
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 

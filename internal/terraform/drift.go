@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/clouddrove/smurf/internal/ai"
 	"github.com/hashicorp/terraform-exec/tfexec"
 )
 
@@ -12,10 +13,11 @@ import (
 // It performs a `plan` with refresh enabled to detect any changes that differ
 // from the current state. If drift is detected, it lists the affected resources.
 // Provides user feedback through spinners and consistent Smurf log style.
-func DetectDrift(dir string) error {
+func DetectDrift(dir string, useAI bool) error {
 	tf, err := GetTerraform(dir)
 	if err != nil {
 		Error("Failed to initialize Terraform: %v", err)
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 
@@ -27,6 +29,7 @@ func DetectDrift(dir string) error {
 	_, err = tf.Plan(context.Background(), tfexec.Out(planFile), tfexec.Refresh(true))
 	if err != nil {
 		Error("Failed to execute Terraform plan for drift detection: %v", err)
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 
@@ -36,6 +39,7 @@ func DetectDrift(dir string) error {
 	plan, err := tf.ShowPlanFile(context.Background(), planFile)
 	if err != nil {
 		Error("Failed to read drift plan file: %v", err)
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 

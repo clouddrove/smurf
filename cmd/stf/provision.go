@@ -17,19 +17,19 @@ var provisionCmd = &cobra.Command{
 	Short:        "Its the combination of init, plan, apply, output for Terraform",
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := terraform.Init(provisionDir, upgrade); err != nil {
+		if err := terraform.Init(provisionDir, upgrade, useAI); err != nil {
 			return err
 		}
 
-		if err := terraform.Plan(varNameValue, varFile, provisionDir, planDestroy, planTarget, planRefresh, planState, planOut); err != nil {
+		if err := terraform.Plan(varNameValue, varFile, provisionDir, planDestroy, planTarget, planRefresh, planState, planOut, useAI); err != nil {
 			return err
 		}
 
-		if err := terraform.Apply(provisionApprove, varNameValue, varFile, lock, provisionDir, applyTarget, applyState); err != nil {
+		if err := terraform.Apply(provisionApprove, varNameValue, varFile, lock, provisionDir, applyTarget, applyState, useAI); err != nil {
 			return err
 		}
 
-		if err := terraform.Output(provisionDir); err != nil {
+		if err := terraform.Output(provisionDir, useAI); err != nil {
 			return err
 		}
 
@@ -49,5 +49,6 @@ func init() {
 	provisionCmd.Flags().BoolVar(&upgrade, "upgrade", false, "Upgrade the Terraform modules and plugins to the latest versions")
 	provisionCmd.Flags().StringVar(&provisionDir, "dir", "", "Specify the directory for Terraform operations")
 	provisionCmd.Flags().StringVar(&planOut, "out", "", "Path to save the generated execution plan")
+	provisionCmd.Flags().BoolVar(&useAI, "ai", false, "To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.")
 	stfCmd.AddCommand(provisionCmd)
 }

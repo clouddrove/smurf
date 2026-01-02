@@ -5,15 +5,17 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/clouddrove/smurf/internal/ai"
 	"github.com/hashicorp/terraform-exec/tfexec"
 	tfjson "github.com/hashicorp/terraform-json"
 )
 
 // Refresh updates the state file of your infrastructure.
-func Refresh(vars []string, varFiles []string, lock bool, dir string) error {
+func Refresh(vars []string, varFiles []string, lock bool, dir string, useAI bool) error {
 	tf, err := GetTerraform(dir)
 	if err != nil {
 		Error("Failed to initialize Terraform: %v", err)
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 
@@ -58,6 +60,7 @@ func Refresh(vars []string, varFiles []string, lock bool, dir string) error {
 	if err != nil {
 		Error("Terraform refresh failed: %v", err)
 		Error("The above error occurred while Terraform attempted to refresh the state file.")
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 
@@ -65,6 +68,7 @@ func Refresh(vars []string, varFiles []string, lock bool, dir string) error {
 	state, err := tf.Show(context.Background())
 	if err != nil {
 		Error("Error reading updated state: %v", err)
+		ai.AIExplainError(useAI, err.Error())
 		return fmt.Errorf("error reading updated state: %v", err)
 	}
 

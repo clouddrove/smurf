@@ -14,7 +14,8 @@ var applyLock bool
 var applyDir string
 var applyAutoApprove bool
 var applyTarget []string
-var applyState string // Added state flag
+var applyState string
+var useAI bool
 
 // applyCmd defines a subcommand that applies the changes required to reach the desired state of Terraform Infrastructure.
 var applyCmd = &cobra.Command{
@@ -23,7 +24,7 @@ var applyCmd = &cobra.Command{
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		approve := applyApprove || applyAutoApprove
-		err := terraform.Apply(approve, applyVarNameValue, applyVarFile, applyLock, applyDir, applyTarget, applyState)
+		err := terraform.Apply(approve, applyVarNameValue, applyVarFile, applyLock, applyDir, applyTarget, applyState, useAI)
 		if err != nil {
 			os.Exit(1)
 		}
@@ -63,5 +64,6 @@ func init() {
 	applyCmd.Flags().StringVar(&applyDir, "dir", ".", "Specify the directory containing Terraform files")
 	applyCmd.Flags().StringArrayVar(&applyTarget, "target", []string{}, "Target specific resources, modules, or resources in modules")
 	applyCmd.Flags().StringVar(&applyState, "state", "", "Path to read and save the Terraform state")
+	applyCmd.Flags().BoolVar(&useAI, "ai", false, "To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.")
 	stfCmd.AddCommand(applyCmd)
 }

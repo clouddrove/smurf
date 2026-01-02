@@ -20,7 +20,7 @@ var refreshCmd = &cobra.Command{
 	Short:         "Update the state file of your infrastructure",
 	SilenceErrors: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		err := terraform.Refresh(refreshVars, refreshVarFiles, refreshLock, refreshDir)
+		err := terraform.Refresh(refreshVars, refreshVarFiles, refreshLock, refreshDir, useAI)
 		if err != nil {
 			os.Exit(1)
 		}
@@ -49,6 +49,7 @@ func init() {
 	refreshCmd.Flags().StringArrayVar(&refreshVarFiles, "var-file", []string{}, "Path to a Terraform variable file")
 	refreshCmd.Flags().BoolVar(&refreshLock, "lock", true, "Lock the state file when running operation (defaults to true)")
 	refreshCmd.Flags().StringVar(&refreshDir, "dir", ".", "Specify the Terraform directory")
+	refreshCmd.Flags().BoolVar(&useAI, "ai", false, "To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.")
 
 	stfCmd.AddCommand(refreshCmd)
 }
