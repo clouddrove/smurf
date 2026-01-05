@@ -14,6 +14,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var useAI bool
+
 // buildCmd defines the "build" subcommand for creating Docker images.
 // It reads image details from either command-line arguments or a config file,
 // supports setting build context, specifying a Dockerfile, and passing build-time variables.

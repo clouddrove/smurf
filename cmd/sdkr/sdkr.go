@@ -7,8 +7,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var useAI bool
-
 // sdkrCmd represents the 'sdkr' subcommand command
 var sdkrCmd = &cobra.Command{
 	Use:   "sdkr",
