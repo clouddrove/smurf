@@ -23,7 +23,6 @@ import (
 func green(msg string) string   { return "\033[32m" + msg + "\033[0m" }
 func red(msg string) string     { return "\033[31m" + msg + "\033[0m" }
 func cyan(msg string) string    { return "\033[36m" + msg + "\033[0m" }
-func yellow(msg string) string  { return "\033[33m" + msg + "\033[0m" }
 func blue(msg string) string    { return "\033[34m" + msg + "\033[0m" }
 func magenta(msg string) string { return "\033[35m" + msg + "\033[0m" }
 func bold(msg string) string    { return "\033[1m" + msg + "\033[0m" }
@@ -138,6 +137,7 @@ func Build(imageName, tag string, opts BuildOptions, useAI bool) error {
 			buildCtx, err = createTarball(opts.ContextDir, opts.Excludes)
 			if err != nil {
 				tracker.completeStep(false, fmt.Sprintf("Failed to recreate build context: %v", err))
+				ai.AIExplainError(useAI, err.Error())
 				return fmt.Errorf("%v", err.Error())
 			}
 			defer buildCtx.Close()
@@ -149,6 +149,7 @@ func Build(imageName, tag string, opts BuildOptions, useAI bool) error {
 	relDockerfilePath, err := filepath.Rel(opts.ContextDir, opts.DockerfilePath)
 	if err != nil {
 		tracker.completeStep(false, fmt.Sprintf("Invalid Dockerfile path: %v", err))
+		ai.AIExplainError(useAI, err.Error())
 		return fmt.Errorf("%v", err.Error())
 	}
 
@@ -164,6 +165,7 @@ func Build(imageName, tag string, opts BuildOptions, useAI bool) error {
 		if len(parts) != 2 {
 			errMsg := fmt.Sprintf("invalid platform format. Expected os/arch, got: %s", opts.Platform)
 			tracker.completeStep(false, errMsg)
+			ai.AIExplainError(useAI, err.Error())
 			return fmt.Errorf("%v", errMsg)
 		}
 	}
@@ -217,6 +219,7 @@ func Build(imageName, tag string, opts BuildOptions, useAI bool) error {
 
 		if err := cmd.Start(); err != nil {
 			tracker.completeStep(false, fmt.Sprintf("Failed to start build: %v", err))
+			ai.AIExplainError(useAI, err.Error())
 			return fmt.Errorf("%v", err.Error())
 		}
 
@@ -244,6 +247,7 @@ func Build(imageName, tag string, opts BuildOptions, useAI bool) error {
 
 		if err := cmd.Wait(); err != nil {
 			tracker.completeStep(false, fmt.Sprintf("BuildKit build failed: %v", err))
+			ai.AIExplainError(useAI, err.Error())
 			return fmt.Errorf("%v", err.Error())
 		}
 
@@ -252,6 +256,7 @@ func Build(imageName, tag string, opts BuildOptions, useAI bool) error {
 		resp, err := cli.ImageBuild(ctx, buildCtx, buildOptions)
 		if err != nil {
 			tracker.completeStep(false, fmt.Sprintf("Build failed: %v", err))
+			ai.AIExplainError(useAI, err.Error())
 			return fmt.Errorf("%v", err)
 		}
 		defer resp.Body.Close()
@@ -264,10 +269,13 @@ func Build(imageName, tag string, opts BuildOptions, useAI bool) error {
 					break
 				}
 				tracker.completeStep(false, fmt.Sprintf("Build error: %v", err))
+				ai.AIExplainError(useAI, err.Error())
 				return fmt.Errorf("%v", err)
 			}
 			if msg.Error != nil {
 				tracker.completeStep(false, fmt.Sprintf("Build error: %v", msg.Error))
+				errMsg := fmt.Sprint(msg.Error)
+				ai.AIExplainError(useAI, errMsg)
 				return fmt.Errorf("%v", msg.Error)
 			}
 			if msg.Stream != "" {
@@ -286,6 +294,7 @@ func Build(imageName, tag string, opts BuildOptions, useAI bool) error {
 	inspect, _, err := cli.ImageInspectWithRaw(ctx, fullImageName)
 	if err != nil {
 		tracker.completeStep(false, fmt.Sprintf("Failed to inspect image: %v", err))
+		ai.AIExplainError(useAI, err.Error())
 		return fmt.Errorf("%v", err.Error())
 	}
 
