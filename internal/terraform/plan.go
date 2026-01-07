@@ -13,7 +13,11 @@ import (
 // It allows setting variables either via command-line arguments or variable files.
 // The function provides user feedback through spinners and colored messages,
 // and handles any errors that occur during the planning process.
-func Plan(vars []string, varFiles []string, dir string, destroy bool, targets []string, refresh bool, state string, out string, useAI bool) error {
+func Plan(vars []string, varFiles []string,
+	dir string, destroy bool,
+	targets []string, refresh bool,
+	state string, out string,
+	useAI bool) error {
 	tf, err := GetTerraform(dir)
 	if err != nil {
 		Error("Failed to initialize Terraform client: %v", err)

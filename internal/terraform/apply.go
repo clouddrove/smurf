@@ -12,7 +12,10 @@ import (
 )
 
 // Apply executes 'apply' to apply the planned changes.
-func Apply(approve bool, vars []string, varFiles []string, lock bool, dir string, targets []string, state string, useAI bool) error {
+func Apply(approve bool, vars []string,
+	varFiles []string, lock bool,
+	dir string, targets []string,
+	state string, useAI bool) error {
 	defer cleanupPlanFile()
 
 	Step("Initializing Terraform client...")
