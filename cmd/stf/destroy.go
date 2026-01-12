@@ -22,7 +22,7 @@ var destroyCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Use either approve or auto-approve flag
 		approve := destroyApprove || destroyAutoApprove
-		err := terraform.Destroy(approve, destroyLock, destroyDir, destroyVarNameValue, destroyVarFile) // UPDATED: added new parameters
+		err := terraform.Destroy(approve, destroyLock, destroyDir, destroyVarNameValue, destroyVarFile, useAI) // UPDATED: added new parameters
 		if err != nil {
 			os.Exit(1)
 		}
@@ -53,6 +53,7 @@ func init() {
 	// NEW: Add var and var-file flags
 	destroyCmd.Flags().StringArrayVar(&destroyVarNameValue, "var", []string{}, "Specify a variable in 'NAME=VALUE' format")
 	destroyCmd.Flags().StringArrayVar(&destroyVarFile, "var-file", []string{}, "Specify a file containing variables")
+	destroyCmd.Flags().BoolVar(&useAI, "ai", false, "To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.")
 
 	stfCmd.AddCommand(destroyCmd)
 }

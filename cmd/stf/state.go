@@ -13,7 +13,7 @@ var stateListCmd = &cobra.Command{
 	Short:        "List resources in the Terraform state",
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		err := terraform.StateList(stateListDir)
+		err := terraform.StateList(stateListDir, useAI)
 
 		if err != nil {
 			terraform.ErrorHandler(err)
@@ -33,5 +33,6 @@ var stateListCmd = &cobra.Command{
 
 func init() {
 	stateListCmd.Flags().StringVar(&stateListDir, "dir", ".", "Specify the Terraform directory")
+	stateListCmd.Flags().BoolVar(&useAI, "ai", false, "To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.")
 	stfCmd.AddCommand(stateListCmd)
 }

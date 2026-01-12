@@ -6,20 +6,23 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/clouddrove/smurf/internal/ai"
 	tfjson "github.com/hashicorp/terraform-json"
 )
 
 // StateList lists all Terraform resources currently tracked in the state file.
-func StateList(dir string) error {
+func StateList(dir string, useAI bool) error {
 	tf, err := GetTerraform(dir)
 	if err != nil {
 		Error("Failed to initialize Terraform: %v", err)
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 
 	state, err := tf.Show(context.Background())
 	if err != nil {
 		Error("Unable to read Terraform state: %v", err)
+		ai.AIExplainError(useAI, err.Error())
 		return fmt.Errorf("failed to read state: %v", err)
 	}
 

@@ -7,14 +7,19 @@ import (
 	"os"
 	"strings"
 
+	"github.com/clouddrove/smurf/internal/ai"
 	"github.com/hashicorp/terraform-exec/tfexec"
 )
 
 // Destroy executes 'destroy' to remove all managed infrastructure.
-func Destroy(approve bool, lock bool, dir string, vars []string, varFiles []string) error { // UPDATED: added new parameters
+func Destroy(approve bool, lock bool,
+	dir string, vars []string,
+	varFiles []string,
+	useAI bool) error {
 	tf, err := GetTerraform(dir)
 	if err != nil {
 		Error("Failed to initialize Terraform client: %v", err)
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 
@@ -39,6 +44,7 @@ func Destroy(approve bool, lock bool, dir string, vars []string, varFiles []stri
 		for _, vf := range varFiles {
 			if _, err := os.Stat(vf); os.IsNotExist(err) {
 				Error("Variable file not found: %s", vf)
+				ai.AIExplainError(useAI, err.Error())
 				return fmt.Errorf("variable file not found: %s", vf)
 			}
 			Info("Using var-file: %s", vf)
@@ -50,12 +56,14 @@ func Destroy(approve bool, lock bool, dir string, vars []string, varFiles []stri
 	_, err = tf.Plan(context.Background(), planOptions...)
 	if err != nil {
 		Error("Failed to generate destroy plan: %v", err)
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 
 	show, err := tf.ShowPlanFile(context.Background(), "plan.out")
 	if err != nil {
 		Error("Failed to parse plan: %v", err)
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 
@@ -67,6 +75,7 @@ func Destroy(approve bool, lock bool, dir string, vars []string, varFiles []stri
 	planDetail, err := tf.ShowPlanFileRaw(context.Background(), "plan.out")
 	if err != nil {
 		Error("Failed to show plan details: %v", err)
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 
@@ -103,6 +112,7 @@ func Destroy(approve bool, lock bool, dir string, vars []string, varFiles []stri
 	err = tf.Apply(context.Background(), applyOptions...)
 	if err != nil {
 		Error("Terraform destroy failed: %v", err)
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 

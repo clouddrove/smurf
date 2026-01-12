@@ -7,17 +7,22 @@ import (
 	"os"
 	"strings"
 
+	"github.com/clouddrove/smurf/internal/ai"
 	"github.com/hashicorp/terraform-exec/tfexec"
 )
 
 // Apply executes 'apply' to apply the planned changes.
-func Apply(approve bool, vars []string, varFiles []string, lock bool, dir string, targets []string, state string) error {
+func Apply(approve bool, vars []string,
+	varFiles []string, lock bool,
+	dir string, targets []string,
+	state string, useAI bool) error {
 	defer cleanupPlanFile()
 
 	Step("Initializing Terraform client...")
 	tf, err := GetTerraform(dir)
 	if err != nil {
 		Error("Failed to initialize Terraform client: %v", err)
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 
@@ -67,6 +72,7 @@ func Apply(approve bool, vars []string, varFiles []string, lock bool, dir string
 	_, err = tf.Plan(context.Background(), applyOptions...)
 	if err != nil {
 		Error("Failed to generate plan: %v", err)
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 	Success("Terraform plan generated successfully.")
@@ -76,6 +82,7 @@ func Apply(approve bool, vars []string, varFiles []string, lock bool, dir string
 	planDetail, err := tf.ShowPlanFileRaw(context.Background(), "plan.out")
 	if err != nil {
 		Error("Failed to read plan details: %v", err)
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 
@@ -107,6 +114,7 @@ func Apply(approve bool, vars []string, varFiles []string, lock bool, dir string
 	show, err := tf.ShowPlanFile(context.Background(), "plan.out")
 	if err != nil {
 		Error("Failed to parse plan file: %v", err)
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 
@@ -155,6 +163,7 @@ func Apply(approve bool, vars []string, varFiles []string, lock bool, dir string
 	err = tf.Apply(context.Background(), applyOpts...)
 	if err != nil {
 		Error("Terraform apply failed: %v", err)
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 

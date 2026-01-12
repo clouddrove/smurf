@@ -20,8 +20,7 @@ var planCmd = &cobra.Command{
 	Short:        "Generate and show an execution plan for Terraform",
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		terraform.Plan(planVarNameValue, planVarFile, planDir, planDestroy, planTarget, planRefresh, planState, planOut)
-		return nil
+		return terraform.Plan(planVarNameValue, planVarFile, planDir, planDestroy, planTarget, planRefresh, planState, planOut, useAI)
 	},
 	Example: `
     smurf stf plan
@@ -65,5 +64,6 @@ func init() {
 	planCmd.Flags().BoolVar(&planRefresh, "refresh", true, "Update state prior to checking for differences")
 	planCmd.Flags().StringVar(&planState, "state", "", "Path to read and save the Terraform state")
 	planCmd.Flags().StringVar(&planOut, "out", "", "Path to save the generated execution plan")
+	planCmd.Flags().BoolVar(&useAI, "ai", false, "To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.")
 	stfCmd.AddCommand(planCmd)
 }

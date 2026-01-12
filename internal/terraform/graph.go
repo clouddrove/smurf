@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/clouddrove/smurf/internal/ai"
 	"github.com/hashicorp/terraform-exec/tfexec"
 	tfjson "github.com/hashicorp/terraform-json"
 )
@@ -12,10 +13,11 @@ import (
 // Graph generates a visual representation of Terraform resources.
 // It produces the Terraform DOT graph output, which can be visualized with Graphviz.
 // Uses Smurf unified logs for consistent and readable output.
-func Graph(dir string) error {
+func Graph(dir string, useAI bool) error {
 	tf, err := GetTerraform(dir)
 	if err != nil {
 		Error("Failed to initialize Terraform: %v", err)
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 
@@ -24,6 +26,7 @@ func Graph(dir string) error {
 	graphDOT, err := tf.Graph(context.Background(), tfexec.DrawCycles(true))
 	if err != nil {
 		Error("Error generating Terraform graph: %v", err)
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 

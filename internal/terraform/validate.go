@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/clouddrove/smurf/internal/ai"
 	"github.com/hashicorp/terraform-exec/tfexec"
 )
 
@@ -129,9 +130,10 @@ func GetValidateTerraform(dir string) (*tfexec.Terraform, error) {
 }
 
 // Validate runs terraform validate command with detailed logging.
-func Validate(dir string) error {
+func Validate(dir string, useAI bool) error {
 	tf, err := GetValidateTerraform(dir)
 	if err != nil {
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 

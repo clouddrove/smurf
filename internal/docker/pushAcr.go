@@ -61,7 +61,6 @@ func PushImageToACR(subscriptionID, resourceGroupName, registryName, imageName s
 	}
 	if credentialsResp.Username == nil || len(credentialsResp.Passwords) == 0 || credentialsResp.Passwords[0].Value == nil {
 		spinner.Fail("Registry credentials are not available\n")
-		ai.AIExplainError(useAI, err.Error())
 		return fmt.Errorf("registry credentials are not available")
 	}
 	username := *credentialsResp.Username

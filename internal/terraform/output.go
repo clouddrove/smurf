@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/clouddrove/smurf/internal/ai"
 	"github.com/pterm/pterm"
 )
 
@@ -12,7 +13,7 @@ import (
 // It refreshes the Terraform state to ensure it reflects the current infrastructure,
 // then retrieves and displays the outputs. Sensitive outputs are hidden for security.
 // Provides user feedback through spinners and colored messages for enhanced UX.
-func Output(dir string) error {
+func Output(dir string, useAI bool) error {
 	tf, err := GetTerraform(dir)
 	if err != nil {
 		return err
@@ -27,6 +28,7 @@ func Output(dir string) error {
 	if err != nil {
 		spinner.Fail("Error refreshing  state")
 		pterm.Error.Printf("Error refreshing  state: %v\n", err)
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 	spinner.Success("State refreshed successfully.")
@@ -34,6 +36,7 @@ func Output(dir string) error {
 	outputs, err := tf.Output(context.Background())
 	if err != nil {
 		pterm.Error.Printf("Error getting Infrastructure outputs: %v\n", err)
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 

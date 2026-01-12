@@ -15,7 +15,7 @@ var driftCmd = &cobra.Command{
 	Short:        "Detect drift between state and infrastructure for Terraform",
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		err := terraform.DetectDrift(driftDir)
+		err := terraform.DetectDrift(driftDir, useAI)
 		if err != nil {
 			os.Exit(1)
 		}
@@ -29,5 +29,6 @@ var driftCmd = &cobra.Command{
 
 func init() {
 	driftCmd.Flags().StringVar(&driftDir, "dir", ".", "Specify the directory containing Terraform configuration")
+	driftCmd.Flags().BoolVar(&useAI, "ai", false, "To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.")
 	stfCmd.AddCommand(driftCmd)
 }

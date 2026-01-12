@@ -5,6 +5,7 @@ import (
 	"context"
 	"os"
 
+	"github.com/clouddrove/smurf/internal/ai"
 	"github.com/hashicorp/terraform-exec/tfexec"
 )
 
@@ -12,10 +13,15 @@ import (
 // It allows setting variables either via command-line arguments or variable files.
 // The function provides user feedback through spinners and colored messages,
 // and handles any errors that occur during the planning process.
-func Plan(vars []string, varFiles []string, dir string, destroy bool, targets []string, refresh bool, state string, out string) error {
+func Plan(vars []string, varFiles []string,
+	dir string, destroy bool,
+	targets []string, refresh bool,
+	state string, out string,
+	useAI bool) error {
 	tf, err := GetTerraform(dir)
 	if err != nil {
 		Error("Failed to initialize Terraform client: %v", err)
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 
@@ -85,6 +91,7 @@ func Plan(vars []string, varFiles []string, dir string, destroy bool, targets []
 	// Execute Terraform plan
 	_, err = tf.Plan(context.Background(), planOptions...)
 	if err != nil {
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 
