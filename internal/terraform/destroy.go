@@ -12,7 +12,10 @@ import (
 )
 
 // Destroy executes 'destroy' to remove all managed infrastructure.
-func Destroy(approve bool, lock bool, dir string, vars []string, varFiles []string, useAI bool) error { // UPDATED: added new parameters
+func Destroy(approve bool, lock bool,
+	dir string, vars []string,
+	varFiles []string,
+	useAI bool) error {
 	tf, err := GetTerraform(dir)
 	if err != nil {
 		Error("Failed to initialize Terraform client: %v", err)
