@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -139,27 +140,6 @@ func LoadOCIChart(chartRef, version string, settings *cli.EnvSettings, debug boo
 		return nil, fmt.Errorf("failed to create registry client: %w", err)
 	}
 
-	// Extract chart name and reference
-	ref := strings.TrimPrefix(chartRef, "oci://")
-	chartName := filepath.Base(ref)
-
-	// Handle tag/version in the reference
-	var tag string
-	if idx := strings.LastIndex(chartName, ":"); idx != -1 {
-		tag = chartName[idx+1:]
-		chartName = chartName[:idx]
-	}
-
-	// Use provided version if not in the reference
-	if version != "" {
-		tag = version
-	}
-
-	// Update the reference with the proper tag
-	if tag != "" {
-		chartRef = fmt.Sprintf("oci://%s:%s", strings.TrimSuffix(ref, ":"+tag), tag)
-	}
-
 	// Create action configuration with registry client
 	actionConfig := &action.Configuration{
 		RegistryClient: registryClient,
@@ -169,87 +149,111 @@ func LoadOCIChart(chartRef, version string, settings *cli.EnvSettings, debug boo
 	pull := action.NewPullWithOpts(action.WithConfig(actionConfig))
 	pull.Settings = settings
 	pull.Version = version
-	pull.Untar = true
-	pull.UntarDir = settings.RepositoryCache
+	pull.Untar = false // DO NOT untar - we want the .tgz file
+	pull.DestDir = settings.RepositoryCache
 
 	// Run the pull command
 	fmt.Printf("⬇️  Pulling OCI chart: %s...\n", chartRef)
-	output, err := pull.Run(chartRef)
+	downloadedFile, err := pull.Run(chartRef)
 	if err != nil {
 		return nil, fmt.Errorf("failed to pull OCI chart: %w", err)
 	}
 
-	if debug {
-		pterm.Printf("Pull output: %s\n", output)
-	}
+	// The downloadedFile path is returned by pull.Run()
+	// In newer Helm versions, it returns the actual file path
+	chartPath := downloadedFile
 
-	// Parse the output to find the downloaded file
-	// The output typically looks like: "Pulled: oci://registry/path/chart:tag"
-	// or gives us the file path
-	chartPath := ""
-	if strings.Contains(output, "Pulled:") {
-		// Extract path from output
-		parts := strings.Split(output, "Pulled:")
-		if len(parts) > 1 {
-			chartPath = strings.TrimSpace(parts[1])
-			// Remove the OCI prefix if present
-			chartPath = strings.TrimPrefix(chartPath, "oci://")
-		}
-	}
-
-	// If we couldn't parse from output, try to find the chart file
-	if chartPath == "" {
-		// Look for the chart file in the cache directory
-		pattern := filepath.Join(settings.RepositoryCache, fmt.Sprintf("%s-*.tgz", chartName))
-		if version != "" {
-			pattern = filepath.Join(settings.RepositoryCache, fmt.Sprintf("%s-%s.tgz", chartName, version))
-		}
-
-		matches, err := filepath.Glob(pattern)
-		if err != nil || len(matches) == 0 {
-			// Last resort: try to find any .tgz file with chart name
-			allFiles, _ := os.ReadDir(settings.RepositoryCache)
-			for _, file := range allFiles {
-				if strings.Contains(file.Name(), chartName) && strings.HasSuffix(file.Name(), ".tgz") {
-					chartPath = filepath.Join(settings.RepositoryCache, file.Name())
-					break
-				}
-			}
-		} else {
-			chartPath = matches[0]
-		}
-	}
-
-	if chartPath == "" {
-		// Try direct path construction as fallback
-		expectedName := chartName
-		if tag != "" {
-			expectedName = fmt.Sprintf("%s-%s.tgz", chartName, tag)
-		} else {
-			expectedName = fmt.Sprintf("%s.tgz", chartName)
-		}
-		chartPath = filepath.Join(settings.RepositoryCache, expectedName)
-	}
-
-	if debug {
-		pterm.Printf("Loading OCI chart from: %s\n", chartPath)
+	// If the path is not absolute, make it relative to cache dir
+	if !filepath.IsAbs(chartPath) {
+		chartPath = filepath.Join(settings.RepositoryCache, chartPath)
 	}
 
 	// Verify the file exists
 	if _, err := os.Stat(chartPath); os.IsNotExist(err) {
-		// List files in cache directory for debugging
-		if debug {
-			files, _ := os.ReadDir(settings.RepositoryCache)
-			pterm.Printf("Files in cache directory:\n")
-			for _, file := range files {
-				pterm.Printf("  - %s\n", file.Name())
+		// Try to find the chart file in the cache directory
+		foundPath := findChartFileInCache(settings.RepositoryCache, chartRef, debug)
+		if foundPath != "" {
+			chartPath = foundPath
+		} else {
+			// Debug: list all files in cache
+			if debug {
+				listCacheFiles(settings.RepositoryCache)
 			}
+			return nil, fmt.Errorf("chart file not found at: %s", chartPath)
 		}
-		return nil, fmt.Errorf("chart file not found at expected location: %s", chartPath)
+	}
+
+	if debug {
+		pterm.Printf("OCI chart located at: %s\n", chartPath)
 	}
 
 	fmt.Printf("📦 Loading OCI chart into memory...\n")
 	return loader.Load(chartPath)
+}
+
+// Helper function to find chart file in cache
+func findChartFileInCache(cacheDir, chartRef string, debug bool) string {
+	// Extract chart name from OCI reference
+	ref := strings.TrimPrefix(chartRef, "oci://")
+	chartName := filepath.Base(ref)
+
+	// Remove tag if present
+	if idx := strings.LastIndex(chartName, ":"); idx != -1 {
+		chartName = chartName[:idx]
+	}
+
+	// List files in cache directory
+	files, err := os.ReadDir(cacheDir)
+	if err != nil {
+		return ""
+	}
+
+	// Look for files matching our chart
+	var possibleMatches []string
+	for _, file := range files {
+		filename := file.Name()
+
+		// Check if file contains chart name and ends with .tgz
+		if strings.Contains(filename, chartName) && strings.HasSuffix(filename, ".tgz") {
+			fullPath := filepath.Join(cacheDir, filename)
+			possibleMatches = append(possibleMatches, fullPath)
+
+			if debug {
+				pterm.Printf("Found possible chart file: %s\n", fullPath)
+			}
+		}
+	}
+
+	// Return the most recent file if multiple found
+	if len(possibleMatches) > 0 {
+		// Sort by modification time (newest first)
+		sort.Slice(possibleMatches, func(i, j int) bool {
+			infoI, _ := os.Stat(possibleMatches[i])
+			infoJ, _ := os.Stat(possibleMatches[j])
+			return infoI.ModTime().After(infoJ.ModTime())
+		})
+		return possibleMatches[0]
+	}
+
+	return ""
+}
+
+// Helper to list cache files for debugging
+func listCacheFiles(cacheDir string) {
+	fmt.Println("📁 Contents of cache directory:")
+	files, err := os.ReadDir(cacheDir)
+	if err != nil {
+		fmt.Printf("Error reading cache directory: %v\n", err)
+		return
+	}
+
+	for _, file := range files {
+		info, _ := file.Info()
+		fmt.Printf("  - %s (size: %d, mod: %s)\n",
+			file.Name(),
+			info.Size(),
+			info.ModTime().Format("15:04:05"))
+	}
 }
 
 // newRegistryClient creates a registry client for OCI operations
