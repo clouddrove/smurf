@@ -23,15 +23,12 @@ func Output(dir string, useAI bool) error {
 	tf.SetStderr(os.Stderr)
 
 	pterm.Info.Println("Refreshing Infrastructure state...")
-	spinner, _ := pterm.DefaultSpinner.Start("Refreshing Infrastructure state...")
 	err = tf.Refresh(context.Background())
 	if err != nil {
-		spinner.Fail("Error refreshing  state")
 		pterm.Error.Printf("Error refreshing  state: %v\n", err)
 		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
-	spinner.Success("State refreshed successfully.")
 
 	outputs, err := tf.Output(context.Background())
 	if err != nil {

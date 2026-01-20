@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/hashicorp/terraform-exec/tfexec"
 )
@@ -103,6 +104,21 @@ func (cf *CustomFormatter) FormatWithDetails(ctx context.Context, dir string, re
 	var formatErrors []FormatError
 
 	for _, file := range files {
+		// Check if context has been cancelled
+		select {
+		case <-ctx.Done():
+			formatErrors = append(formatErrors, FormatError{
+				ErrorType:   "Timeout Error",
+				Description: "Formatting process was cancelled due to timeout",
+				Location:    file,
+				HelpText:    "The formatting operation took too long. Consider increasing the timeout with --timeout flag or processing fewer files.",
+			})
+			Error("Formatting timed out while processing %s", file)
+			continue
+		default:
+			// Continue processing
+		}
+
 		content, err := os.ReadFile(file)
 		if err != nil {
 			formatErrors = append(formatErrors, FormatError{
@@ -129,6 +145,17 @@ func (cf *CustomFormatter) FormatWithDetails(ctx context.Context, dir string, re
 		var outputBuffer bytes.Buffer
 		err = tf.Format(ctx, bytes.NewReader(content), &outputBuffer)
 		if err != nil {
+			// Check if error is due to context cancellation
+			if ctx.Err() == context.DeadlineExceeded {
+				formatErrors = append(formatErrors, FormatError{
+					ErrorType:   "Timeout Error",
+					Description: "Formatting timed out while processing file",
+					Location:    file,
+					HelpText:    "The formatting operation took too long. Consider increasing the timeout with --timeout flag.",
+				})
+				Error("Formatting timed out while processing %s", file)
+				break
+			}
 			formatErrors = append(formatErrors, cf.parseFormatError(err, file))
 			continue
 		}
@@ -206,8 +233,8 @@ func GetFmtTerraform() (*tfexec.Terraform, error) {
 	return tf, nil
 }
 
-// Format applies canonical formatting to all Terraform files.
-func Format(recursive bool) error {
+// Format applies canonical formatting to all Terraform files with optional timeout.
+func Format(recursive bool, timeout time.Duration) error {
 	tf, err := GetFmtTerraform()
 	if err != nil {
 		return err
@@ -220,5 +247,16 @@ func Format(recursive bool) error {
 	}
 
 	formatter := NewCustomFormatter(tf, workDir)
-	return formatter.FormatWithDetails(context.Background(), ".", recursive)
+
+	// Create context with timeout if specified
+	ctx := context.Background()
+	if timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+
+		Info("Formatting with timeout: %v", timeout)
+	}
+
+	return formatter.FormatWithDetails(ctx, ".", recursive)
 }

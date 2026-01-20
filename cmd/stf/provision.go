@@ -10,7 +10,7 @@ var varNameValue []string
 var varFile []string
 var lock bool
 var upgrade bool
-var provisionDir string // Define provisionDir variable
+var provisionDir string
 
 var provisionCmd = &cobra.Command{
 	Use:          "provision",
@@ -37,7 +37,7 @@ var provisionCmd = &cobra.Command{
 	},
 	Example: `
 	smurf stf provision
-	smurf stf provision --dir=/path/to/terraform/files
+	smurf stf provision --dir=/path/to/terraform/files --auto-approve
 	`,
 }
 
@@ -45,6 +45,7 @@ func init() {
 	provisionCmd.Flags().StringSliceVar(&varNameValue, "var", []string{}, "Specify a variable in 'NAME=VALUE' format")
 	provisionCmd.Flags().StringArrayVar(&varFile, "var-file", []string{}, "Specify a file containing variables")
 	provisionCmd.Flags().BoolVar(&provisionApprove, "approve", true, "Skip interactive approval of plan before applying")
+	provisionCmd.Flags().BoolVar(&applyAutoApprove, "auto-approve", false, "Skip interactive approval of plan before applying")
 	provisionCmd.Flags().BoolVar(&lock, "lock", false, "Don't hold a state lock during the operation. This is dangerous if others might concurrently run commands against the same workspace.")
 	provisionCmd.Flags().BoolVar(&upgrade, "upgrade", false, "Upgrade the Terraform modules and plugins to the latest versions")
 	provisionCmd.Flags().StringVar(&provisionDir, "dir", "", "Specify the directory for Terraform operations")
