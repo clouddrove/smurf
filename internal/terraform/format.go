@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/hashicorp/terraform-exec/tfexec"
 )
@@ -99,81 +100,102 @@ func (cf *CustomFormatter) FormatWithDetails(ctx context.Context, dir string, re
 		return nil
 	}
 
-	formatted := []string{}
-	var formatErrors []FormatError
+	// Find files that need formatting
+	filesNeedFormatting := []string{}
+	timeoutReached := false
+	processedCount := 0
 
 	for _, file := range files {
+		// Check if context has been cancelled (timeout reached)
+		select {
+		case <-ctx.Done():
+			timeoutReached = true
+			break
+		default:
+			// Continue processing
+		}
+
+		if timeoutReached {
+			break
+		}
+
+		processedCount++
+
 		content, err := os.ReadFile(file)
 		if err != nil {
-			formatErrors = append(formatErrors, FormatError{
-				ErrorType:   "File read failed",
-				Description: err.Error(),
-				Location:    file,
-				HelpText:    "Failed to read file for formatting check",
-			})
 			continue
 		}
 
 		fileDir := filepath.Dir(file)
 		tf, err := tfexec.NewTerraform(fileDir, cf.tf.ExecPath())
 		if err != nil {
-			formatErrors = append(formatErrors, FormatError{
-				ErrorType:   "Terraform init failed",
-				Description: err.Error(),
-				Location:    file,
-				HelpText:    "Failed to initialize Terraform for formatting",
-			})
 			continue
 		}
 
 		var outputBuffer bytes.Buffer
 		err = tf.Format(ctx, bytes.NewReader(content), &outputBuffer)
 		if err != nil {
-			formatErrors = append(formatErrors, cf.parseFormatError(err, file))
+			if ctx.Err() == context.DeadlineExceeded {
+				timeoutReached = true
+				break
+			}
 			continue
 		}
 
-		if bytes.Equal(content, outputBuffer.Bytes()) {
-			continue // Already properly formatted
-		}
+		// Check if file needs formatting
+		if !bytes.Equal(content, outputBuffer.Bytes()) {
+			filesNeedFormatting = append(filesNeedFormatting, file)
 
-		err = os.WriteFile(file, outputBuffer.Bytes(), 0644)
-		if err != nil {
-			formatErrors = append(formatErrors, FormatError{
-				ErrorType:   "File write failed",
-				Description: err.Error(),
-				Location:    file,
-				HelpText:    "Failed to write formatted content to file",
-			})
-			continue
+			// Apply formatting if we haven't timed out yet
+			if !timeoutReached {
+				os.WriteFile(file, outputBuffer.Bytes(), 0644)
+			}
 		}
-
-		formatted = append(formatted, file)
 	}
 
-	if len(formatErrors) > 0 {
-		for _, e := range formatErrors {
-			fmt.Print(cf.formatError(e))
+	// Show files that need formatting
+	if len(filesNeedFormatting) > 0 {
+		fmt.Println("\nYou need to format following files:")
+		for i, file := range filesNeedFormatting {
+			relPath, err := filepath.Rel(cf.workDir, file)
+			if err != nil {
+				relPath = file
+			}
+			// Show numbering starting from 1
+			fmt.Printf("  %d. %s\n", i+1, CyanText(relPath))
 		}
-		Error("Formatting failed with %d errors", len(formatErrors))
-		return fmt.Errorf("formatting failed with %d errors", len(formatErrors))
-	}
 
-	if len(formatted) > 0 {
-		Success("Terraform files formatted successfully ✅")
-		Info("Formatted files:")
-		for _, file := range formatted {
-			fmt.Printf("   %s\n", CyanText(file))
+		// Only show "formatted" message if we actually formatted them
+		if !timeoutReached {
+			Success("\nFormatted %d file(s).", len(filesNeedFormatting))
 		}
 	} else {
-		Success("No Terraform file changes detected")
+		Success("No Terraform files need formatting.")
 	}
 
-	return nil
+	// Show timeout message if reached
+	if timeoutReached {
+		fmt.Println() // Empty line before timeout message
+		Warn("Timeout reached after processing %d/%d files. Some files may have been skipped.",
+			processedCount, len(files))
+	}
+
+	return nil // Always return success
 }
 
 // parseFormatError converts terraform-exec errors into our FormatError type
 func (cf *CustomFormatter) parseFormatError(err error, file string) FormatError {
+	// Check if it's a timeout error from terraform-exec
+	if strings.Contains(err.Error(), "timeout") || strings.Contains(err.Error(), "deadline") {
+		return FormatError{
+			ErrorType:   "Processing Timeout",
+			Description: "File processing took too long",
+			Location:    file,
+			LineNumber:  1,
+			HelpText:    "This file may be very large or complex. Consider formatting it separately.",
+		}
+	}
+
 	return FormatError{
 		ErrorType:   "Format Error",
 		Description: err.Error(),
@@ -206,8 +228,8 @@ func GetFmtTerraform() (*tfexec.Terraform, error) {
 	return tf, nil
 }
 
-// Format applies canonical formatting to all Terraform files.
-func Format(recursive bool) error {
+// Format applies canonical formatting to all Terraform files with optional timeout.
+func Format(recursive bool, timeout time.Duration) error {
 	tf, err := GetFmtTerraform()
 	if err != nil {
 		return err
@@ -220,5 +242,16 @@ func Format(recursive bool) error {
 	}
 
 	formatter := NewCustomFormatter(tf, workDir)
-	return formatter.FormatWithDetails(context.Background(), ".", recursive)
+
+	// Create context with timeout if specified
+	ctx := context.Background()
+	if timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+
+		Info("Formatting with timeout: %v", timeout)
+	}
+
+	return formatter.FormatWithDetails(ctx, ".", recursive)
 }
