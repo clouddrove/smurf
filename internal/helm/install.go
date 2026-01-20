@@ -139,22 +139,6 @@ func LoadOCIChart(chartRef, version string, settings *cli.EnvSettings, debug boo
 		return nil, fmt.Errorf("failed to create registry client: %w", err)
 	}
 
-	// Create a temporary action configuration with registry client
-	actionConfig := new(action.Configuration)
-	actionConfig.RegistryClient = registryClient
-
-	// Initialize with default settings
-	logFn := func(format string, v ...interface{}) {
-		if debug {
-			message := fmt.Sprintf(format, v...)
-			pterm.Printfln("OCI-REGISTRY: %s", strings.TrimSpace(message))
-		}
-	}
-
-	if err := actionConfig.Init(settings.RESTClientGetter(), settings.Namespace(), os.Getenv("HELM_DRIVER"), logFn); err != nil {
-		return nil, fmt.Errorf("failed to initialize action config for OCI: %w", err)
-	}
-
 	// Create pull action WITH registry client
 	pull := action.NewPullWithOpts(action.WithConfig(&action.Configuration{
 		RegistryClient: registryClient,
@@ -166,26 +150,26 @@ func LoadOCIChart(chartRef, version string, settings *cli.EnvSettings, debug boo
 
 	// Run the pull command
 	fmt.Printf("⬇️  Pulling OCI chart: %s...\n", chartRef)
-	output, err := pull.Run(chartRef)
+	_, err = pull.Run(chartRef) // **FIX: Ignore output string**
 	if err != nil {
 		return nil, fmt.Errorf("failed to pull OCI chart: %w", err)
 	}
 
-	// Find the pulled chart - OCI pull returns the path
-	chartPath := strings.TrimSpace(output)
+	// **FIX: Manually construct the chart path**
+	ref := strings.TrimPrefix(chartRef, "oci://")
+	chartName := filepath.Base(ref)
 
-	// For OCI charts, handle the output format
-	if strings.Contains(chartPath, "Pulled: ") {
-		parts := strings.Split(chartPath, "Pulled: ")
-		if len(parts) > 1 {
-			chartPath = strings.TrimSpace(parts[1])
-		}
+	// Remove tag if present
+	if idx := strings.LastIndex(chartName, ":"); idx != -1 {
+		chartName = chartName[:idx]
 	}
 
-	// Sometimes OCI charts are in subdirectories
-	files, err := os.ReadDir(chartPath)
-	if err == nil && len(files) == 1 && files[0].IsDir() {
-		chartPath = filepath.Join(chartPath, files[0].Name())
+	// Build expected path
+	var chartPath string
+	if version != "" {
+		chartPath = filepath.Join(settings.RepositoryCache, fmt.Sprintf("%s-%s.tgz", chartName, version))
+	} else {
+		chartPath = filepath.Join(settings.RepositoryCache, fmt.Sprintf("%s.tgz", chartName))
 	}
 
 	if debug {
