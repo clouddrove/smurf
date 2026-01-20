@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
@@ -129,6 +128,7 @@ func LoadChart(chartRef, repoURL, version string, settings *cli.EnvSettings) (*c
 }
 
 // LoadOCIChart loads a chart from an OCI registry
+// LoadOCIChart loads a chart from an OCI registry
 func LoadOCIChart(chartRef, version string, settings *cli.EnvSettings, debug bool) (*chart.Chart, error) {
 	if debug {
 		pterm.Printf("Loading OCI chart: %s (version: %s)\n", chartRef, version)
@@ -149,111 +149,123 @@ func LoadOCIChart(chartRef, version string, settings *cli.EnvSettings, debug boo
 	pull := action.NewPullWithOpts(action.WithConfig(actionConfig))
 	pull.Settings = settings
 	pull.Version = version
-	pull.Untar = false // DO NOT untar - we want the .tgz file
+	pull.Untar = false // Keep as .tgz file
 	pull.DestDir = settings.RepositoryCache
 
 	// Run the pull command
 	fmt.Printf("⬇️  Pulling OCI chart: %s...\n", chartRef)
-	downloadedFile, err := pull.Run(chartRef)
+	_, err = pull.Run(chartRef)
 	if err != nil {
+		// Check if error is about file not found (might be a temp file issue)
+		if strings.Contains(err.Error(), "no such file or directory") {
+			// Try to find the actual downloaded file
+			return findAndLoadChartFromCache(chartRef, settings, debug)
+		}
 		return nil, fmt.Errorf("failed to pull OCI chart: %w", err)
 	}
 
-	// The downloadedFile path is returned by pull.Run()
-	// In newer Helm versions, it returns the actual file path
-	chartPath := downloadedFile
+	// Try to find and load the chart
+	return findAndLoadChartFromCache(chartRef, settings, debug)
+}
 
-	// If the path is not absolute, make it relative to cache dir
-	if !filepath.IsAbs(chartPath) {
-		chartPath = filepath.Join(settings.RepositoryCache, chartPath)
-	}
-
-	// Verify the file exists
-	if _, err := os.Stat(chartPath); os.IsNotExist(err) {
-		// Try to find the chart file in the cache directory
-		foundPath := findChartFileInCache(settings.RepositoryCache, chartRef, debug)
-		if foundPath != "" {
-			chartPath = foundPath
-		} else {
-			// Debug: list all files in cache
-			if debug {
-				listCacheFiles(settings.RepositoryCache)
-			}
-			return nil, fmt.Errorf("chart file not found at: %s", chartPath)
-		}
+// Helper function to find and load chart from cache
+func findAndLoadChartFromCache(chartRef string, settings *cli.EnvSettings, debug bool) (*chart.Chart, error) {
+	// List all files in cache directory
+	files, err := os.ReadDir(settings.RepositoryCache)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read cache directory: %w", err)
 	}
 
 	if debug {
-		pterm.Printf("OCI chart located at: %s\n", chartPath)
+		fmt.Printf("📁 Searching for chart in cache directory: %s\n", settings.RepositoryCache)
+		fmt.Printf("📁 Files found (%d):\n", len(files))
+		for i, file := range files {
+			fmt.Printf("  %d. %s (dir: %v)\n", i+1, file.Name(), file.IsDir())
+		}
 	}
 
-	fmt.Printf("📦 Loading OCI chart into memory...\n")
-	return loader.Load(chartPath)
-}
-
-// Helper function to find chart file in cache
-func findChartFileInCache(cacheDir, chartRef string, debug bool) string {
 	// Extract chart name from OCI reference
 	ref := strings.TrimPrefix(chartRef, "oci://")
-	chartName := filepath.Base(ref)
+	baseName := filepath.Base(ref)
 
 	// Remove tag if present
+	chartName := baseName
 	if idx := strings.LastIndex(chartName, ":"); idx != -1 {
 		chartName = chartName[:idx]
 	}
 
-	// List files in cache directory
-	files, err := os.ReadDir(cacheDir)
-	if err != nil {
-		return ""
+	if debug {
+		fmt.Printf("🔍 Looking for chart matching: %s\n", chartName)
 	}
 
-	// Look for files matching our chart
-	var possibleMatches []string
+	// Look for .tgz files
+	var tgzFiles []string
 	for _, file := range files {
-		filename := file.Name()
-
-		// Check if file contains chart name and ends with .tgz
-		if strings.Contains(filename, chartName) && strings.HasSuffix(filename, ".tgz") {
-			fullPath := filepath.Join(cacheDir, filename)
-			possibleMatches = append(possibleMatches, fullPath)
+		if !file.IsDir() && strings.HasSuffix(file.Name(), ".tgz") {
+			fullPath := filepath.Join(settings.RepositoryCache, file.Name())
+			tgzFiles = append(tgzFiles, fullPath)
 
 			if debug {
-				pterm.Printf("Found possible chart file: %s\n", fullPath)
+				fmt.Printf("   Found .tgz: %s\n", file.Name())
 			}
 		}
 	}
 
-	// Return the most recent file if multiple found
-	if len(possibleMatches) > 0 {
-		// Sort by modification time (newest first)
-		sort.Slice(possibleMatches, func(i, j int) bool {
-			infoI, _ := os.Stat(possibleMatches[i])
-			infoJ, _ := os.Stat(possibleMatches[j])
-			return infoI.ModTime().After(infoJ.ModTime())
-		})
-		return possibleMatches[0]
+	// If no .tgz files found, check for any files that might be the chart
+	if len(tgzFiles) == 0 {
+		if debug {
+			fmt.Println("⚠️  No .tgz files found, checking all files...")
+		}
+
+		// Look for any file containing the chart name
+		for _, file := range files {
+			if !file.IsDir() && strings.Contains(strings.ToLower(file.Name()), strings.ToLower(chartName)) {
+				fullPath := filepath.Join(settings.RepositoryCache, file.Name())
+				tgzFiles = append(tgzFiles, fullPath)
+
+				if debug {
+					fmt.Printf("   Found matching file: %s\n", file.Name())
+				}
+			}
+		}
 	}
 
-	return ""
-}
+	// Try to load each potential file
+	for _, filePath := range tgzFiles {
+		if debug {
+			fmt.Printf("🔄 Attempting to load: %s\n", filePath)
+		}
 
-// Helper to list cache files for debugging
-func listCacheFiles(cacheDir string) {
-	fmt.Println("📁 Contents of cache directory:")
-	files, err := os.ReadDir(cacheDir)
-	if err != nil {
-		fmt.Printf("Error reading cache directory: %v\n", err)
-		return
+		chartObj, err := loader.Load(filePath)
+		if err == nil {
+			if debug {
+				fmt.Printf("✅ Successfully loaded chart from: %s\n", filePath)
+			}
+			return chartObj, nil
+		}
+
+		if debug {
+			fmt.Printf("❌ Failed to load %s: %v\n", filePath, err)
+		}
 	}
 
-	for _, file := range files {
-		info, _ := file.Info()
-		fmt.Printf("  - %s (size: %d, mod: %s)\n",
-			file.Name(),
-			info.Size(),
-			info.ModTime().Format("15:04:05"))
+	// Last resort: try to find any file that can be loaded as a chart
+	if len(tgzFiles) == 0 {
+		for _, file := range files {
+			if !file.IsDir() {
+				filePath := filepath.Join(settings.RepositoryCache, file.Name())
+				chartObj, err := loader.Load(filePath)
+				if err == nil {
+					if debug {
+						fmt.Printf("✅ Successfully loaded chart from unexpected file: %s\n", filePath)
+					}
+					return chartObj, nil
+				}
+			}
+		}
 	}
+
+	return nil, fmt.Errorf("no chart file found in cache directory: %s", settings.RepositoryCache)
 }
 
 // newRegistryClient creates a registry client for OCI operations
