@@ -3,6 +3,7 @@ package helm
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/downloader"
 	"helm.sh/helm/v3/pkg/getter"
+	"helm.sh/helm/v3/pkg/registry"
 	"helm.sh/helm/v3/pkg/repo"
 )
 
@@ -104,8 +106,14 @@ func HelmInstall(
 	return handleInstallationSuccess(rel, namespace)
 }
 
-// loadChart determines the chart source and loads it appropriately
+// LoadChart determines the chart source and loads it appropriately
 func LoadChart(chartRef, repoURL, version string, settings *cli.EnvSettings) (*chart.Chart, error) {
+	// Check if it's an OCI registry reference
+	if strings.HasPrefix(chartRef, "oci://") {
+		fmt.Printf("🐳 Loading OCI chart from registry...\n")
+		return LoadOCIChart(chartRef, version, settings, false) // You might want to make debug configurable
+	}
+
 	if repoURL != "" {
 		fmt.Printf("🌐 Loading remote chart from repository...\n")
 		return LoadRemoteChart(chartRef, repoURL, version, settings)
@@ -116,7 +124,325 @@ func LoadChart(chartRef, repoURL, version string, settings *cli.EnvSettings) (*c
 		return LoadFromLocalRepo(chartRef, version, settings)
 	}
 
+	// Handle local chart file or directory
 	return loader.Load(chartRef)
+}
+
+// LoadOCIChart loads a chart from an OCI registry
+func LoadOCIChart(chartRef, version string, settings *cli.EnvSettings, debug bool) (*chart.Chart, error) {
+	if debug {
+		pterm.Printf("Loading OCI chart: %s (version: %s)\n", chartRef, version)
+	}
+
+	// Ensure cache directory exists
+	if err := ensureHelmCacheDir(settings.RepositoryCache); err != nil {
+		return nil, fmt.Errorf("failed to create helm cache directory: %w", err)
+	}
+
+	// Create registry client
+	registryClient, err := newRegistryClient(debug)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create registry client: %w", err)
+	}
+
+	// Create action configuration with registry client
+	actionConfig := &action.Configuration{
+		RegistryClient: registryClient,
+	}
+
+	// Create pull action
+	pull := action.NewPullWithOpts(action.WithConfig(actionConfig))
+	pull.Settings = settings
+	pull.Version = version
+	pull.Untar = false // Keep as .tgz file
+	pull.DestDir = settings.RepositoryCache
+
+	// Run the pull command
+	fmt.Printf("⬇️  Pulling OCI chart: %s...\n", chartRef)
+	downloadedFile, err := pull.Run(chartRef)
+	if err != nil {
+		// The error might be about the file path, not the pull itself
+		if debug {
+			fmt.Printf("⚠️  Pull returned error but may have succeeded: %v\n", err)
+			fmt.Printf("⚠️  Downloaded file path from pull.Run(): %s\n", downloadedFile)
+		}
+
+		// Continue to try loading the chart anyway
+		return findAndLoadChartFromCache(chartRef, settings, debug)
+	}
+
+	if debug {
+		fmt.Printf("✅ Pull reported success, downloaded to: %s\n", downloadedFile)
+	}
+
+	// Try to find and load the chart
+	return findAndLoadChartFromCache(chartRef, settings, debug)
+}
+
+// Helper function to ensure helm cache directory exists
+func ensureHelmCacheDir(cacheDir string) error {
+	if _, err := os.Stat(cacheDir); os.IsNotExist(err) {
+		fmt.Printf("📁 Creating helm cache directory: %s\n", cacheDir)
+		if err := os.MkdirAll(cacheDir, 0755); err != nil {
+			return fmt.Errorf("failed to create directory %s: %w", cacheDir, err)
+		}
+	} else if err != nil {
+		return fmt.Errorf("failed to check cache directory: %w", err)
+	}
+	return nil
+}
+
+// Helper function to find and load chart from cache
+func findAndLoadChartFromCache(chartRef string, settings *cli.EnvSettings, debug bool) (*chart.Chart, error) {
+	// Ensure directory exists (double-check)
+	if err := ensureHelmCacheDir(settings.RepositoryCache); err != nil {
+		return nil, err
+	}
+
+	// List all files in cache directory
+	files, err := os.ReadDir(settings.RepositoryCache)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read cache directory %s: %w", settings.RepositoryCache, err)
+	}
+
+	if debug {
+		fmt.Printf("📁 Searching for chart in cache directory: %s\n", settings.RepositoryCache)
+		fmt.Printf("📁 Files found (%d):\n", len(files))
+		for i, file := range files {
+			info, _ := file.Info()
+			fmt.Printf("  %d. %s (size: %d)\n", i+1, file.Name(), info.Size())
+		}
+	}
+
+	// If no files found, try a different approach
+	if len(files) == 0 {
+		fmt.Println("⚠️  No files found in cache, attempting direct helm CLI pull...")
+		return pullWithHelmCLI(chartRef, settings, debug)
+	}
+
+	// Extract chart name from OCI reference
+	ref := strings.TrimPrefix(chartRef, "oci://")
+	baseName := filepath.Base(ref)
+
+	// Remove tag if present
+	chartName := baseName
+	if idx := strings.LastIndex(chartName, ":"); idx != -1 {
+		chartName = chartName[:idx]
+	}
+
+	if debug {
+		fmt.Printf("🔍 Looking for chart matching: %s\n", chartName)
+	}
+
+	// Look for .tgz files (most common)
+	for _, file := range files {
+		if !file.IsDir() && strings.HasSuffix(strings.ToLower(file.Name()), ".tgz") {
+			fullPath := filepath.Join(settings.RepositoryCache, file.Name())
+
+			if debug {
+				fmt.Printf("   Trying .tgz file: %s\n", file.Name())
+			}
+
+			chartObj, err := loader.Load(fullPath)
+			if err == nil {
+				if debug {
+					fmt.Printf("✅ Successfully loaded chart from: %s\n", fullPath)
+				}
+				return chartObj, nil
+			}
+
+			if debug {
+				fmt.Printf("❌ Failed to load as chart: %v\n", err)
+			}
+		}
+	}
+
+	// Try any file (might not have .tgz extension)
+	for _, file := range files {
+		if !file.IsDir() {
+			fullPath := filepath.Join(settings.RepositoryCache, file.Name())
+
+			if debug {
+				fmt.Printf("   Trying any file: %s\n", file.Name())
+			}
+
+			chartObj, err := loader.Load(fullPath)
+			if err == nil {
+				if debug {
+					fmt.Printf("✅ Successfully loaded chart from: %s\n", fullPath)
+				}
+				return chartObj, nil
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("no valid chart file found in cache directory: %s", settings.RepositoryCache)
+}
+
+// Fallback function using helm CLI directly
+func pullWithHelmCLI(chartRef string, settings *cli.EnvSettings, debug bool) (*chart.Chart, error) {
+	fmt.Printf("🔄 Using helm CLI for OCI pull...\n")
+
+	// Ensure cache directory exists
+	if err := ensureHelmCacheDir(settings.RepositoryCache); err != nil {
+		return nil, err
+	}
+
+	// Create a temporary directory
+	tempDir, err := os.MkdirTemp("", "helm-oci-*")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create temp directory: %w", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Build helm command
+	args := []string{"pull", chartRef, "--destination", tempDir}
+
+	// Add version if specified
+	if strings.Contains(chartRef, ":") {
+		// Version might be in the chartRef itself
+		fmt.Printf("📦 Chart reference includes version/tag\n")
+	} else {
+		// Parse version from chartRef or use default
+		ref := strings.TrimPrefix(chartRef, "oci://")
+		if idx := strings.LastIndex(ref, ":"); idx != -1 {
+			version := ref[idx+1:]
+			args = append(args, "--version", version)
+		}
+	}
+
+	if debug {
+		args = append(args, "--debug")
+	}
+
+	// Execute helm pull
+	cmd := exec.Command("helm", args...)
+	cmd.Env = os.Environ()
+
+	// Enable OCI experimental feature
+	cmd.Env = append(cmd.Env, "HELM_EXPERIMENTAL_OCI=1")
+
+	// Handle GitHub Container Registry authentication
+	if strings.Contains(chartRef, "ghcr.io") {
+		fmt.Println("🔑 Detected GHCR registry")
+		if token := os.Getenv("GITHUB_TOKEN"); token != "" {
+			fmt.Println("🔑 Using GITHUB_TOKEN for authentication")
+			// Helm should automatically use GITHUB_TOKEN for ghcr.io
+			cmd.Env = append(cmd.Env, "GITHUB_TOKEN="+token)
+		}
+	}
+
+	output, err := cmd.CombinedOutput()
+	if debug {
+		fmt.Printf("📋 Helm CLI output:\n%s\n", output)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("helm CLI pull failed: %w\nOutput: %s", err, output)
+	}
+
+	// Find and load the downloaded chart
+	files, err := os.ReadDir(tempDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read temp directory: %w", err)
+	}
+
+	for _, file := range files {
+		if !file.IsDir() {
+			fullPath := filepath.Join(tempDir, file.Name())
+			fmt.Printf("📦 Attempting to load: %s\n", file.Name())
+
+			chartObj, err := loader.Load(fullPath)
+			if err == nil {
+				fmt.Printf("✅ Successfully loaded chart\n")
+
+				// Copy to cache directory for future use
+				cachePath := filepath.Join(settings.RepositoryCache, file.Name())
+				if err := copyFile(fullPath, cachePath); err == nil && debug {
+					fmt.Printf("📁 Copied to cache: %s\n", cachePath)
+				}
+
+				return chartObj, nil
+			}
+
+			if debug {
+				fmt.Printf("❌ Failed to load: %v\n", err)
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("no chart file found after helm pull")
+}
+
+// Helper function to copy file
+func copyFile(src, dst string) error {
+	input, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(dst, input, 0644)
+}
+
+// newRegistryClient creates a registry client for OCI operations
+func newRegistryClient(debug bool) (*registry.Client, error) {
+	// Create registry client options
+	opts := []registry.ClientOption{
+		registry.ClientOptWriter(os.Stderr), // Use stderr for debug output
+		registry.ClientOptDebug(debug),
+	}
+
+	// Try multiple credential sources
+	helmConfig := helmHome()
+
+	// Check for Docker config in multiple locations
+	possibleCredFiles := []string{
+		filepath.Join(helmConfig, "config.json"),
+		filepath.Join(os.Getenv("HOME"), ".docker/config.json"),
+		"/etc/docker/config.json",
+		filepath.Join(os.Getenv("HOME"), ".helm/registry/config.json"),
+	}
+
+	for _, credFile := range possibleCredFiles {
+		if _, err := os.Stat(credFile); err == nil {
+			opts = append(opts, registry.ClientOptCredentialsFile(credFile))
+			if debug {
+				pterm.Printf("Using credentials file: %s\n", credFile)
+			}
+			break
+		}
+	}
+
+	// Also check for environment variables
+	if auth := os.Getenv("HELM_REGISTRY_CONFIG"); auth != "" {
+		opts = append(opts, registry.ClientOptCredentialsFile(auth))
+	}
+
+	// Create and return the registry client
+	client, err := registry.NewClient(opts...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create registry client: %w", err)
+	}
+
+	return client, nil
+}
+
+// helmHome gets the Helm home directory
+func helmHome() string {
+	if home := os.Getenv("HELM_HOME"); home != "" {
+		return home
+	}
+	if home := os.Getenv("HELM_CONFIG_HOME"); home != "" {
+		return home
+	}
+	userHome, _ := os.UserHomeDir()
+	helmPath := filepath.Join(userHome, ".helm")
+
+	// Ensure directory exists
+	if _, err := os.Stat(helmPath); os.IsNotExist(err) {
+		os.MkdirAll(helmPath, 0755)
+	}
+
+	return helmPath
 }
 
 // loadFromLocalRepo loads a chart from a local repository
