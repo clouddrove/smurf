@@ -15,6 +15,7 @@ import (
 	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/downloader"
 	"helm.sh/helm/v3/pkg/getter"
+	"helm.sh/helm/v3/pkg/registry"
 	"helm.sh/helm/v3/pkg/repo"
 )
 
@@ -105,7 +106,14 @@ func HelmInstall(
 }
 
 // loadChart determines the chart source and loads it appropriately
+// LoadChart determines the chart source and loads it appropriately
 func LoadChart(chartRef, repoURL, version string, settings *cli.EnvSettings) (*chart.Chart, error) {
+	// Check if it's an OCI registry reference
+	if strings.HasPrefix(chartRef, "oci://") {
+		fmt.Printf("🐳 Loading OCI chart from registry...\n")
+		return LoadOCIChart(chartRef, version, settings, false)
+	}
+
 	if repoURL != "" {
 		fmt.Printf("🌐 Loading remote chart from repository...\n")
 		return LoadRemoteChart(chartRef, repoURL, version, settings)
@@ -117,6 +125,116 @@ func LoadChart(chartRef, repoURL, version string, settings *cli.EnvSettings) (*c
 	}
 
 	return loader.Load(chartRef)
+}
+
+// LoadOCIChart loads a chart from an OCI registry
+func LoadOCIChart(chartRef, version string, settings *cli.EnvSettings, debug bool) (*chart.Chart, error) {
+	if debug {
+		pterm.Printf("Loading OCI chart: %s (version: %s)\n", chartRef, version)
+	}
+
+	// Create registry client
+	registryClient, err := newRegistryClient(debug)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create registry client: %w", err)
+	}
+
+	// Create a temporary action configuration with registry client
+	actionConfig := new(action.Configuration)
+	actionConfig.RegistryClient = registryClient
+
+	// Initialize with default settings
+	logFn := func(format string, v ...interface{}) {
+		if debug {
+			message := fmt.Sprintf(format, v...)
+			pterm.Printfln("OCI-REGISTRY: %s", strings.TrimSpace(message))
+		}
+	}
+
+	if err := actionConfig.Init(settings.RESTClientGetter(), settings.Namespace(), os.Getenv("HELM_DRIVER"), logFn); err != nil {
+		return nil, fmt.Errorf("failed to initialize action config for OCI: %w", err)
+	}
+
+	// Create pull action WITH registry client
+	pull := action.NewPullWithOpts(action.WithConfig(&action.Configuration{
+		RegistryClient: registryClient,
+	}))
+	pull.Settings = settings
+	pull.Version = version
+	pull.Untar = true
+	pull.UntarDir = settings.RepositoryCache
+
+	// Run the pull command
+	fmt.Printf("⬇️  Pulling OCI chart: %s...\n", chartRef)
+	output, err := pull.Run(chartRef)
+	if err != nil {
+		return nil, fmt.Errorf("failed to pull OCI chart: %w", err)
+	}
+
+	// Find the pulled chart - OCI pull returns the path
+	chartPath := strings.TrimSpace(output)
+
+	// For OCI charts, handle the output format
+	if strings.Contains(chartPath, "Pulled: ") {
+		parts := strings.Split(chartPath, "Pulled: ")
+		if len(parts) > 1 {
+			chartPath = strings.TrimSpace(parts[1])
+		}
+	}
+
+	// Sometimes OCI charts are in subdirectories
+	files, err := os.ReadDir(chartPath)
+	if err == nil && len(files) == 1 && files[0].IsDir() {
+		chartPath = filepath.Join(chartPath, files[0].Name())
+	}
+
+	if debug {
+		pterm.Printf("OCI chart downloaded to: %s\n", chartPath)
+	}
+
+	fmt.Printf("📦 Loading OCI chart into memory...\n")
+	return loader.Load(chartPath)
+}
+
+// newRegistryClient creates a registry client for OCI operations
+func newRegistryClient(debug bool) (*registry.Client, error) {
+	// Create registry client options
+	opts := []registry.ClientOption{
+		registry.ClientOptWriter(os.Stdout),
+	}
+
+	// Try to load credentials from various locations
+	helmConfig := helmHome()
+	credentialFiles := []string{
+		filepath.Join(helmConfig, "config.json"),
+		filepath.Join(os.Getenv("HOME"), ".docker/config.json"),
+		"/etc/docker/config.json",
+	}
+
+	for _, credFile := range credentialFiles {
+		if _, err := os.Stat(credFile); err == nil {
+			opts = append(opts, registry.ClientOptCredentialsFile(credFile))
+			if debug {
+				pterm.Printf("Using credentials file: %s\n", credFile)
+			}
+			break
+		}
+	}
+
+	// Create and return the registry client
+	return registry.NewClient(opts...)
+}
+
+// helmHome gets the Helm home directory
+func helmHome() string {
+	if home := os.Getenv("HELM_HOME"); home != "" {
+		return home
+	}
+	if home := os.Getenv("HELM_CONFIG_HOME"); home != "" {
+		return home
+	}
+	userHome, _ := os.UserHomeDir()
+	return filepath.Join(userHome, ".helm")
 }
 
 // loadFromLocalRepo loads a chart from a local repository

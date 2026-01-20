@@ -227,9 +227,16 @@ func HelmUpgrade(
 }
 
 // loadChart resolves both local and repo-based charts
+// loadChart resolves both local, repo-based, and OCI charts
 func loadChart(chartRef, repoURL, version string, debug bool) (*chart.Chart, error) {
 	if debug {
 		pterm.Printf("Resolving chart: %s\n", chartRef)
+	}
+
+	// Check for OCI registry reference FIRST
+	if strings.HasPrefix(chartRef, "oci://") {
+		fmt.Printf("🐳 Loading OCI chart from registry...\n")
+		return LoadOCIChart(chartRef, version, cli.New(), debug)
 	}
 
 	// Local path (./chart or /path/to/chart)
@@ -1047,14 +1054,6 @@ func getPodLogs(clientset *kubernetes.Clientset, namespace, podName, containerNa
 	}
 
 	return buf.String(), nil
-}
-
-// Helper function for max
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }
 
 // Print status summary
