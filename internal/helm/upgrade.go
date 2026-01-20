@@ -913,40 +913,6 @@ func printQuickPodStatus(pod corev1.Pod) {
 		getTotalRestarts(pod))
 }
 
-// Simple table without node and message columns
-func printPodTableSimple(pods []corev1.Pod, debug bool) {
-	if len(pods) == 0 {
-		return
-	}
-
-	tableData := pterm.TableData{
-		{"POD NAME", "STATUS", "READY", "RESTARTS", "AGE"},
-	}
-
-	for _, pod := range pods {
-		age := time.Since(pod.CreationTimestamp.Time).Round(time.Second)
-
-		// Count ready containers
-		readyContainers := 0
-		totalContainers := len(pod.Spec.Containers)
-		for _, cs := range pod.Status.ContainerStatuses {
-			if cs.Ready {
-				readyContainers++
-			}
-		}
-
-		tableData = append(tableData, []string{
-			pod.Name,
-			string(pod.Status.Phase),
-			fmt.Sprintf("%d/%d", readyContainers, totalContainers),
-			fmt.Sprintf("%d", getTotalRestarts(pod)),
-			age.String(),
-		})
-	}
-
-	pterm.DefaultTable.WithHasHeader().WithData(tableData).Render()
-}
-
 // Detailed table with all columns
 func printPodTableDetailed(pods []corev1.Pod, debug bool) {
 	if len(pods) == 0 {
