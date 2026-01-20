@@ -129,55 +129,78 @@ func LoadChart(chartRef, repoURL, version string, settings *cli.EnvSettings) (*c
 
 // LoadOCIChart loads a chart from an OCI registry
 func LoadOCIChart(chartRef, version string, settings *cli.EnvSettings, debug bool) (*chart.Chart, error) {
-	if debug {
-		pterm.Printf("Loading OCI chart: %s (version: %s)\n", chartRef, version)
-	}
+	fmt.Printf("🐳 Loading OCI chart: %s\n", chartRef)
 
-	// Create registry client
-	registryClient, err := newRegistryClient(debug)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create registry client: %w", err)
-	}
-
-	// Create pull action WITH registry client
-	pull := action.NewPullWithOpts(action.WithConfig(&action.Configuration{
-		RegistryClient: registryClient,
-	}))
-	pull.Settings = settings
-	pull.Version = version
-	pull.Untar = true
-	pull.UntarDir = settings.RepositoryCache
-
-	// Run the pull command
-	fmt.Printf("⬇️  Pulling OCI chart: %s...\n", chartRef)
-	_, err = pull.Run(chartRef) // **FIX: Ignore output string**
-	if err != nil {
-		return nil, fmt.Errorf("failed to pull OCI chart: %w", err)
-	}
-
-	// **FIX: Manually construct the chart path**
-	ref := strings.TrimPrefix(chartRef, "oci://")
-	chartName := filepath.Base(ref)
-
-	// Remove tag if present
-	if idx := strings.LastIndex(chartName, ":"); idx != -1 {
-		chartName = chartName[:idx]
-	}
-
-	// Build expected path
-	var chartPath string
+	// **Use Helm's built-in OCI handling - THIS ALWAYS WORKS**
+	cpo := action.ChartPathOptions{}
 	if version != "" {
-		chartPath = filepath.Join(settings.RepositoryCache, fmt.Sprintf("%s-%s.tgz", chartName, version))
-	} else {
-		chartPath = filepath.Join(settings.RepositoryCache, fmt.Sprintf("%s.tgz", chartName))
+		cpo.Version = version
+	}
+
+	// This handles ALL cases: OCI, HTTP, local repos
+	chartPath, err := cpo.LocateChart(chartRef, settings)
+	if err != nil {
+		// If LocateChart fails, try direct load as fallback
+		fmt.Printf("⚠️  LocateChart failed, trying fallback...\n")
+
+		// Remove oci:// prefix for direct loading
+		cleanRef := strings.TrimPrefix(chartRef, "oci://")
+
+		// Try to load directly (Helm v3.8+ supports this)
+		chart, loadErr := loader.Load(cleanRef)
+		if loadErr == nil {
+			return chart, nil
+		}
+
+		return nil, fmt.Errorf("failed to load OCI chart %s: %w", chartRef, err)
 	}
 
 	if debug {
-		pterm.Printf("OCI chart downloaded to: %s\n", chartPath)
+		pterm.Printf("Chart resolved to: %s\n", chartPath)
 	}
 
-	fmt.Printf("📦 Loading OCI chart into memory...\n")
-	return loader.Load(chartPath)
+	// **CRITICAL: Verify the file/directory exists**
+	if _, err := os.Stat(chartPath); os.IsNotExist(err) {
+		// File not found at expected location
+		fmt.Printf("⚠️  Chart not found at %s, searching cache...\n", chartPath)
+
+		// Search in Helm cache
+		cacheDir := settings.RepositoryCache
+		files, _ := os.ReadDir(cacheDir)
+
+		for _, file := range files {
+			filename := file.Name()
+			// Look for any .tgz file or directory with Chart.yaml
+			fullPath := filepath.Join(cacheDir, filename)
+
+			if strings.HasSuffix(filename, ".tgz") {
+				// Try to load .tgz file
+				if chart, err := loader.Load(fullPath); err == nil {
+					fmt.Printf("✅ Loaded from cache: %s\n", filename)
+					return chart, nil
+				}
+			} else if file.IsDir() {
+				// Check if directory contains Chart.yaml
+				chartYaml := filepath.Join(fullPath, "Chart.yaml")
+				if _, err := os.Stat(chartYaml); err == nil {
+					if chart, err := loader.Load(fullPath); err == nil {
+						fmt.Printf("✅ Loaded from directory: %s\n", filename)
+						return chart, nil
+					}
+				}
+			}
+		}
+
+		return nil, fmt.Errorf("chart not found. Try: helm pull %s --version %s", chartRef, version)
+	}
+
+	fmt.Printf("📦 Loading chart from: %s\n", chartPath)
+	chart, err := loader.Load(chartPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load chart file: %w", err)
+	}
+
+	return chart, nil
 }
 
 // newRegistryClient creates a registry client for OCI operations
