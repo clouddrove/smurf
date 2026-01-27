@@ -33,12 +33,13 @@ func HelmUpgrade(
 	repoURL string, version string,
 	wait bool,
 	historyMax int,
-	useAI bool,
+	useAI bool, force bool,
 ) error {
-	// startTime := time.Now()
+	startTime := time.Now() // Track start time
 
 	if debug {
 		pterm.Println("=== HELM UPGRADE STARTED ===")
+		pterm.Printf("Start time: %s\n", startTime.Format("15:04:05"))
 		pterm.Printf("Release: %s\n", releaseName)
 		pterm.Printf("Chart: %s\n", chartRef)
 		pterm.Printf("Namespace: %s\n", namespace)
@@ -46,6 +47,7 @@ func HelmUpgrade(
 		pterm.Printf("Atomic: %t\n", atomic)
 		pterm.Printf("Timeout: %v\n", timeout)
 		pterm.Printf("Wait: %t\n", wait)
+		pterm.Printf("Force: %t (Helm native flag)\n", force)
 		pterm.Printf("Set values: %v\n", setValues)
 		pterm.Printf("Values files: %v\n", valuesFiles)
 		pterm.Printf("Set literal: %v\n", setLiteral)
@@ -113,12 +115,15 @@ func HelmUpgrade(
 	client.Wait = wait
 	client.WaitForJobs = wait
 	client.MaxHistory = historyMax
+	client.Force = force
 
-	// Check current pod status before upgrade
-	fmt.Printf("📋 Checking current pod status before upgrade...\n")
-	if err := printCurrentPodStatus(namespace, releaseName, debug, false); err != nil {
-		pterm.Warning.Printf("Could not check current pod status: %v\n", err)
-	}
+	client.CleanupOnFail = true // This is key for atomic!
+	client.SubNotes = true      // Better output
+	client.DisableHooks = false // Ensure hooks run
+	client.DryRun = false
+	client.ResetValues = false
+	client.ReuseValues = false
+	client.Recreate = false
 
 	if debug {
 		pterm.Printf("Upgrade client configured:\n")
@@ -126,78 +131,49 @@ func HelmUpgrade(
 		pterm.Printf("  - Atomic: %t\n", client.Atomic)
 		pterm.Printf("  - Timeout: %v\n", client.Timeout)
 		pterm.Printf("  - History Max: %d\n", client.MaxHistory)
+		pterm.Printf("  - Force: %t\n", client.Force)
 	}
 
-	// Start upgrade in a goroutine so we can monitor simultaneously
-	upgradeDone := make(chan error, 1)
-	go func() {
-		rel, err := client.Run(releaseName, chart, vals)
-		if err != nil {
-			printReleaseResources(namespace, releaseName)
-			printErrorSummary("Helm upgradation", releaseName, namespace, chartRef, err)
-			upgradeDone <- err
-		} else {
+	// Start upgrade
+	fmt.Printf("🚀 Starting upgrade for release '%s'...\n", releaseName)
+	upgradeStartTime := time.Now()
+
+	// Run the upgrade
+	rel, err := client.Run(releaseName, chart, vals)
+	if err != nil {
+		errorMsg := err.Error()
+		if atomic && strings.Contains(errorMsg, "rolled back") {
+			fmt.Printf("\n⚠️  Upgrade failed and rollback may have issues\n")
+
+			// Check if rollback actually happened
 			handleInstallationSuccess(rel, namespace)
-			upgradeDone <- nil
+			printFinalPodStatus(namespace, releaseName, debug)
 		}
-	}()
-
-	// Wait for upgrade to complete
-	select {
-	case err := <-upgradeDone:
-		if err != nil {
-			// Print final pod status after failure
-			fmt.Printf("\n🔍 Checking pod status after failed upgrade...\n")
-			printCurrentPodStatus(namespace, releaseName, debug, false)
-
-			printReleaseResources(namespace, releaseName)
-			printErrorSummary("Helm upgrade failed", releaseName, namespace, chartRef, err)
-			ai.AIExplainError(useAI, err.Error())
-
-			// Debug pod info if upgrade fails
-			if debug {
-				pods, err := getPods(namespace, releaseName)
-				if err == nil {
-					pterm.Printf("Found %d pods for release %s\n", len(pods), releaseName)
-					for _, pod := range pods {
-						printPodDetails(pod)
-					}
-				}
-			}
-			return fmt.Errorf("upgrade failed: %w", err)
-		}
-		// Upgrade succeeded
-		fmt.Printf("\n✅ Upgrade completed successfully\n")
-
-	case <-time.After(10 * time.Second):
-		// Check status while upgrade is in progress
-		fmt.Printf("\n⏳ Upgrade is taking longer than expected, checking status...\n")
-		printCurrentPodStatus(namespace, releaseName, debug, false)
+		//printReleaseResources(namespace, releaseName)
+		printErrorSummary("Helm upgradation", releaseName, namespace, chartRef, err)
+		ai.AIExplainError(useAI, err.Error())
+		return fmt.Errorf("upgrade failed: %w", err)
 	}
 
-	/*
-		// Execute upgrade
-		rel, err := client.Run(releaseName, chart, vals)
-		if err != nil {
-			// Print pod status after failed upgrade
-			fmt.Printf("🔍 Checking pod status after failed upgrade...\n")
-			printCurrentPodStatus(namespace, releaseName, debug, false)
-			printReleaseResources(namespace, releaseName)
-			printErrorSummary("Helm upgradation", releaseName, namespace, chartRef, err)
-			ai.AIExplainError(useAI, err.Error())
+	upgradeEndTime := time.Now()
+	upgradeDuration := upgradeEndTime.Sub(upgradeStartTime).Round(time.Second)
 
-			// Debug pod info if upgrade fails
-			if debug {
-				pods, err := getPods(namespace, releaseName)
-				if err == nil {
-					pterm.Printf("Found %d pods for release %s\n", len(pods), releaseName)
-					for _, pod := range pods {
-						printPodDetails(pod)
-					}
-				}
-			}
-			return fmt.Errorf("upgrade failed: %w", err)
-		}*/
+	// Handle successful upgrade
+	fmt.Printf("\n✅ Upgrade completed successfully (took %s)\n", upgradeDuration)
+
+	// IMPORTANT: Wait for pods to settle before checking status
+	fmt.Printf("\n⏳ Waiting for pods to stabilize...\n")
+	time.Sleep(5 * time.Second) // Increased wait time
+
+	// Now check the final pod status
+	//fmt.Printf("📋 Checking final pod status...\n")
+	handleInstallationSuccess(rel, namespace)
+
+	if err := printFinalPodStatus(namespace, releaseName, debug); err != nil {
+		printErrorSummary("Pod not healthy", releaseName, namespace, chartRef, err)
+		ai.AIExplainError(useAI, err.Error())
+		return fmt.Errorf("upgrade failed: %w", err)
+	}
 
 	// Verify readiness only if wait is enabled
 	if wait {
@@ -213,16 +189,10 @@ func HelmUpgrade(
 		pterm.Println("Skipping readiness verification (wait=false)")
 	}
 
-	// duration := time.Since(startTime)
-	// //pterm.Success.Printf("Release %q successfully upgraded in %s\n", rel.Name, duration)
+	// Print total time
+	totalDuration := time.Since(startTime).Round(time.Second)
+	fmt.Printf("\n⏱️  Total upgrade time: %s\n", totalDuration)
 
-	// if debug {
-	// 	printReleaseInfo(rel, debug)
-	// 	printResourcesFromRelease(rel)
-	// 	pterm.Printf("=== HELM UPGRADE COMPLETED IN %s ===\n", duration)
-	// }
-
-	// handleInstallationSuccess(rel, namespace)
 	return nil
 }
 
@@ -277,6 +247,16 @@ func initActionConfig(namespace string, debug bool) (*action.Configuration, erro
 	settings := cli.New()
 	settings.SetNamespace(namespace)
 
+	// IMPORTANT: Set KubeContext if provided
+	if kubeContext := os.Getenv("KUBECONTEXT"); kubeContext != "" {
+		settings.KubeContext = kubeContext
+	}
+
+	// Set kubeconfig explicitly
+	if kubeconfig := os.Getenv("KUBECONFIG"); kubeconfig != "" {
+		settings.KubeConfig = kubeconfig
+	}
+
 	actionConfig := new(action.Configuration)
 
 	logFn := func(format string, v ...interface{}) {
@@ -286,6 +266,7 @@ func initActionConfig(namespace string, debug bool) (*action.Configuration, erro
 		}
 	}
 
+	// Initialize with proper settings
 	err := actionConfig.Init(
 		settings.RESTClientGetter(),
 		namespace,
@@ -293,11 +274,18 @@ func initActionConfig(namespace string, debug bool) (*action.Configuration, erro
 		logFn,
 	)
 
-	if debug && err == nil {
-		pterm.Printf("Action config initialized for namespace: %s\n", namespace)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize helm config: %w", err)
 	}
 
-	return actionConfig, err
+	//Set debug logging properly
+	if debug {
+		actionConfig.Log = func(format string, v ...interface{}) {
+			pterm.Debug.Printf(format, v...)
+		}
+	}
+
+	return actionConfig, nil
 }
 
 func verifyReleaseExists(actionConfig *action.Configuration, releaseName, namespace string, debug bool) error {
@@ -459,7 +447,7 @@ func verifyFinalReadiness(namespace, releaseName string, timeout time.Duration, 
 	}
 
 	deadline := time.Now().Add(timeout)
-	pollInterval := 5 * time.Second // Increased from 2 to 5 seconds
+	pollInterval := 5 * time.Second
 
 	clientset, err := getKubeClient()
 	if err != nil {
@@ -630,20 +618,46 @@ func isPodReady(pod corev1.Pod) bool {
 // Helper function to print pod details
 // printPodDetails now matches all call sites
 func printPodDetails(pod corev1.Pod) {
-	pterm.Info.Println("Pod:", pod.Name, "Status:", pod.Status.Phase)
+	// First show the actual phase
+	pterm.Info.Println("Pod:", pod.Name, "Phase:", pod.Status.Phase)
+
+	// Check if pod is actually ready (has Ready condition)
+	isReady := false
 	for _, cond := range pod.Status.Conditions {
-		if cond.Status != corev1.ConditionTrue {
-			pterm.Error.Println("  Condition:", cond.Type, "Reason:", cond.Reason, "Message:", cond.Message)
+		if cond.Type == corev1.PodReady {
+			pterm.Println("  Ready Condition:", cond.Status)
+			if cond.Status == corev1.ConditionTrue {
+				isReady = true
+			} else {
+				pterm.Warning.Println("  Ready Condition Reason:", cond.Reason, "Message:", cond.Message)
+			}
+		} else if cond.Status != corev1.ConditionTrue {
+			pterm.Warning.Println("  Condition:", cond.Type, "Status:", cond.Status, "Reason:", cond.Reason, "Message:", cond.Message)
 		}
 	}
+
+	// Container statuses
 	for _, cs := range pod.Status.ContainerStatuses {
 		if !cs.Ready {
 			pterm.Warning.Println("  Container not ready:", cs.Name)
 			if cs.State.Waiting != nil {
-				pterm.Println("    Reason:", cs.State.Waiting.Reason)
+				pterm.Println("    State: Waiting, Reason:", cs.State.Waiting.Reason)
 				pterm.Println("    Message:", cs.State.Waiting.Message)
+			} else if cs.State.Running != nil {
+				pterm.Println("    State: Running, Started:", cs.State.Running.StartedAt.Format("2006-01-02 15:04:05"))
+			} else if cs.State.Terminated != nil {
+				pterm.Error.Println("    State: Terminated, Reason:", cs.State.Terminated.Reason)
+				pterm.Println("    Exit Code:", cs.State.Terminated.ExitCode)
 			}
+		} else {
+			pterm.Success.Println("  Container ready:", cs.Name)
 		}
+	}
+
+	if isReady {
+		pterm.Success.Println("✅ Pod is fully ready")
+	} else if pod.Status.Phase == corev1.PodRunning {
+		pterm.Warning.Println("⚠️ Pod is Running but not Ready")
 	}
 }
 
@@ -660,7 +674,8 @@ func printCurrentPodStatus(namespace, releaseName string, debug bool, monitorCha
 		return fmt.Errorf("failed to list pods: %w", err)
 	}
 
-	// Show current state
+	// Show current state with timestamp
+	fmt.Printf("\n⏰ Checking pod status at %s\n", time.Now().Format("15:04:05"))
 	showPodState("Current Pod State", initialPods.Items, releaseName, debug)
 
 	// If monitoring changes, watch for new pods
@@ -729,71 +744,6 @@ func watchForNewPods(clientset *kubernetes.Clientset, namespace, releaseName str
 	}
 }
 
-// Show detailed state of pods
-// func showPodState(title string, pods []corev1.Pod, releaseName string, debug bool) {
-// 	fmt.Printf("\n%s (%d pods):\n", title, len(pods))
-
-// 	if len(pods) == 0 {
-// 		fmt.Println("📭 No pods found")
-// 		return
-// 	}
-
-// 	// Categorize pods
-// 	var releasePods []corev1.Pod
-// 	var otherPods []corev1.Pod
-// 	statusCount := make(map[string]int)
-
-// 	for _, pod := range pods {
-// 		status := string(pod.Status.Phase)
-// 		statusCount[status]++
-
-// 		if isPodFromRelease(pod, releaseName) {
-// 			releasePods = append(releasePods, pod)
-// 		} else {
-// 			otherPods = append(otherPods, pod)
-// 		}
-// 	}
-
-// 	// Show summary
-// 	printStatusSummary(statusCount, len(pods))
-
-// 	// Show release pods
-// 	if len(releasePods) > 0 {
-// 		fmt.Printf("\n🎯 Pods for release '%s' (%d pods):\n", releaseName, len(releasePods))
-// 		printPodTableDetailed(releasePods, debug)
-// 	}
-
-// 	// Show pending pods (all)
-// 	var pendingPods []corev1.Pod
-// 	for _, pod := range pods {
-// 		if pod.Status.Phase == corev1.PodPending {
-// 			pendingPods = append(pendingPods, pod)
-// 		}
-// 	}
-
-// 	if len(pendingPods) > 0 {
-// 		fmt.Printf("\n⏳ Pending Pods (%d):\n", len(pendingPods))
-// 		for _, pod := range pendingPods {
-// 			printQuickPodStatus(pod)
-// 		}
-// 	}
-
-// 	// Show failed pods (all)
-// 	var failedPods []corev1.Pod
-// 	for _, pod := range pods {
-// 		if pod.Status.Phase == corev1.PodFailed {
-// 			failedPods = append(failedPods, pod)
-// 		}
-// 	}
-
-// 	if len(failedPods) > 0 {
-// 		fmt.Printf("\n❌ Failed Pods (%d):\n", len(failedPods))
-// 		for _, pod := range failedPods {
-// 			printQuickPodStatus(pod)
-// 		}
-// 	}
-// }
-
 // Show details of new pods
 func showNewPodsDetails(newPods []corev1.Pod, debug bool) {
 	for _, pod := range newPods {
@@ -805,17 +755,34 @@ func showNewPodsDetails(newPods []corev1.Pod, debug bool) {
 			}
 		}
 
-		statusColor := pterm.FgGreen
-		if pod.Status.Phase == corev1.PodPending {
-			statusColor = pterm.FgYellow
-		} else if pod.Status.Phase == corev1.PodFailed {
-			statusColor = pterm.FgRed
+		// Determine if pod is actually ready (has Ready condition)
+		isPodReady := false
+		for _, cond := range pod.Status.Conditions {
+			if cond.Type == corev1.PodReady && cond.Status == corev1.ConditionTrue {
+				isPodReady = true
+				break
+			}
 		}
 
-		statusColor.Printf("  %s: %s (Age: %s, Ready: %d/%d)\n",
+		// Color coding based on phase AND readiness
+		phaseColor := pterm.FgGreen
+		if pod.Status.Phase == corev1.PodPending {
+			phaseColor = pterm.FgYellow
+		} else if pod.Status.Phase == corev1.PodFailed {
+			phaseColor = pterm.FgRed
+		}
+
+		readyIcon := "✅"
+		if !isPodReady {
+			readyIcon = "❌"
+		}
+
+		phaseColor.Printf("  %s %s: %s (Age: %s, Phase: %s, Ready: %d/%d)\n",
+			readyIcon,
 			pod.Name,
-			pod.Status.Phase,
+			getPodStatusMessage(pod),
 			age,
+			pod.Status.Phase,
 			readyCount,
 			len(pod.Spec.Containers))
 
@@ -830,51 +797,6 @@ func showNewPodsDetails(newPods []corev1.Pod, debug bool) {
 	}
 }
 
-// Show why pod is stuck
-// func showPodStuckDetails(clientset *kubernetes.Clientset, pod corev1.Pod, namespace string, debug bool) {
-// 	fmt.Println("\n🔍 Investigating pending pod:", pod.Name)
-
-// 	// Get events immediately
-// 	events, _ := getPodEvents(clientset, namespace, pod.Name)
-// 	if len(events) > 0 {
-// 		fmt.Println("  Recent Events:")
-// 		for i, event := range events {
-// 			if i >= 3 { // Show only 3 most recent events
-// 				break
-// 			}
-// 			icon := "ℹ️"
-// 			if event.Type == "Warning" {
-// 				icon = "⚠️"
-// 			}
-// 			pterm.Printf("    %s [%s] %s: %s\n",
-// 				icon,
-// 				event.LastTimestamp.Format("15:04:05"),
-// 				event.Reason,
-// 				event.Message)
-// 		}
-// 	}
-
-// 	// Check container status
-// 	if len(pod.Status.ContainerStatuses) > 0 {
-// 		fmt.Println("  Container Status:")
-// 		for _, cs := range pod.Status.ContainerStatuses {
-// 			if cs.State.Waiting != nil {
-// 				pterm.Error.Printf("    %s: %s - %s\n",
-// 					cs.Name,
-// 					cs.State.Waiting.Reason,
-// 					cs.State.Waiting.Message)
-// 			}
-// 		}
-// 	}
-
-// 	// Check conditions
-// 	for _, cond := range pod.Status.Conditions {
-// 		if cond.Status != corev1.ConditionTrue && cond.Message != "" {
-// 			pterm.Warning.Printf("  Condition: %s - %s\n", cond.Reason, cond.Message)
-// 		}
-// 	}
-// }
-
 // Quick pod status
 func printQuickPodStatus(pod corev1.Pod) {
 	age := time.Since(pod.CreationTimestamp.Time).Round(time.Second)
@@ -885,28 +807,38 @@ func printQuickPodStatus(pod corev1.Pod) {
 		}
 	}
 
-	statusIcon := "✅"
-	if pod.Status.Phase == corev1.PodPending {
-		statusIcon = "⏳"
-	} else if pod.Status.Phase == corev1.PodFailed {
-		statusIcon = "❌"
-	} else if pod.Status.Phase == corev1.PodSucceeded {
-		statusIcon = "✓"
-	}
-
-	// Get status message
-	statusMsg := string(pod.Status.Phase)
-	for _, cs := range pod.Status.ContainerStatuses {
-		if cs.State.Waiting != nil {
-			statusMsg = cs.State.Waiting.Reason
+	// Check if pod is actually ready (has Ready condition)
+	isPodReady := false
+	for _, cond := range pod.Status.Conditions {
+		if cond.Type == corev1.PodReady && cond.Status == corev1.ConditionTrue {
+			isPodReady = true
 			break
 		}
 	}
 
-	fmt.Printf("  %s %s: %s (Age: %s, Ready: %d/%d, Restarts: %d)\n",
-		statusIcon,
+	// Use different icons for phase vs readiness
+	phaseIcon := "⚪" // Default
+	switch pod.Status.Phase {
+	case corev1.PodRunning:
+		phaseIcon = "🟢"
+	case corev1.PodPending:
+		phaseIcon = "🟡"
+	case corev1.PodFailed:
+		phaseIcon = "🔴"
+	case corev1.PodSucceeded:
+		phaseIcon = "✅"
+	}
+
+	readyIcon := "❌"
+	if isPodReady {
+		readyIcon = "✅"
+	}
+
+	fmt.Printf("  %s%s %s: %s (Age: %s, Containers Ready: %d/%d, Restarts: %d)\n",
+		phaseIcon,
+		readyIcon,
 		pod.Name,
-		statusMsg,
+		pod.Status.Phase,
 		age,
 		readyCount,
 		len(pod.Spec.Containers),
@@ -920,7 +852,7 @@ func printPodTableDetailed(pods []corev1.Pod, debug bool) {
 	}
 
 	tableData := pterm.TableData{
-		{"POD NAME", "STATUS", "READY", "RESTARTS", "AGE", "NODE", "MESSAGE"},
+		{"POD NAME", "PHASE", "READY", "CONTAINERS READY", "RESTARTS", "AGE", "NODE", "MESSAGE"},
 	}
 
 	for _, pod := range pods {
@@ -935,6 +867,15 @@ func printPodTableDetailed(pods []corev1.Pod, debug bool) {
 			}
 		}
 
+		// Check if pod is actually ready (has Ready condition)
+		isPodReady := "No"
+		for _, cond := range pod.Status.Conditions {
+			if cond.Type == corev1.PodReady && cond.Status == corev1.ConditionTrue {
+				isPodReady = "Yes"
+				break
+			}
+		}
+
 		nodeName := pod.Spec.NodeName
 		if nodeName == "" {
 			nodeName = "<none>"
@@ -945,6 +886,7 @@ func printPodTableDetailed(pods []corev1.Pod, debug bool) {
 		tableData = append(tableData, []string{
 			pod.Name,
 			string(pod.Status.Phase),
+			isPodReady,
 			fmt.Sprintf("%d/%d", readyContainers, totalContainers),
 			fmt.Sprintf("%d", getTotalRestarts(pod)),
 			age.String(),
@@ -1077,7 +1019,17 @@ func getPodStatusMessage(pod corev1.Pod) string {
 			}
 		}
 		if allReady {
-			return "All containers ready"
+			// Check Ready condition
+			for _, cond := range pod.Status.Conditions {
+				if cond.Type == corev1.PodReady {
+					if cond.Status == corev1.ConditionTrue {
+						return "Ready"
+					} else {
+						return fmt.Sprintf("Running but not Ready: %s", cond.Reason)
+					}
+				}
+			}
+			return "Running"
 		}
 
 	case corev1.PodFailed:
@@ -1148,6 +1100,29 @@ func describePod(clientset *kubernetes.Clientset, pod corev1.Pod, namespace stri
 	fmt.Printf("  Message: %s\n", pod.Status.Message)
 	fmt.Printf("  Pod IP:  %s\n", pod.Status.PodIP)
 	fmt.Printf("  Host IP: %s\n", pod.Status.HostIP)
+
+	// Conditions
+	if len(pod.Status.Conditions) > 0 {
+		fmt.Println("\nConditions:")
+		fmt.Println("  Type              Status  LastProbeTime                Reason                Message")
+		fmt.Println("  ----              ------  ----------------            ------                -------")
+		for _, cond := range pod.Status.Conditions {
+			status := "False"
+			if cond.Status == corev1.ConditionTrue {
+				status = "True"
+			}
+			lastProbeTime := cond.LastProbeTime.Format("2006-01-02 15:04:05")
+			if cond.LastProbeTime.IsZero() {
+				lastProbeTime = "<none>"
+			}
+			fmt.Printf("  %-17s %-7s %-27s %-21s %s\n",
+				cond.Type,
+				status,
+				lastProbeTime,
+				cond.Reason,
+				cond.Message)
+		}
+	}
 
 	// Container Statuses
 	if len(pod.Status.ContainerStatuses) > 0 {
@@ -1298,6 +1273,7 @@ func showPodState(title string, pods []corev1.Pod, releaseName string, debug boo
 	var otherPods []corev1.Pod
 	var pendingPods []corev1.Pod
 	var failedPods []corev1.Pod
+	var runningPods []corev1.Pod
 	statusCount := make(map[string]int)
 
 	for _, pod := range pods {
@@ -1310,9 +1286,12 @@ func showPodState(title string, pods []corev1.Pod, releaseName string, debug boo
 			otherPods = append(otherPods, pod)
 		}
 
-		if pod.Status.Phase == corev1.PodPending {
+		switch pod.Status.Phase {
+		case corev1.PodPending:
 			pendingPods = append(pendingPods, pod)
-		} else if pod.Status.Phase == corev1.PodFailed {
+		case corev1.PodRunning:
+			runningPods = append(runningPods, pod)
+		case corev1.PodFailed:
 			failedPods = append(failedPods, pod)
 		}
 	}
@@ -1347,6 +1326,212 @@ func showPodState(title string, pods []corev1.Pod, releaseName string, debug boo
 		fmt.Printf("\n❌ Failed Pods (%d):\n", len(failedPods))
 		for _, pod := range failedPods {
 			printQuickPodStatus(pod)
+		}
+	}
+
+	// Show running pods summary if debug mode
+	if debug && len(runningPods) > 0 {
+		fmt.Printf("\n🟢 Running Pods (%d):\n", len(runningPods))
+		for _, pod := range runningPods {
+			printQuickPodStatus(pod)
+		}
+	}
+}
+
+// printFinalPodStatus checks the actual current pod status after upgrade
+func printFinalPodStatus(namespace, releaseName string, debug bool) error {
+	clientset, err := getKubeClient()
+	if err != nil {
+		return fmt.Errorf("failed to get kube client: %w", err)
+	}
+
+	// Get pods with the release label
+	podList, err := clientset.CoreV1().Pods(namespace).List(context.Background(), metav1.ListOptions{
+		LabelSelector: fmt.Sprintf("app.kubernetes.io/instance=%s", releaseName),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to list pods: %w", err)
+	}
+
+	if len(podList.Items) == 0 {
+		fmt.Println("📭 No pods found for this release")
+		return nil
+	}
+
+	fmt.Printf("\n📊 Final Pod Status for release '%s':\n", releaseName)
+	fmt.Println(strings.Repeat("=", 80))
+
+	// Create detailed table
+	tableData := pterm.TableData{
+		{"POD NAME", "STATUS", "READY", "RESTARTS", "AGE", "NODE", "CONDITIONS"},
+	}
+
+	var status string
+	var podName string
+
+	for _, pod := range podList.Items {
+		podName = pod.Name
+		age := time.Since(pod.CreationTimestamp.Time).Round(time.Second)
+
+		// Count ready containers
+		readyContainers := 0
+		totalContainers := len(pod.Spec.Containers)
+		for _, cs := range pod.Status.ContainerStatuses {
+			if cs.Ready {
+				readyContainers++
+			}
+		}
+
+		// Determine pod status (like kubectl)
+		status = getKubectlLikeStatus(pod)
+
+		// Get node name
+		nodeName := pod.Spec.NodeName
+		if nodeName == "" {
+			nodeName = "<none>"
+		}
+
+		// Get condition summary
+		conditions := []string{}
+		for _, cond := range pod.Status.Conditions {
+			if cond.Status == corev1.ConditionTrue {
+				conditions = append(conditions, string(cond.Type))
+			}
+		}
+		conditionStr := strings.Join(conditions, ",")
+		if conditionStr == "" {
+			conditionStr = "-"
+		}
+
+		tableData = append(tableData, []string{
+			pod.Name,
+			status,
+			fmt.Sprintf("%d/%d", readyContainers, totalContainers),
+			fmt.Sprintf("%d", getTotalRestarts(pod)),
+			age.String(),
+			nodeName,
+			conditionStr,
+		})
+	}
+
+	pterm.DefaultTable.WithHasHeader().WithData(tableData).Render()
+
+	// Also show a quick summary
+	if status != "Running" {
+		return fmt.Errorf("The pod %s is not running. Current status with reason: %s", podName, status)
+	}
+
+	return nil
+}
+
+// getKubectlLikeStatus returns status similar to kubectl get pods
+func getKubectlLikeStatus(pod corev1.Pod) string {
+	// This mimics kubectl's logic for the STATUS column
+
+	// If pod is terminating
+	if pod.DeletionTimestamp != nil && !pod.DeletionTimestamp.IsZero() {
+		return "Terminating"
+	}
+
+	// Check pod phase first
+	switch pod.Status.Phase {
+	case corev1.PodPending:
+		// Check for specific reasons in pending
+		for _, cs := range pod.Status.ContainerStatuses {
+			if cs.State.Waiting != nil {
+				return fmt.Sprintf("Pending:%s", cs.State.Waiting.Reason)
+			}
+		}
+		return "Pending"
+
+	case corev1.PodRunning:
+		// Check if all containers are ready
+		allReady := true
+		waitingReason := ""
+		for _, cs := range pod.Status.ContainerStatuses {
+			if !cs.Ready {
+				allReady = false
+				if cs.State.Waiting != nil {
+					waitingReason = cs.State.Waiting.Reason
+				}
+				break
+			}
+		}
+
+		if allReady {
+			// Check Ready condition
+			for _, cond := range pod.Status.Conditions {
+				if cond.Type == corev1.PodReady && cond.Status == corev1.ConditionTrue {
+					return "Running"
+				}
+			}
+			return "Running(NotReady)"
+		} else if waitingReason != "" {
+			return fmt.Sprintf("Running:%s", waitingReason)
+		}
+		return "Running"
+
+	case corev1.PodSucceeded:
+		return "Completed"
+
+	case corev1.PodFailed:
+		// Get termination reason
+		for _, cs := range pod.Status.ContainerStatuses {
+			if cs.State.Terminated != nil {
+				if cs.State.Terminated.Reason != "" {
+					return fmt.Sprintf("Failed:%s", cs.State.Terminated.Reason)
+				}
+				if cs.State.Terminated.ExitCode != 0 {
+					return fmt.Sprintf("Failed:ExitCode%d", cs.State.Terminated.ExitCode)
+				}
+			}
+		}
+		return "Failed"
+
+	case corev1.PodUnknown:
+		return "Unknown"
+
+	default:
+		return string(pod.Status.Phase)
+	}
+}
+
+// printPodSummary shows a quick summary of pods
+func printPodSummary(pods []corev1.Pod) {
+	statusCount := make(map[string]int)
+	readyPods := 0
+	totalPods := len(pods)
+
+	for _, pod := range pods {
+		status := getKubectlLikeStatus(pod)
+		statusCount[status]++
+
+		// Count ready pods (all containers ready and Ready condition true)
+		isReady := true
+		for _, cs := range pod.Status.ContainerStatuses {
+			if !cs.Ready {
+				isReady = false
+				break
+			}
+		}
+		if isReady {
+			for _, cond := range pod.Status.Conditions {
+				if cond.Type == corev1.PodReady && cond.Status == corev1.ConditionTrue {
+					readyPods++
+					break
+				}
+			}
+		}
+	}
+
+	// Print summary
+	fmt.Printf("   Total pods: %d\n", totalPods)
+	fmt.Printf("   Ready pods: %d\n", readyPods)
+
+	if len(statusCount) > 0 {
+		fmt.Printf("   Status breakdown:\n")
+		for status, count := range statusCount {
+			fmt.Printf("     - %s: %d\n", status, count)
 		}
 	}
 }

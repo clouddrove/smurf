@@ -63,6 +63,7 @@ func HelmProvision(releaseName, chartPath, namespace string) error {
 			true,
 			5,
 			false,
+			false,
 		)
 
 		if dryRunErr != nil {
@@ -85,6 +86,7 @@ func HelmProvision(releaseName, chartPath, namespace string) error {
 			"",            // version
 			true,
 			5,
+			false,
 			false,
 		)
 	} else {
