@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -280,6 +281,7 @@ func findAndLoadChartFromCache(chartRef string, settings *cli.EnvSettings, debug
 }
 
 // Fallback function using helm CLI directly
+// Fallback function using helm CLI directly
 func pullWithHelmCLI(chartRef string, settings *cli.EnvSettings, debug bool) (*chart.Chart, error) {
 	fmt.Printf("🔄 Using helm CLI for OCI pull...\n")
 
@@ -315,9 +317,17 @@ func pullWithHelmCLI(chartRef string, settings *cli.EnvSettings, debug bool) (*c
 		args = append(args, "--debug")
 	}
 
-	// Execute helm pull
-	cmd := exec.Command("helm", args...)
-	cmd.Env = os.Environ()
+	// Find helm binary using safe lookup
+	helmPath, err := findHelmBinary()
+	if err != nil {
+		return nil, fmt.Errorf("failed to find helm binary: %w", err)
+	}
+
+	// Execute helm pull with absolute path
+	cmd := exec.Command(helmPath, args...)
+
+	// Use safe environment
+	cmd.Env = getSafeEnvironment()
 
 	// Enable OCI experimental feature
 	cmd.Env = append(cmd.Env, "HELM_EXPERIMENTAL_OCI=1")
@@ -327,8 +337,10 @@ func pullWithHelmCLI(chartRef string, settings *cli.EnvSettings, debug bool) (*c
 		fmt.Println("🔑 Detected GHCR registry")
 		if token := os.Getenv("GITHUB_TOKEN"); token != "" {
 			fmt.Println("🔑 Using GITHUB_TOKEN for authentication")
-			// Helm should automatically use GITHUB_TOKEN for ghcr.io
 			cmd.Env = append(cmd.Env, "GITHUB_TOKEN="+token)
+		} else if token := os.Getenv("GH_TOKEN"); token != "" {
+			fmt.Println("🔑 Using GH_TOKEN for authentication")
+			cmd.Env = append(cmd.Env, "GH_TOKEN="+token)
 		}
 	}
 
@@ -372,6 +384,232 @@ func pullWithHelmCLI(chartRef string, settings *cli.EnvSettings, debug bool) (*c
 	}
 
 	return nil, fmt.Errorf("no chart file found after helm pull")
+}
+
+// findHelmBinary safely locates the helm binary
+func findHelmBinary() (string, error) {
+	// Common helm installation paths across different platforms
+	commonPaths := []string{
+		// Linux (standard installations)
+		"/usr/local/bin/helm",
+		"/usr/bin/helm",
+		"/bin/helm",
+
+		// Linux (snap installations)
+		"/snap/bin/helm",
+
+		// macOS (Homebrew standard)
+		"/usr/local/bin/helm",
+		"/opt/homebrew/bin/helm", // Apple Silicon Homebrew
+		"/usr/local/opt/helm/bin/helm",
+
+		// macOS (MacPorts)
+		"/opt/local/bin/helm",
+
+		// Common user installations
+		"/usr/local/helm/bin/helm",
+		"/opt/helm/bin/helm",
+
+		// GitHub Actions paths
+		"/home/linuxbrew/.linuxbrew/bin/helm",     // Linuxbrew on GitHub Actions
+		"/home/runner/.local/share/helm/bin/helm", // GitHub Actions runner
+	}
+
+	// First check common paths
+	for _, path := range commonPaths {
+		if stat, err := os.Stat(path); err == nil && !stat.IsDir() {
+			// Check if it's executable
+			if isExecutable(path) {
+				return path, nil
+			}
+		}
+	}
+
+	// Fallback: Try PATH but only with safe directories
+	safePathDirs := getSafePathDirectories()
+
+	// Temporarily set PATH to safe directories for lookup
+	originalPath := os.Getenv("PATH")
+	os.Setenv("PATH", strings.Join(safePathDirs, string(os.PathListSeparator)))
+	defer os.Setenv("PATH", originalPath) // Restore original PATH
+
+	// Use exec.LookPath with the safe PATH
+	if path, err := exec.LookPath("helm"); err == nil {
+		return path, nil
+	}
+
+	return "", fmt.Errorf("helm not found in common locations or safe PATH")
+}
+
+// getSafeEnvironment returns a sanitized environment
+func getSafeEnvironment() []string {
+	// Start with essential environment variables
+	env := []string{}
+
+	// Safe PATH for all platforms
+	safePath := "PATH=" + strings.Join(getSafePathDirectories(), string(os.PathListSeparator))
+	env = append(env, safePath)
+
+	// Essential variables for Unix-like systems
+	essentialVars := []string{
+		"HOME",    // Needed for ~/.config, ~/.cache
+		"USER",    // User information
+		"LOGNAME", // Unix login name
+		"SHELL",   // Shell path (sometimes used)
+		"LANG",    // Language settings
+		"LC_ALL",  // Locale settings
+		"TMPDIR",  // Temporary directory
+		"TMP",     // Temporary directory
+		"TEMP",    // Temporary directory
+		"TERM",    // Terminal type
+	}
+
+	// Copy essential variables if they exist
+	for _, key := range essentialVars {
+		if value := os.Getenv(key); value != "" {
+			env = append(env, key+"="+value)
+		}
+	}
+
+	// Copy variables that might be needed for authentication
+	// (but filter out sensitive ones we handle explicitly)
+	authRelated := []string{
+		"DOCKER_CONFIG",   // Docker config location
+		"KUBECONFIG",      // Kubernetes config
+		"XDG_CONFIG_HOME", // XDG config directory
+		"XDG_CACHE_HOME",  // XDG cache directory
+		"XDG_DATA_HOME",   // XDG data directory
+	}
+
+	for _, key := range authRelated {
+		if value := os.Getenv(key); value != "" {
+			env = append(env, key+"="+value)
+		}
+	}
+
+	// GitHub Actions specific variables
+	if os.Getenv("GITHUB_ACTIONS") == "true" {
+		githubVars := []string{
+			"GITHUB_WORKSPACE",
+			"GITHUB_SHA",
+			"GITHUB_REF",
+			"RUNNER_TEMP",
+			"RUNNER_WORKSPACE",
+		}
+		for _, key := range githubVars {
+			if value := os.Getenv(key); value != "" {
+				env = append(env, key+"="+value)
+			}
+		}
+	}
+
+	return env
+}
+
+// getSafePathDirectories returns safe, fixed directories for PATH
+func getSafePathDirectories() []string {
+	// Common safe directories for all Unix-like systems
+	commonDirs := []string{
+		// Standard Linux/Unix directories
+		"/usr/local/sbin",
+		"/usr/local/bin",
+		"/usr/sbin",
+		"/usr/bin",
+		"/sbin",
+		"/bin",
+
+		// Homebrew (macOS and Linux)
+		"/usr/local/bin",
+		"/opt/homebrew/bin",              // Apple Silicon Homebrew
+		"/home/linuxbrew/.linuxbrew/bin", // Linuxbrew
+
+		// Snap (Ubuntu/Linux)
+		"/snap/bin",
+
+		// MacPorts (macOS)
+		"/opt/local/bin",
+		"/opt/local/sbin",
+
+		// System directories
+		"/usr/local/games",
+		"/usr/games",
+	}
+
+	// Remove duplicates and filter out non-existent directories
+	seen := make(map[string]bool)
+	var result []string
+
+	for _, dir := range commonDirs {
+		if !seen[dir] {
+			seen[dir] = true
+			// Check if directory exists and is not user-writable
+			if isSafeDirectory(dir) {
+				result = append(result, dir)
+			}
+		}
+	}
+
+	// Always include at least the bare minimum
+	if len(result) == 0 {
+		result = []string{"/usr/local/bin", "/usr/bin", "/bin"}
+	}
+
+	return result
+}
+
+// isSafeDirectory checks if a directory exists and is not user-writable
+func isSafeDirectory(dir string) bool {
+	info, err := os.Stat(dir)
+	if err != nil {
+		return false
+	}
+
+	if !info.IsDir() {
+		return false
+	}
+
+	// Check if directory is writable by current user
+	// In practice, system directories like /usr/bin are not user-writable
+	// but we check anyway for extra safety
+	if runtime.GOOS != "windows" {
+		// On Unix-like systems, check if directory is world-writable
+		mode := info.Mode()
+		if mode&0002 != 0 { // World-writable bit is set
+			return false
+		}
+
+		// Check if it's in user's home directory (potentially unsafe)
+		if strings.HasPrefix(dir, os.Getenv("HOME")) {
+			return false
+		}
+
+		// Check for other potentially unsafe locations
+		unsafePrefixes := []string{"/tmp", "/var/tmp", "/dev/shm"}
+		for _, prefix := range unsafePrefixes {
+			if strings.HasPrefix(dir, prefix) {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+// isExecutable checks if a file is executable
+func isExecutable(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+
+	// Check if it's a regular file and executable
+	if runtime.GOOS != "windows" {
+		// Unix-like systems
+		return !info.IsDir() && info.Mode()&0111 != 0
+	}
+
+	// Windows: check file extension
+	return !info.IsDir() && strings.HasSuffix(strings.ToLower(path), ".exe")
 }
 
 // Helper function to copy file

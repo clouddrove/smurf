@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/clouddrove/smurf/internal/ai"
@@ -18,6 +19,7 @@ import (
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/chartutil"
 	"helm.sh/helm/v3/pkg/cli"
+	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/strvals"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -138,21 +140,38 @@ func HelmUpgrade(
 	fmt.Printf("🚀 Starting upgrade for release '%s'...\n", releaseName)
 	upgradeStartTime := time.Now()
 
-	// Run the upgrade
-	rel, err := client.Run(releaseName, chart, vals)
-	if err != nil {
-		errorMsg := err.Error()
-		if atomic && strings.Contains(errorMsg, "rolled back") {
-			fmt.Printf("\n⚠️  Upgrade failed and rollback may have issues\n")
+	var wg sync.WaitGroup
+	wg.Add(2)
 
-			// Check if rollback actually happened
-			handleInstallationSuccess(rel, namespace)
-			printFinalPodStatus(namespace, releaseName, debug)
+	var rel *release.Release
+	var relErr error
+
+	go func() {
+		// Run the upgrade
+		rel, err := client.Run(releaseName, chart, vals)
+		if err != nil {
+			errorMsg := err.Error()
+			if atomic && strings.Contains(errorMsg, "rolled back") {
+				// Check if rollback actually happened
+				handleInstallationSuccess(rel, namespace)
+				//printFinalPodStatus(namespace, releaseName, debug)
+			}
+			//printReleaseResources(namespace, releaseName)
+			printErrorSummary("Helm upgradation", releaseName, namespace, chartRef, err)
+			ai.AIExplainError(useAI, err.Error())
+			relErr = fmt.Errorf("upgrade failed: %w", err)
 		}
-		//printReleaseResources(namespace, releaseName)
-		printErrorSummary("Helm upgradation", releaseName, namespace, chartRef, err)
-		ai.AIExplainError(useAI, err.Error())
-		return fmt.Errorf("upgrade failed: %w", err)
+	}()
+
+	time.Sleep(1 * time.Second)
+	// Start second function
+	go func() {
+		defer wg.Done()
+		printFinalPodStatus(namespace, releaseName, debug)
+	}()
+
+	if relErr != nil {
+		return relErr
 	}
 
 	upgradeEndTime := time.Now()
