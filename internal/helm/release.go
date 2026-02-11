@@ -84,7 +84,7 @@ func HelmReleaseExists(releaseName, namespace string, debug, useAI bool) (bool, 
 		if debug {
 			pterm.Printf("Failed to get kube client: %v\n", err)
 		}
-		return false, nil
+return false, fmt.Errorf("failed to get kube client for fallback check: %w", err)
 	}
 
 	// Check multiple label selectors
