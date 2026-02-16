@@ -23,7 +23,7 @@ func Refresh(vars []string, varFiles []string, lock bool, dir string, useAI bool
 	applyOptions := []tfexec.RefreshCmdOption{}
 
 	// Handle variables
-	if vars != nil {
+	if len(vars) != 0 {
 		for _, v := range vars {
 			Info("Using variable: %s", v)
 			applyOptions = append(applyOptions, tfexec.Var(v))
@@ -31,7 +31,7 @@ func Refresh(vars []string, varFiles []string, lock bool, dir string, useAI bool
 	}
 
 	// Handle variable files
-	if varFiles != nil {
+	if len(varFiles) != 0 {
 		for _, vf := range varFiles {
 			Info("Using variable file: %s", vf)
 			applyOptions = append(applyOptions, tfexec.VarFile(vf))

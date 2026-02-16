@@ -1,38 +1,57 @@
 package stf
 
 import (
-	"github.com/clouddrove/smurf/internal/terraform"
 	"github.com/spf13/cobra"
 )
 
-var stateListDir string
+var (
+	stateDir          string
+	stateBackup       string
+	stateIgnoreRemote bool
+)
 
-// stateListCmd represents the command to list resources in the Terraform state
-var stateListCmd = &cobra.Command{
-	Use:          "state-list",
-	Short:        "List resources in the Terraform state",
+// stateCmd defines the parent command for Terraform state management
+var stateCmd = &cobra.Command{
+	Use:   "state",
+	Short: "Advanced state management for Terraform",
+	Long: `Manage Terraform state with various subcommands including list, show, mv, rm, 
+pull, push, and replace-provider. This command provides comprehensive state 
+management capabilities similar to 'terraform state'.`,
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		err := terraform.StateList(stateListDir, useAI)
-
-		if err != nil {
-			terraform.ErrorHandler(err)
-			return err
-		}
-
+		// If no subcommand is provided, show help
+		cmd.Help()
 		return nil
 	},
 	Example: `
     # List all resources in state
-    smurf stf state-list
-
-    # List resources in a specific directory
-    smurf stf state-list --dir=path/to/terraform/code
+    smurf stf state list
+    
+    # Show details of a specific resource
+    smurf stf state show aws_instance.web
+    
+    # Move a resource in state
+    smurf stf state mv aws_instance.old aws_instance.new
+    
+    # Remove a resource from state
+    smurf stf state rm aws_instance.web
+    
+    # Pull remote state to local
+    smurf stf state pull
+    
+    # Push local state to remote
+    smurf stf state push
+    
+    # Replace provider in state
+    smurf stf state replace-provider "registry.terraform.io/-/aws" "hashicorp/aws"
     `,
 }
 
 func init() {
-	stateListCmd.Flags().StringVar(&stateListDir, "dir", ".", "Specify the Terraform directory")
-	stateListCmd.Flags().BoolVar(&useAI, "ai", false, "To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.")
-	stfCmd.AddCommand(stateListCmd)
+	// Add common flags that apply to all state subcommands
+	stateCmd.PersistentFlags().StringVar(&stateDir, "dir", ".", "Specify the directory containing Terraform files")
+	stateCmd.PersistentFlags().StringVar(&stateBackup, "backup", "", "Path to backup the existing state file")
+	stateCmd.PersistentFlags().BoolVar(&stateIgnoreRemote, "ignore-remote", false, "Ignore remote state configuration")
+
+	stfCmd.AddCommand(stateCmd)
 }
