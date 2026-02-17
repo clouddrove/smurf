@@ -19,6 +19,7 @@ var (
 	wait                bool
 	historyMax          int
 	useAI               bool
+	forceUpgrade        bool
 )
 
 // upgradeCmd facilitates upgrading an existing Helm release or installing it if it's not present
@@ -102,6 +103,7 @@ var upgradeCmd = &cobra.Command{
 			pterm.Printf("  - Create Namespace: %t\n", createNamespace)
 			pterm.Printf("  - Install if not present: %t\n", installIfNotPresent)
 			pterm.Printf("  - Wait: %t\n", wait)
+			pterm.Printf("  - Force: %t (Helm native flag)\n", forceUpgrade)
 			pterm.Printf("  - Set values: %v\n", configs.Set)
 			pterm.Printf("  - Values files: %v\n", configs.File)
 			pterm.Printf("  - Set literal: %v\n", configs.SetLiteral)
@@ -127,7 +129,6 @@ var upgradeCmd = &cobra.Command{
 				if configs.Debug {
 					pterm.Println("Installation completed successfully")
 				}
-				pterm.Success.Println(".")
 				return nil
 			} else {
 				return fmt.Errorf("release %s not found in namespace %s. Use --install flag to install it", releaseName, configs.Namespace)
@@ -165,6 +166,7 @@ var upgradeCmd = &cobra.Command{
 			wait,
 			historyMax,
 			useAI,
+			forceUpgrade,
 		)
 		if err != nil {
 			os.Exit(1)
@@ -193,6 +195,9 @@ var upgradeCmd = &cobra.Command{
 
 			# Upgrade with all options
 			smurf selm upgrade my-release ./mychart --wait --timeout 300 --history-max 3 --atomic
+
+			# Force upgrade (Helm native behavior - forces delete/recreate)
+			smurf selm upgrade my-release ./mychart --force
 	`,
 }
 
@@ -203,9 +208,10 @@ func init() {
 	upgradeCmd.Flags().StringVarP(&configs.Namespace, "namespace", "n", "default", "Specify the namespace to install the release into")
 	upgradeCmd.Flags().BoolVar(&createNamespace, "create-namespace", false, "Create the namespace if it does not exist")
 	upgradeCmd.Flags().BoolVar(&configs.Atomic, "atomic", false, "If set, the installation process purges the chart on fail, the upgrade process rolls back changes, and the upgrade process waits for the resources to be ready")
-	upgradeCmd.Flags().IntVar(&configs.Timeout, "timeout", 150, "Time to wait for any individual Kubernetes operation (like Jobs for hooks)")
+upgradeCmd.Flags().IntVar(&configs.Timeout, "timeout", 150, "Time to wait for any individual Kubernetes operation (like Jobs for hooks)")
 	upgradeCmd.Flags().BoolVar(&configs.Debug, "debug", false, "Enable verbose output")
 	upgradeCmd.Flags().BoolVar(&installIfNotPresent, "install", false, "Install the chart if it is not already installed")
+	upgradeCmd.Flags().BoolVar(&forceUpgrade, "force", false, "Force resource updates through delete/recreate if needed")
 	upgradeCmd.Flags().StringVar(&RepoURL, "repo-url", "", "Helm repository URL")
 	upgradeCmd.Flags().StringVar(&Version, "version", "", "Helm chart version")
 	upgradeCmd.Flags().BoolVar(&configs.Wait, "wait", false, "Wait until all Pods, PVCs, Services, and minimum number of Pods of a Deployment are ready before marking success")
