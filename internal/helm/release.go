@@ -16,7 +16,7 @@ import (
 // It initializes Helm's action configuration, runs the Helm list command, and returns true if a release
 // with the given name is found in the specified namespace.
 // Helper function to check if release exists
-func HelmReleaseExists(releaseName, namespace string, debug, useAI bool) (bool, error) {
+func HelmReleaseExists(releaseName, namespace string, debug bool) (bool, error) {
 	if debug {
 		pterm.Printf("=== CHECKING RELEASE EXISTENCE ===\n")
 		pterm.Printf("Release: %s, Namespace: %s\n", releaseName, namespace)
