@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/clouddrove/smurf/internal/ai"
 	"github.com/pterm/pterm"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/cli"
@@ -16,7 +17,7 @@ import (
 // It initializes Helm's action configuration, runs the Helm list command, and returns true if a release
 // with the given name is found in the specified namespace.
 // Helper function to check if release exists
-func HelmReleaseExists(releaseName, namespace string, debug bool) (bool, error) {
+func HelmReleaseExists(releaseName, namespace string, debug bool, useAI bool) (bool, error) {
 	if debug {
 		pterm.Printf("=== CHECKING RELEASE EXISTENCE ===\n")
 		pterm.Printf("Release: %s, Namespace: %s\n", releaseName, namespace)
@@ -53,6 +54,7 @@ func HelmReleaseExists(releaseName, namespace string, debug bool) (bool, error) 
 		if debug {
 			pterm.Printf("Failed to list releases: %v\n", err)
 		}
+		ai.AIExplainError(useAI, err.Error())
 		return false, fmt.Errorf("failed to list releases: %w", err)
 	}
 
@@ -84,7 +86,8 @@ func HelmReleaseExists(releaseName, namespace string, debug bool) (bool, error) 
 		if debug {
 			pterm.Printf("Failed to get kube client: %v\n", err)
 		}
-return false, fmt.Errorf("failed to get kube client for fallback check: %w", err)
+		ai.AIExplainError(useAI, err.Error())
+		return false, fmt.Errorf("failed to get kube client for fallback check: %w", err)
 	}
 
 	// Check multiple label selectors
