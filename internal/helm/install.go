@@ -579,7 +579,7 @@ func isSafeDirectory(dir string) bool {
 		}
 
 		// Check if it's in user's home directory (potentially unsafe)
-		if strings.HasPrefix(dir, os.Getenv("HOME")) {
+if homeDir := os.Getenv("HOME"); homeDir != "" && strings.HasPrefix(dir, homeDir) {
 			return false
 		}
 
