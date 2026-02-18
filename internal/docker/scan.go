@@ -12,9 +12,9 @@ import (
 
 // Trivy runs 'trivy image' to scan a Docker image for vulnerabilities
 // and displays the results. It's a simplified version that accepts just the image name and tag.
-func Trivy(dockerImage string, timeout int, useAI bool) error {
+func Trivy(dockerImage string, useAI bool) error {
 	ctx := context.Background()
-	args := []string{"image", dockerImage, string(timeout), "--format", "table"}
+	args := []string{"image", dockerImage, "--format", "table"}
 
 	cmd := exec.CommandContext(ctx, "trivy", args...)
 	var stdoutBuf, stderrBuf bytes.Buffer

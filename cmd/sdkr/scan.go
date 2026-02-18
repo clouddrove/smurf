@@ -9,8 +9,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var timeout int
-
 // scanCmd provides functionality to scan a Docker image for known security issues.
 // It supports both direct command-line arguments and configuration file values for the image name,
 // and optionally allows saving the scan report to a specified SARIF file.
@@ -36,7 +34,7 @@ var scanCmd = &cobra.Command{
 		}
 
 		pterm.Info.Printf("Scanning Docker image %q...\n", imageRef)
-		err := docker.Trivy(imageRef, timeout, useAI)
+		err := docker.Trivy(imageRef, useAI)
 		if err != nil {
 			return err
 		}
@@ -53,6 +51,5 @@ var scanCmd = &cobra.Command{
 
 func init() {
 	scanCmd.Flags().BoolVar(&useAI, "ai", false, "To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.")
-	scanCmd.Flags().IntVar(&timeout, "timeout", 600, "timeout for docker image scan")
 	sdkrCmd.AddCommand(scanCmd)
 }
