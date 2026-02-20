@@ -21,8 +21,8 @@ var provisionGHCRCmd = &cobra.Command{
 	Long: `Build and push a Docker image to GitHub Container Registry (GHCR).
 
 Authentication:
-  - Set USERNAME_GITHUB and TOKEN_GITHUB environment variables
-  - OR define them in config file (USERNAME_GITHUB, TOKEN_GITHUB)
+  - Set GITHUB_USERNAME and GITHUB_TOKEN environment variables
+  - OR define them in config file (GITHUB_USERNAME, GITHUB_TOKEN)
   - The token must have 'write:packages' scope
 
 Image format:
@@ -42,8 +42,8 @@ Example: ghcr.io/my-org/my-app:latest`,
     --delete
 
   # Using environment variables for auth
-  export USERNAME_GITHUB="my-username"
-  export TOKEN_GITHUB="ghp_yourPersonalAccessToken"
+  export GITHUB_USERNAME="my-username"
+  export GITHUB_TOKEN="ghp_yourPersonalAccessToken"
   smurf sdkr provision-ghcr ghcr.io/my-org/my-app:latest
 
   # Read image name from config file
@@ -66,12 +66,23 @@ func init() {
 }
 
 func runProvisionGHCR(cmd *cobra.Command, args []string) error {
-	cfg, err := configs.LoadConfig(configs.FileName)
-	if err != nil {
-		return err
+	var imageRef string
+	if len(args) == 1 {
+		imageRef = args[0]
+	} else {
+		cfg, err := configs.LoadConfig(configs.FileName)
+		if err != nil {
+			return err
+		}
+		if cfg.Sdkr.ImageName == "" {
+			return errors.New("image name (with optional tag) must be provided either as an argument or in the config")
+		}
+		imageRef = resolveImageRef(args, cfg)
+		if err := ensureGHCRAuth(cfg.Sdkr.GithubUsername, cfg.Sdkr.GithubToken); err != nil {
+			return err
+		}
 	}
 
-	imageRef := resolveImageRef(args, cfg)
 	if imageRef == "" {
 		return errors.New("image reference not provided")
 	}
@@ -80,7 +91,13 @@ func runProvisionGHCR(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if err := ensureGHCRAuth(cfg); err != nil {
+	username := os.Getenv("GITHUB_USERNAME")
+	token := os.Getenv("GITHUB_TOKEN")
+	if username == "" || token == "" {
+		return errors.New("missing required GHCR credentials")
+	}
+
+	if err := ensureGHCRAuth(username, token); err != nil {
 		return err
 	}
 
@@ -137,27 +154,24 @@ func validateGHCRImage(image string) error {
 	return nil
 }
 
-func ensureGHCRAuth(cfg *configs.Config) error {
-	username := os.Getenv("USERNAME_GITHUB")
-	token := os.Getenv("TOKEN_GITHUB")
-
+func ensureGHCRAuth(username, token string) error {
 	if username == "" || token == "" {
 		envVars := map[string]string{
-			"USERNAME_GITHUB": cfg.Sdkr.GithubUsername,
-			"TOKEN_GITHUB":    cfg.Sdkr.GithubToken,
+			"GITHUB_USERNAME": os.Getenv("GITHUB_USERNAME"),
+			"GITHUB_TOKEN":    os.Getenv("GITHUB_TOKEN"),
 		}
 		if err := configs.ExportEnvironmentVariables(envVars); err != nil {
 			return err
 		}
-		username = envVars["USERNAME_GITHUB"]
-		token = envVars["TOKEN_GITHUB"]
+		username = envVars["GITHUB_USERNAME"]
+		token = envVars["GITHUB_TOKEN"]
 	}
 
 	if username == "" || token == "" {
 		pterm.Error.Println("GitHub Container Registry credentials missing.")
 		pterm.Info.Println("Set using environment variables:")
-		pterm.Info.Println("  export USERNAME_GITHUB=\"your-username\"")
-		pterm.Info.Println("  export TOKEN_GITHUB=\"your-github-personal-access-token\"")
+		pterm.Info.Println("  export GITHUB_USERNAME=\"your-username\"")
+		pterm.Info.Println("  export GITHUB_TOKEN=\"your-github-personal-access-token\"")
 		return errors.New("missing GHCR credentials")
 	}
 	return nil

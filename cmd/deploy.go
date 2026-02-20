@@ -189,10 +189,10 @@ func handleGHCRPush(cfg *configs.Config) (string, string, error) {
 		repo, tag = parts[0], parts[1]
 	}
 
-	if os.Getenv("USERNAME_GITHUB") == "" || os.Getenv("TOKEN_GITHUB") == "" {
+	if os.Getenv("GITHUB_USERNAME") == "" || os.Getenv("GITHUB_TOKEN") == "" {
 		envVars := map[string]string{
-			"USERNAME_GITHUB": cfg.Sdkr.GithubUsername,
-			"TOKEN_GITHUB":    cfg.Sdkr.GithubToken,
+			"GITHUB_USERNAME": cfg.Sdkr.GithubUsername,
+			"GITHUB_TOKEN":    cfg.Sdkr.GithubToken,
 		}
 		if err := configs.ExportEnvironmentVariables(envVars); err != nil {
 			return "", "", err

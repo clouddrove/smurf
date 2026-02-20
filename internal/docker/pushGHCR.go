@@ -23,14 +23,14 @@ func PushToGHCR(opts PushOptions, useAI bool) error {
 	defer cli.Close()
 
 	fmt.Printf("Preparing GHCR authentication...\n")
-	authStr, err := prepareAuth(os.Getenv("USERNAME_GITHUB"), os.Getenv("TOKEN_GITHUB"), "ghcr.io")
+	authStr, err := prepareAuth(os.Getenv("GITHUB_USERNAME"), os.Getenv("GITHUB_TOKEN"), "ghcr.io")
 	if err != nil {
 		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 
-	if os.Getenv("USERNAME_GITHUB") == "" || os.Getenv("TOKEN_GITHUB") == "" {
-		return fmt.Errorf("USERNAME_GITHUB and TOKEN_GITHUB environment variables are required for GHCR")
+	if os.Getenv("GITHUB_USERNAME") == "" || os.Getenv("GITHUB_TOKEN") == "" {
+		return fmt.Errorf("GITHUB_USERNAME and GITHUB_TOKEN environment variables are required for GHCR")
 	}
 
 	err = pushImage(cli, ctx, opts.ImageName, authStr)
