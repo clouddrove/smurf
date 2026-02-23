@@ -21,6 +21,8 @@ import (
 	"helm.sh/helm/v3/pkg/repo"
 )
 
+var oci string = "oci://"
+
 // HelmInstall handles chart installation with three possible sources:
 // 1. Remote repository URL (e.g., "https://prometheus-community.github.io/helm-charts")
 // 2. Local repository reference (e.g., "prometheus-community/prometheus")
@@ -110,7 +112,7 @@ func HelmInstall(
 // LoadChart determines the chart source and loads it appropriately
 func LoadChart(chartRef, repoURL, version string, settings *cli.EnvSettings) (*chart.Chart, error) {
 	// Check if it's an OCI registry reference
-	if strings.HasPrefix(chartRef, "oci://") {
+	if strings.HasPrefix(chartRef, oci) {
 		fmt.Printf("🐳 Loading OCI chart from registry...\n")
 		return LoadOCIChart(chartRef, version, settings, false) // You might want to make debug configurable
 	}
@@ -222,7 +224,7 @@ func findAndLoadChartFromCache(chartRef string, settings *cli.EnvSettings, debug
 	}
 
 	// Extract chart name from OCI reference
-	ref := strings.TrimPrefix(chartRef, "oci://")
+	ref := strings.TrimPrefix(chartRef, oci)
 	baseName := filepath.Base(ref)
 
 	// Remove tag if present
@@ -306,7 +308,7 @@ func pullWithHelmCLI(chartRef string, settings *cli.EnvSettings, debug bool) (*c
 		fmt.Printf("📦 Chart reference includes version/tag\n")
 	} else {
 		// Parse version from chartRef or use default
-		ref := strings.TrimPrefix(chartRef, "oci://")
+		ref := strings.TrimPrefix(chartRef, oci)
 		if idx := strings.LastIndex(ref, ":"); idx != -1 {
 			version := ref[idx+1:]
 			args = append(args, "--version", version)
@@ -508,18 +510,19 @@ func getSafeEnvironment() []string {
 
 // getSafePathDirectories returns safe, fixed directories for PATH
 func getSafePathDirectories() []string {
+	var userlocalbin string = "/usr/local/bin"
 	// Common safe directories for all Unix-like systems
 	commonDirs := []string{
 		// Standard Linux/Unix directories
 		"/usr/local/sbin",
-		"/usr/local/bin",
+		userlocalbin,
 		"/usr/sbin",
 		"/usr/bin",
 		"/sbin",
 		"/bin",
 
 		// Homebrew (macOS and Linux)
-		"/usr/local/bin",
+		userlocalbin,
 		"/opt/homebrew/bin",              // Apple Silicon Homebrew
 		"/home/linuxbrew/.linuxbrew/bin", // Linuxbrew
 
@@ -551,7 +554,7 @@ func getSafePathDirectories() []string {
 
 	// Always include at least the bare minimum
 	if len(result) == 0 {
-		result = []string{"/usr/local/bin", "/usr/bin", "/bin"}
+		result = []string{userlocalbin, "/usr/bin", "/bin"}
 	}
 
 	return result

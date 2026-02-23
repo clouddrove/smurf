@@ -102,7 +102,7 @@ func getPodFailureReason(clientset *kubernetes.Clientset, pod *corev1.Pod) strin
 	// Check container statuses first
 	for _, status := range pod.Status.ContainerStatuses {
 		if status.State.Waiting != nil {
-			return fmt.Sprintf("%s: %s", status.State.Waiting.Reason, status.State.Waiting.Message)
+			return stringFormat(status.State.Waiting.Reason, status.State.Waiting.Message)
 		}
 		if status.State.Terminated != nil {
 			return fmt.Sprintf("%s: exit code %d - %s", status.State.Terminated.Reason, status.State.Terminated.ExitCode, status.State.Terminated.Message)
@@ -116,10 +116,14 @@ func getPodFailureReason(clientset *kubernetes.Clientset, pod *corev1.Pod) strin
 	if err == nil && len(events.Items) > 0 {
 		// Get the most recent event
 		latestEvent := events.Items[len(events.Items)-1]
-		return fmt.Sprintf("%s: %s", latestEvent.Reason, latestEvent.Message)
+		return stringFormat(latestEvent.Reason, latestEvent.Message)
 	}
 
 	return string(pod.Status.Phase)
+}
+
+func stringFormat(s1, s2 string) string {
+	return fmt.Sprintf("%s: %s", s1, s2)
 }
 
 // isPodInFailureState checks if a pod is in a failure state that won't recover
@@ -1017,7 +1021,7 @@ func getPodReadyStatus(pod *corev1.Pod) string {
 		for _, cs := range pod.Status.ContainerStatuses {
 			if !cs.Ready {
 				if cs.State.Waiting != nil {
-					containerStatuses = append(containerStatuses, fmt.Sprintf("%s: %s", cs.Name, cs.State.Waiting.Reason))
+					containerStatuses = append(containerStatuses, stringFormat(cs.Name, cs.State.Waiting.Reason))
 				} else if cs.State.Terminated != nil {
 					containerStatuses = append(containerStatuses, fmt.Sprintf("%s: %s (exit %d)", cs.Name, cs.State.Terminated.Reason, cs.State.Terminated.ExitCode))
 				} else {

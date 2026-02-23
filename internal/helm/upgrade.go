@@ -24,6 +24,12 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
+var timeFormat string = "15:04:05"
+var dateTimeFormat string = "2006-01-02 15:04:05"
+var appKubernets string = "app.kubernetes.io/instance=%s"
+var kubErrorMgs string = "failed to get kube client: %w"
+var none string = "<none>"
+
 // HelmUpgrade performs a Helm upgrade operation with repo + local support
 func HelmUpgrade(
 	releaseName, chartRef, namespace string,
@@ -39,7 +45,7 @@ func HelmUpgrade(
 
 	if debug {
 		pterm.Println("=== HELM UPGRADE STARTED ===")
-		pterm.Printf("Start time: %s\n", startTime.Format("15:04:05"))
+		pterm.Printf("Start time: %s\n", startTime.Format(timeFormat))
 		pterm.Printf("Release: %s\n", releaseName)
 		pterm.Printf("Chart: %s\n", chartRef)
 		pterm.Printf("Namespace: %s\n", namespace)
@@ -432,7 +438,7 @@ func getPods(namespace, releaseName string) ([]corev1.Pod, error) {
 	}
 
 	podList, err := clientset.CoreV1().Pods(namespace).List(context.Background(), metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("app.kubernetes.io/instance=%s", releaseName),
+		LabelSelector: fmt.Sprintf(appKubernets, releaseName),
 	})
 	if err != nil {
 		return nil, err
@@ -451,7 +457,7 @@ func verifyFinalReadiness(namespace, releaseName string, timeout time.Duration, 
 
 	clientset, err := getKubeClient()
 	if err != nil {
-		return fmt.Errorf("failed to get kube client: %w", err)
+		return fmt.Errorf(kubErrorMgs, err)
 	}
 
 	for attempt := 1; ; attempt++ {
@@ -524,7 +530,7 @@ func verifyFinalReadiness(namespace, releaseName string, timeout time.Duration, 
 }
 
 func checkWorkloadReadiness(clientset *kubernetes.Clientset, namespace, releaseName string, debug bool) (bool, string, error) {
-	labelSelector := fmt.Sprintf("app.kubernetes.io/instance=%s", releaseName)
+	labelSelector := fmt.Sprintf(appKubernets, releaseName)
 
 	// Check Deployments
 	deployments, err := clientset.AppsV1().Deployments(namespace).List(context.Background(), metav1.ListOptions{
@@ -644,7 +650,7 @@ func printPodDetails(pod corev1.Pod) {
 				pterm.Println("    State: Waiting, Reason:", cs.State.Waiting.Reason)
 				pterm.Println("    Message:", cs.State.Waiting.Message)
 			} else if cs.State.Running != nil {
-				pterm.Println("    State: Running, Started:", cs.State.Running.StartedAt.Format("2006-01-02 15:04:05"))
+				pterm.Println("    State: Running, Started:", cs.State.Running.StartedAt.Format(dateTimeFormat))
 			} else if cs.State.Terminated != nil {
 				pterm.Error.Println("    State: Terminated, Reason:", cs.State.Terminated.Reason)
 				pterm.Println("    Exit Code:", cs.State.Terminated.ExitCode)
@@ -659,31 +665,6 @@ func printPodDetails(pod corev1.Pod) {
 	} else if pod.Status.Phase == corev1.PodRunning {
 		pterm.Warning.Println("⚠️ Pod is Running but not Ready")
 	}
-}
-
-// printCurrentPodStatus shows pods during upgrade and monitors for pending pods
-func printCurrentPodStatus(namespace, releaseName string, debug bool, monitorChanges bool) error {
-	clientset, err := getKubeClient()
-	if err != nil {
-		return fmt.Errorf("failed to get kube client: %w", err)
-	}
-
-	// Get initial state of pods
-	initialPods, err := clientset.CoreV1().Pods(namespace).List(context.Background(), metav1.ListOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to list pods: %w", err)
-	}
-
-	// Show current state with timestamp
-	fmt.Printf("\n⏰ Checking pod status at %s\n", time.Now().Format("15:04:05"))
-	showPodState("Current Pod State", initialPods.Items, releaseName, debug)
-
-	// If monitoring changes, watch for new pods
-	if monitorChanges {
-		return watchForNewPods(clientset, namespace, releaseName, initialPods, debug)
-	}
-
-	return nil
 }
 
 // Watch for new pods during upgrade
@@ -878,7 +859,7 @@ func printPodTableDetailed(pods []corev1.Pod, debug bool) {
 
 		nodeName := pod.Spec.NodeName
 		if nodeName == "" {
-			nodeName = "<none>"
+			nodeName = none
 		}
 
 		message := getPodStatusMessage(pod)
@@ -1111,9 +1092,9 @@ func describePod(clientset *kubernetes.Clientset, pod corev1.Pod, namespace stri
 			if cond.Status == corev1.ConditionTrue {
 				status = "True"
 			}
-			lastProbeTime := cond.LastProbeTime.Format("2006-01-02 15:04:05")
+			lastProbeTime := cond.LastProbeTime.Format(dateTimeFormat)
 			if cond.LastProbeTime.IsZero() {
-				lastProbeTime = "<none>"
+				lastProbeTime = none
 			}
 			fmt.Printf("  %-17s %-7s %-27s %-21s %s\n",
 				cond.Type,
@@ -1127,6 +1108,7 @@ func describePod(clientset *kubernetes.Clientset, pod corev1.Pod, namespace stri
 	// Container Statuses
 	if len(pod.Status.ContainerStatuses) > 0 {
 		fmt.Println("\nContainers:")
+		var reason string = "      Reason:      %s\n"
 		for i, cs := range pod.Status.ContainerStatuses {
 			fmt.Printf("  Container %d: %s\n", i+1, cs.Name)
 			fmt.Printf("    Container ID:  %s\n", cs.ContainerID)
@@ -1138,25 +1120,25 @@ func describePod(clientset *kubernetes.Clientset, pod corev1.Pod, namespace stri
 			// State
 			if cs.State.Waiting != nil {
 				fmt.Printf("    State:         Waiting\n")
-				fmt.Printf("      Reason:      %s\n", cs.State.Waiting.Reason)
+				fmt.Printf(reason, cs.State.Waiting.Reason)
 				fmt.Printf("      Message:     %s\n", cs.State.Waiting.Message)
 			} else if cs.State.Running != nil {
 				fmt.Printf("    State:         Running\n")
-				fmt.Printf("      Started:     %s\n", cs.State.Running.StartedAt.Format("2006-01-02 15:04:05"))
+				fmt.Printf("      Started:     %s\n", cs.State.Running.StartedAt.Format(dateTimeFormat))
 			} else if cs.State.Terminated != nil {
 				fmt.Printf("    State:         Terminated\n")
 				fmt.Printf("      Exit Code:   %d\n", cs.State.Terminated.ExitCode)
-				fmt.Printf("      Reason:      %s\n", cs.State.Terminated.Reason)
+				fmt.Printf(reason, cs.State.Terminated.Reason)
 				fmt.Printf("      Message:     %s\n", cs.State.Terminated.Message)
-				fmt.Printf("      Started:     %s\n", cs.State.Terminated.StartedAt.Format("2006-01-02 15:04:05"))
-				fmt.Printf("      Finished:    %s\n", cs.State.Terminated.FinishedAt.Format("2006-01-02 15:04:05"))
+				fmt.Printf("      Started:     %s\n", cs.State.Terminated.StartedAt.Format(dateTimeFormat))
+				fmt.Printf("      Finished:    %s\n", cs.State.Terminated.FinishedAt.Format(dateTimeFormat))
 			}
 
 			// Last State (if any)
 			if cs.LastTerminationState.Terminated != nil {
 				fmt.Printf("    Last State:    Terminated\n")
 				fmt.Printf("      Exit Code:   %d\n", cs.LastTerminationState.Terminated.ExitCode)
-				fmt.Printf("      Reason:      %s\n", cs.LastTerminationState.Terminated.Reason)
+				fmt.Printf(reason, cs.LastTerminationState.Terminated.Reason)
 			}
 			fmt.Println()
 		}
@@ -1227,7 +1209,7 @@ func showPodStuckDetails(clientset *kubernetes.Clientset, pod corev1.Pod, namesp
 			}
 			pterm.Printf("    %s [%s] %s: %s\n",
 				icon,
-				event.LastTimestamp.Format("15:04:05"),
+				event.LastTimestamp.Format(timeFormat),
 				event.Reason,
 				event.Message)
 		}
@@ -1342,12 +1324,12 @@ func showPodState(title string, pods []corev1.Pod, releaseName string, debug boo
 func printFinalPodStatus(namespace, releaseName string, debug bool) error {
 	clientset, err := getKubeClient()
 	if err != nil {
-		return fmt.Errorf("failed to get kube client: %w", err)
+		return fmt.Errorf(kubErrorMgs, err)
 	}
 
 	// Get pods with the release label
 	podList, err := clientset.CoreV1().Pods(namespace).List(context.Background(), metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("app.kubernetes.io/instance=%s", releaseName),
+		LabelSelector: fmt.Sprintf(appKubernets, releaseName),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to list pods: %w", err)
@@ -1388,7 +1370,7 @@ func printFinalPodStatus(namespace, releaseName string, debug bool) error {
 		// Get node name
 		nodeName := pod.Spec.NodeName
 		if nodeName == "" {
-			nodeName = "<none>"
+			nodeName = none
 		}
 
 		// Get condition summary

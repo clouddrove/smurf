@@ -121,7 +121,7 @@ func (a *AuthProvider) VerifyGCloudAuth() error {
 	}
 
 	for _, method := range authMethods {
-		if err := method.fn(ctx); err == nil {
+		if method.fn(ctx) == nil {
 			a.logger.logSuccess(fmt.Sprintf("Authentication verified via %s", method.name))
 			return nil
 		}

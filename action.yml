@@ -35,23 +35,37 @@ runs:
     - name: Get correct version format
       shell: bash
       id: version
+      env:
+        INPUT_VERSION: ${{ inputs.version }}
       run: |
-        if [ "${{ inputs.version }}" = "latest" ]; then
+        set -euo pipefail
+
+        if [ "$INPUT_VERSION" = "latest" ]; then
           # Get latest tag
           LATEST_TAG=$(curl -s https://api.github.com/repos/clouddrove/smurf/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-          echo "tag=${LATEST_TAG}" >> $GITHUB_OUTPUT
+          echo "tag=${LATEST_TAG}" >> "$GITHUB_OUTPUT"
         else
-          # Use the provided version as-is (it already includes 'v')
-          echo "tag=${{ inputs.version }}" >> $GITHUB_OUTPUT
+          # Validate version format (must start with v and contain only safe chars)
+          if [[ ! "$INPUT_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "❌ Invalid version format. Expected format: vX.Y.Z"
+            exit 1
+          fi
+
+          echo "tag=$INPUT_VERSION" >> "$GITHUB_OUTPUT"
         fi
 
     - name: Download and Install Smurf
       shell: bash
+      env:
+        VERSION: ${{ steps.version.outputs.tag }}
+        OS: ${{ steps.platform.outputs.os }}
+        ARCH: ${{ steps.platform.outputs.arch }}
       run: |
-        echo "📦 Installing smurf ${{ steps.version.outputs.tag }} for ${{ steps.platform.outputs.os }}/${{ steps.platform.outputs.arch }}..."
+        set -euo pipefail
+        echo "📦 Installing smurf $VERSION for $OS/$ARCH..."
         
         # CORRECT URL: Includes 'v' in both path and filename
-        URL="https://github.com/clouddrove/smurf/releases/download/${{ steps.version.outputs.tag }}/smurf-${{ steps.version.outputs.tag }}-${{ steps.platform.outputs.os }}-${{ steps.platform.outputs.arch }}.tar.gz"
+        URL="https://github.com/clouddrove/smurf/releases/download/${VERSION}/smurf-${VERSION}-${OS}-${ARCH}.tar.gz"
         
         echo "Downloading from: $URL"
         

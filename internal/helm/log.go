@@ -27,6 +27,8 @@ const (
 	ColorItalic = "\033[3m"
 )
 
+var appKube string = "app.kubernetes.io/instance="
+
 // getPodStatusColor returns color based on pod status
 func getPodStatusColor(status string) string {
 	switch status {
@@ -92,7 +94,7 @@ func printReleaseResources(namespace, release string) {
 
 	// --- Deployments ---
 	deploys, _ := clientset.AppsV1().Deployments(namespace).List(ctx, metav1.ListOptions{
-		LabelSelector: "app.kubernetes.io/instance=" + release,
+		LabelSelector: appKube + release,
 	})
 	for _, dep := range deploys.Items {
 		deployColor := getResourceColor("deployment")
@@ -161,7 +163,7 @@ func printReleaseResources(namespace, release string) {
 
 	// --- Services ---
 	services, _ := clientset.CoreV1().Services(namespace).List(ctx, metav1.ListOptions{
-		LabelSelector: "app.kubernetes.io/instance=" + release,
+		LabelSelector: appKube + release,
 	})
 	for _, svc := range services.Items {
 		serviceColor := getResourceColor("service")
@@ -170,7 +172,7 @@ func printReleaseResources(namespace, release string) {
 
 	// --- ConfigMaps ---
 	configMaps, _ := clientset.CoreV1().ConfigMaps(namespace).List(ctx, metav1.ListOptions{
-		LabelSelector: "app.kubernetes.io/instance=" + release,
+		LabelSelector: appKube + release,
 	})
 	for _, cm := range configMaps.Items {
 		cmColor := getResourceColor("configmap")
@@ -179,7 +181,7 @@ func printReleaseResources(namespace, release string) {
 
 	// --- Ingresses ---
 	ingresses, _ := clientset.NetworkingV1().Ingresses(namespace).List(ctx, metav1.ListOptions{
-		LabelSelector: "app.kubernetes.io/instance=" + release,
+		LabelSelector: appKube + release,
 	})
 	for _, ing := range ingresses.Items {
 		ingressColor := getResourceColor("ingress")
