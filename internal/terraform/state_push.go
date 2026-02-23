@@ -12,6 +12,64 @@ import (
 	"github.com/clouddrove/smurf/internal/ai"
 )
 
+// terraformCommand returns the terraform command with secure PATH
+func terraformCommand() string {
+	// Try to find terraform in secure locations first
+	securePaths := []string{
+		"/usr/bin/terraform",
+		"/usr/local/bin/terraform",
+		"/opt/homebrew/bin/terraform", // for macOS
+	}
+
+	for _, path := range securePaths {
+		if _, err := os.Stat(path); err == nil {
+			return path
+		}
+	}
+
+	// Fallback to "terraform" if not found in secure locations
+	// but we'll use a sanitized PATH
+	return "terraform"
+}
+
+// createSecureCommand creates an exec.Cmd with a secure environment
+func createSecureCommand(dir string, args ...string) *exec.Cmd {
+	cmd := exec.Command(terraformCommand(), args...)
+	cmd.Dir = dir
+
+	// Create a clean environment with sanitized PATH
+	cleanEnv := []string{
+		// Only include essential, fixed paths
+		"PATH=/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin",
+		// Preserve other essential environment variables but filter PATH
+	}
+
+	// Copy existing environment but filter out unsafe PATH entries
+	for _, env := range os.Environ() {
+		if !strings.HasPrefix(env, "PATH=") {
+			cleanEnv = append(cleanEnv, env)
+		}
+	}
+
+	cmd.Env = cleanEnv
+	return cmd
+}
+
+// runTerraformCommand executes a terraform command and returns output
+func runTerraformCommand(dir string, args ...string) ([]byte, error) {
+	cmd := createSecureCommand(dir, args...)
+	return cmd.Output()
+}
+
+// runTerraformCommandWithOutput executes a terraform command with real-time output
+func runTerraformCommandWithOutput(dir string, args ...string) error {
+	cmd := createSecureCommand(dir, args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+	return cmd.Run()
+}
+
 // StatePush pushes local state to remote backend
 func StatePush(dir string, force, backup, lock bool, lockTimeout string, useAI bool) error {
 	// Validate directory exists
@@ -134,23 +192,6 @@ func getBasicStateInfoFromData(data []byte) (map[string]string, error) {
 	info["resources"] = fmt.Sprintf("%d", resourceCount)
 
 	return info, nil
-}
-
-// runTerraformCommand executes a terraform command and returns output
-func runTerraformCommand(dir string, args ...string) ([]byte, error) {
-	cmd := exec.Command("terraform", args...)
-	cmd.Dir = dir
-	return cmd.Output()
-}
-
-// runTerraformCommandWithOutput executes a terraform command with real-time output
-func runTerraformCommandWithOutput(dir string, args ...string) error {
-	cmd := exec.Command("terraform", args...)
-	cmd.Dir = dir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
-	return cmd.Run()
 }
 
 // confirmAction prompts user for confirmation

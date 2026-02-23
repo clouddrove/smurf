@@ -3,7 +3,6 @@ package terraform
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -69,8 +68,7 @@ func StateRm(dir string, addresses []string, backup bool, useAI bool) error {
 
 // removeResource executes the terraform state rm command for a single resource
 func removeResource(workingDir, address string) error {
-	cmd := exec.Command("terraform", "state", "rm", address)
-	cmd.Dir = workingDir
+	cmd := createSecureCommand(workingDir, "state", "rm", address)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
@@ -85,8 +83,7 @@ func removeResource(workingDir, address string) error {
 // listCurrentResources shows current resources in state for verification
 func listCurrentResources(dir string) error {
 	// Use terraform state list to show current resources
-	cmd := exec.Command("terraform", "state", "list")
-	cmd.Dir = dir
+	cmd := createSecureCommand(dir, "state", "list")
 
 	output, err := cmd.Output()
 	if err != nil {
