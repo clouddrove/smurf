@@ -66,7 +66,7 @@ func StatePull(dir string, useAI bool) error {
 		return fmt.Errorf("state pull failed: %v", err)
 	}
 
-	if err := prettyPrintJSON(state); err != nil {
+	if prettyPrintJSON(state) != nil {
 		fmt.Println(string(state))
 	}
 
@@ -117,7 +117,7 @@ func checkBackendConfiguration(dir string) error {
 	cmd.Dir = dir
 	cmd.Env = secureEnv()
 
-	if err := cmd.Run(); err != nil {
+	if cmd.Run() != nil {
 		return fmt.Errorf("backend initialization check failed")
 	}
 
