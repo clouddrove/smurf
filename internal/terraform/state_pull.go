@@ -12,9 +12,38 @@ import (
 	"github.com/clouddrove/smurf/internal/ai"
 )
 
+// resolveTerraformBinary resolves and validates terraform binary securely.
+// This prevents PATH injection (CWE-426 / SonarQube warning).
+func resolveTerraformBinary() (string, error) {
+	terraformPath, err := exec.LookPath("terraform")
+	if err != nil {
+		return "", fmt.Errorf("terraform binary not found in PATH")
+	}
+
+	info, err := os.Stat(terraformPath)
+	if err != nil {
+		return "", fmt.Errorf("unable to stat terraform binary: %v", err)
+	}
+
+	// Ensure binary is not world-writable
+	if info.Mode().Perm()&0022 != 0 {
+		return "", fmt.Errorf("terraform binary is writable; insecure PATH configuration")
+	}
+
+	return terraformPath, nil
+}
+
+// secureEnv returns restricted environment with fixed PATH.
+func secureEnv() []string {
+	return []string{
+		"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/bin",
+	}
+}
+
 // StatePull fetches and displays the current remote Terraform state
 func StatePull(dir string, useAI bool) error {
-	// Initialize Terraform (to validate the directory)
+
+	// Validate terraform directory
 	_, err := GetTerraform(dir)
 	if err != nil {
 		Error("Failed to initialize Terraform: %v", err)
@@ -22,13 +51,12 @@ func StatePull(dir string, useAI bool) error {
 		return err
 	}
 
-	// Check if backend is configured
+	// Check backend configuration
 	if err := checkBackendConfiguration(dir); err != nil {
 		Warn("No remote backend configured or unable to check: %v", err)
 		Info("Attempting to pull state anyway...")
 	}
 
-	// Pull the remote state
 	Info("Pulling remote state from: %s", filepath.Base(dir))
 
 	state, err := pullRemoteState(dir)
@@ -38,9 +66,7 @@ func StatePull(dir string, useAI bool) error {
 		return fmt.Errorf("state pull failed: %v", err)
 	}
 
-	// Pretty print the JSON
 	if err := prettyPrintJSON(state); err != nil {
-		// If pretty printing fails, just output raw
 		fmt.Println(string(state))
 	}
 
@@ -48,19 +74,24 @@ func StatePull(dir string, useAI bool) error {
 	return nil
 }
 
-// pullRemoteState executes terraform state pull command
+// pullRemoteState executes terraform state pull securely
 func pullRemoteState(workingDir string) ([]byte, error) {
-	cmd := exec.Command("terraform", "state", "pull")
-	cmd.Dir = workingDir
 
-	// Capture stdout and stderr separately
+	terraformPath, err := resolveTerraformBinary()
+	if err != nil {
+		return nil, err
+	}
+
+	cmd := exec.Command(terraformPath, "state", "pull")
+	cmd.Dir = workingDir
+	cmd.Env = secureEnv()
+
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
-	err := cmd.Run()
+	err = cmd.Run()
 	if err != nil {
-		// Include stderr in error message for debugging
 		if stderr.Len() > 0 {
 			return nil, fmt.Errorf("%v: %s", err, stderr.String())
 		}
@@ -76,15 +107,20 @@ func pullRemoteState(workingDir string) ([]byte, error) {
 
 // checkBackendConfiguration verifies if a remote backend is configured
 func checkBackendConfiguration(dir string) error {
-	// Run terraform init to ensure backend is initialized
-	cmd := exec.Command("terraform", "init", "-backend=true", "-get=false")
+
+	terraformPath, err := resolveTerraformBinary()
+	if err != nil {
+		return err
+	}
+
+	cmd := exec.Command(terraformPath, "init", "-backend=true", "-get=false")
 	cmd.Dir = dir
+	cmd.Env = secureEnv()
 
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("backend initialization check failed")
 	}
 
-	// Check if backend is configured by looking at .terraform directory
 	terraformDir := filepath.Join(dir, ".terraform")
 	if _, err := os.Stat(terraformDir); os.IsNotExist(err) {
 		return fmt.Errorf("terraform directory not found, run 'terraform init' first")
@@ -97,19 +133,17 @@ func checkBackendConfiguration(dir string) error {
 func prettyPrintJSON(data []byte) error {
 	var prettyJSON bytes.Buffer
 
-	// Try to parse and prettify
 	err := json.Indent(&prettyJSON, data, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to format JSON: %v", err)
 	}
 
-	// Write to stdout
 	_, err = prettyJSON.WriteTo(os.Stdout)
 	if err != nil {
 		return fmt.Errorf("failed to write output: %v", err)
 	}
 
-	fmt.Println() // Add newline at the end
+	fmt.Println()
 	return nil
 }
 
@@ -117,7 +151,6 @@ func prettyPrintJSON(data []byte) error {
 func formatPullErrorMessage(err error) string {
 	errMsg := err.Error()
 
-	// Common error patterns
 	switch {
 	case strings.Contains(errMsg, "no state file"):
 		return "No remote state found. This could mean:\n" +
@@ -128,7 +161,7 @@ func formatPullErrorMessage(err error) string {
 	case strings.Contains(errMsg, "access denied") || strings.Contains(errMsg, "permission denied"):
 		return "Permission denied accessing remote state. Check:\n" +
 			"  • Your AWS/GCP/Azure credentials are properly configured\n" +
-			"  • You have read access to the backend (S3 bucket, GCS bucket, etc.)\n" +
+			"  • You have read access to the backend\n" +
 			"  • The backend configuration is correct"
 
 	case strings.Contains(errMsg, "context deadline exceeded") || strings.Contains(errMsg, "timeout"):
@@ -145,15 +178,16 @@ func formatPullErrorMessage(err error) string {
 	default:
 		return fmt.Sprintf("Failed to pull remote state: %v\n\n"+
 			"Troubleshooting steps:\n"+
-			"  1. Run 'terraform init' to initialize the backend\n"+
-			"  2. Verify your backend configuration in terraform files\n"+
-			"  3. Check your cloud provider credentials\n"+
-			"  4. Ensure you have network access to the backend", err)
+			"  1. Run 'terraform init'\n"+
+			"  2. Verify backend configuration\n"+
+			"  3. Check cloud provider credentials\n"+
+			"  4. Ensure network access to backend", err)
 	}
 }
 
-// StatePullToFile is an additional helper function to save state to a file
+// StatePullToFile saves state to a file securely
 func StatePullToFile(dir, outputFile string, useAI bool) error {
+
 	state, err := pullRemoteState(dir)
 	if err != nil {
 		Error("Failed to pull remote state: %v", err)
@@ -161,14 +195,12 @@ func StatePullToFile(dir, outputFile string, useAI bool) error {
 		return err
 	}
 
-	// Format JSON
 	var prettyJSON bytes.Buffer
 	err = json.Indent(&prettyJSON, state, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to format JSON: %v", err)
 	}
 
-	// Write to file
 	err = os.WriteFile(outputFile, prettyJSON.Bytes(), 0644)
 	if err != nil {
 		return fmt.Errorf("failed to write state file: %v", err)
