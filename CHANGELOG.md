@@ -4,13 +4,54 @@ All notable and important changes to **Smurf Tool** are documented here.
 
 ---
 
+## [v1.0.0] — 2026-01-20
+### Added
+- Add missing Smurf STF commands:
+   - `smurf stf state rm`
+   - `smurf stf state pull`
+   - `smurf stf state push`
+   - `smurf stf import`
+
+### Fixed
+- Update deploy command
+- Update `smurf selm install` command
+- Update kubernetes function for error handling
+
+---
+
+## [v0.1.3] — 2026-01-20
+### Added
+- Add Timeout Support to Terraform Format Command
+
+---
+
+## [v0.1.2] — 2026-01-20
+### Added
+- Added Multi-Threading Support to `smurf selm upgrade`
+
+### Fixed
+- Fix OCI Chart Loading in GitHub Actions
+
+---
+
+## [v0.1.0] — 2025-12-15
+### Added
+- Add smurf sdkr for google cloud platform(GCP)
+- Add history max flag for `smurf selm`
+
+### Fixed
+- update smurf terraform provision command
+- smurf stf plan `--out` flag update
+
+---
+
 ## [v0.0.9] — 2025-11-26
 ### Added
 - Add smurf sdkr for google cloud platform(GCP)
 - Add history max flag for smurf selm
 - Add GHCR repo feature
 - Add `smurf deploy` command
-- add smurf selm init command
+- Add smurf selm init command
 
 ### Fixed
 - Update `smurf stf format` command
