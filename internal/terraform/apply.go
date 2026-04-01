@@ -11,7 +11,8 @@ import (
 	"github.com/hashicorp/terraform-exec/tfexec"
 )
 
-// Apply executes 'apply' to apply the planned changes.
+// Apply executes 'apply' to apply the planned changes without a plan file.
+// This function will show a confirmation prompt unless autoApprove is true.
 func Apply(approve bool, vars []string,
 	varFiles []string, lock bool,
 	dir string, targets []string,
@@ -92,7 +93,7 @@ func Apply(approve bool, vars []string,
 		Writer: os.Stdout,
 	}
 
-	// NEW: Colorize the "No changes" message if present
+	// Colorize the "No changes" message if present
 	planStr := string(planDetail)
 	if strings.Contains(planStr, "No changes.") {
 		// Find and colorize the "No changes" section
@@ -157,6 +158,130 @@ func Apply(approve bool, vars []string,
 	if len(targets) > 0 {
 		for _, target := range targets {
 			applyOpts = append(applyOpts, tfexec.Target(target))
+		}
+	}
+
+	err = tf.Apply(context.Background(), applyOpts...)
+	if err != nil {
+		Error("Terraform apply failed: %v", err)
+		ai.AIExplainError(useAI, err.Error())
+		return err
+	}
+
+	Success("Terraform changes applied successfully.")
+
+	// Summarize resource changes
+	added, changed, destroyed := 0, 0, 0
+
+	for _, resource := range show.ResourceChanges {
+		for _, action := range resource.Change.Actions {
+			switch strings.ToUpper(string(action)) {
+			case "CREATE":
+				added++
+			case "UPDATE":
+				changed++
+			case "DELETE":
+				destroyed++
+			}
+		}
+	}
+
+	Success("Apply complete! Resources: %d added, %d changed, %d destroyed", added, changed, destroyed)
+	return nil
+}
+
+// ApplyWithPlan executes 'apply' using a pre-generated plan file.
+// This function automatically skips the approval prompt since the plan was already approved.
+func ApplyWithPlan(planFile string, vars []string,
+	varFiles []string, lock bool,
+	dir string, targets []string,
+	state string, useAI bool) error {
+	Step("Initializing Terraform client...")
+	tf, err := GetTerraform(dir)
+	if err != nil {
+		Error("Failed to initialize Terraform client: %v", err)
+		ai.AIExplainError(useAI, err.Error())
+		return err
+	}
+
+	// Check if plan file exists
+	if _, err := os.Stat(planFile); os.IsNotExist(err) {
+		Error("Plan file not found: %s", planFile)
+		return fmt.Errorf("plan file not found: %s", planFile)
+	}
+
+	Info("Applying plan from file: %s", planFile)
+
+	// Show plan details
+	Step("Showing plan details...")
+	planDetail, err := tf.ShowPlanFileRaw(context.Background(), planFile)
+	if err != nil {
+		Error("Failed to read plan details: %v", err)
+		ai.AIExplainError(useAI, err.Error())
+		return err
+	}
+
+	var outputBuffer bytes.Buffer
+	customWriter := &CustomColorWriter{
+		Buffer: &outputBuffer,
+		Writer: os.Stdout,
+	}
+	customWriter.Write([]byte(planDetail))
+
+	show, err := tf.ShowPlanFile(context.Background(), planFile)
+	if err != nil {
+		Error("Failed to parse plan file: %v", err)
+		ai.AIExplainError(useAI, err.Error())
+		return err
+	}
+
+	if len(show.ResourceChanges) == 0 {
+		Warn("No changes to apply. Everything is up to date.")
+		return nil
+	}
+
+	// Apply phase
+	Step("Applying changes from plan file...")
+
+	tf.SetStdout(os.Stdout)
+	tf.SetStderr(os.Stderr)
+
+	applyOpts := []tfexec.ApplyOption{
+		tfexec.Lock(lock),
+		tfexec.DirOrPlan(planFile),
+	}
+
+	// Add state option to apply as well
+	if state != "" {
+		applyOpts = append(applyOpts, tfexec.State(state))
+	}
+
+	// Add target options to apply as well
+	if len(targets) > 0 {
+		for _, target := range targets {
+			applyOpts = append(applyOpts, tfexec.Target(target))
+		}
+	}
+
+	// Handle variable files with existence check (for consistency with plan)
+	if varFiles != nil {
+		Info("Loading %d variable file(s)...", len(varFiles))
+		for _, vf := range varFiles {
+			if _, err := os.Stat(vf); os.IsNotExist(err) {
+				Error("Variable file not found: %s", vf)
+				return fmt.Errorf("variable file not found: %s", vf)
+			}
+			Info("Using var-file: %s", vf)
+			applyOpts = append(applyOpts, tfexec.VarFile(vf))
+		}
+	}
+
+	// Handle inline variables
+	if vars != nil {
+		Info("Setting %d variable(s)...", len(vars))
+		for _, v := range vars {
+			Info("Using variable: %s", v)
+			applyOpts = append(applyOpts, tfexec.Var(v))
 		}
 	}
 

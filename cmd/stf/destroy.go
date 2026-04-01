@@ -29,16 +29,22 @@ var destroyCmd = &cobra.Command{
 		return nil
 	},
 	Example: `
+	# simple smurf stf destroy commad
 	smurf stf destroy
+
 	# Skip approval prompt
 	smurf stf destroy --auto-approve
+
 	# Specify a custom directory
 	smurf stf destroy --dir=/path/to/terraform
-	# NEW: Use variable files
+
+	# Use variable files
 	smurf stf destroy --var-file=production.tfvars
 	smurf stf destroy --var-file=common.tfvars --var-file=production.tfvars
-	# NEW: Use variables
+
+	# Use variables
 	smurf stf destroy --var="environment=staging"
+	
 	# Combined usage
 	smurf stf destroy --auto-approve --var-file=prod.tfvars --var="force_destroy=true"
 `,
