@@ -122,6 +122,55 @@ func Plan(vars []string, varFiles []string,
 		return err
 	}
 
+	// Get the captured output (human-readable plan)
+	planOutput := outputBuffer.String()
+
+	// Clean up the output to show only human-readable content
+	// Remove JSON output if present (starts with {)
+	lines := strings.Split(planOutput, "\n")
+	var cleanLines []string
+	inJSON := false
+
+	for _, line := range lines {
+		// Check if this line starts a JSON block
+		if strings.HasPrefix(strings.TrimSpace(line), "{") {
+			inJSON = true
+			continue
+		}
+		// Skip JSON content
+		if inJSON {
+			// Check if this line ends the JSON block
+			if strings.HasSuffix(strings.TrimSpace(line), "}") {
+				inJSON = false
+			}
+			continue
+		}
+		// Keep non-JSON lines
+		if line != "" {
+			cleanLines = append(cleanLines, line)
+		}
+	}
+
+	// Rejoin the cleaned output
+	cleanOutput := strings.Join(cleanLines, "\n")
+
+	// Colorize the "No changes" message if present
+	if strings.Contains(cleanOutput, "No changes.") {
+		lines := strings.Split(cleanOutput, "\n")
+		for i, line := range lines {
+			if strings.Contains(line, "No changes.") ||
+				strings.Contains(line, "Your infrastructure matches the configuration") ||
+				strings.Contains(line, "found no differences") ||
+				strings.Contains(line, "so no changes are needed") {
+				lines[i] = fmt.Sprintf("\033[32m%s\033[0m", line)
+			}
+		}
+		cleanOutput = strings.Join(lines, "\n")
+	}
+
+	// Print the clean plan output
+	fmt.Print(cleanOutput)
+
 	// If we saved a plan file, we need to examine it to determine if there are actual changes
 	hasChanges := false
 
@@ -153,7 +202,6 @@ func Plan(vars []string, varFiles []string,
 			Info("To apply this plan, run: smurf stf apply %s", out)
 		} else {
 			Success("\nTerraform plan executed successfully. Review the changes above before applying.")
-			Warn("Note: No plan file was saved. To save and apply later, use: smurf stf plan --out=plan.tfplan")
 		}
 	} else {
 		Success("\nNo changes. Your infrastructure matches the configuration.")
