@@ -22,12 +22,15 @@ func Apply(approve bool, vars []string,
 	Step("Initializing Terraform client...")
 	tf, err := initTerraform(dir, useAI)
 	if err != nil {
+		Error("Failed to initialize Terraform client: %v", err)
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 
 	planOptions, err := buildPlanOptions(vars, varFiles, targets, state)
 	if err != nil {
-		Error(err.Error())
+		Error("Failed to build plan: %v", err)
+		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 
