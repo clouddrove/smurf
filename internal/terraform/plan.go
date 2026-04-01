@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/clouddrove/smurf/internal/ai"
 	"github.com/hashicorp/terraform-exec/tfexec"
@@ -115,28 +116,56 @@ func Plan(vars []string, varFiles []string,
 
 	// Execute Terraform plan and get the hasChanges boolean
 	Step("Generating Terraform plan...")
-	hasChanges, err := tf.Plan(context.Background(), planOptions...)
+	_, err = tf.Plan(context.Background(), planOptions...)
 	if err != nil {
 		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 
+	// If we saved a plan file, we need to examine it to determine if there are actual changes
+	hasChanges := false
+
+	if out != "" {
+		// We saved a plan file, examine it to determine if there are changes
+		plan, err := tf.ShowPlanFile(context.Background(), out)
+		if err == nil && plan != nil {
+			hasChanges = len(plan.ResourceChanges) > 0
+		} else {
+			// Fallback: check if the plan file has content
+			if fileInfo, err := os.Stat(out); err == nil && fileInfo.Size() > 0 {
+				// Plan file exists and has content, assume there are changes
+				hasChanges = true
+			}
+		}
+	} else {
+		// No plan file saved, we need to check the output
+		// The easiest way is to check if the output contains "Plan:"
+		outputStr := outputBuffer.String()
+		if strings.Contains(outputStr, "Plan:") && !strings.Contains(outputStr, "Plan: 0 to add") {
+			hasChanges = true
+		}
+	}
+
 	// Handle based on whether changes were detected
 	if hasChanges {
-		// Changes detected
 		if out != "" {
 			Success("\nTerraform plan saved to: %s", out)
-			Info("To apply this plan, run: smurf stf apply --plan=%s", out)
+			Info("To apply this plan, run: smurf stf apply %s", out)
 		} else {
 			Success("\nTerraform plan executed successfully. Review the changes above before applying.")
 			Warn("Note: No plan file was saved. To save and apply later, use: smurf stf plan --out=plan.tfplan")
 		}
 	} else {
-		// No changes detected
 		Success("\nNo changes. Your infrastructure matches the configuration.")
 
 		if out != "" {
+			// If we saved a plan file but there are no changes, it's still saved but empty
 			Info("Note: Plan file was saved even though no changes detected: %s", out)
+			// Clean up empty plan file
+			if fileInfo, err := os.Stat(out); err == nil && fileInfo.Size() == 0 {
+				os.Remove(out)
+				Info("Removed empty plan file: %s", out)
+			}
 		}
 	}
 

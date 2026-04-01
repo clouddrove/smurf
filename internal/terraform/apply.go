@@ -196,6 +196,7 @@ func ApplyWithPlan(planFile string, vars []string,
 	varFiles []string, lock bool,
 	dir string, targets []string,
 	state string, useAI bool) error {
+
 	Step("Initializing Terraform client...")
 	tf, err := GetTerraform(dir)
 	if err != nil {

@@ -20,19 +20,28 @@ var useAI bool
 
 // applyCmd defines a subcommand that applies the changes required to reach the desired state of Terraform Infrastructure.
 var applyCmd = &cobra.Command{
-	Use:          "apply",
+	Use:          "apply [plan-file]",
 	Short:        "Apply the changes required to reach the desired state of Terraform Infrastructure",
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// If a plan file is provided, we skip the approval prompt entirely
 		// and auto-approve is ignored
-		if applyPlanFile != "" {
-			err := terraform.ApplyWithPlan(applyPlanFile, applyVarNameValue, applyVarFile, applyLock, applyDir, applyTarget, applyState, useAI)
+		planFile := applyPlanFile
+
+		if len(args) > 0 && applyPlanFile == "" {
+			planFile = args[0]
+		}
+
+		// If we have a plan file (either from flag or positional arg), use ApplyWithPlan
+
+		if planFile != "" {
+			err := terraform.ApplyWithPlan(planFile, applyVarNameValue, applyVarFile, applyLock, applyDir, applyTarget, applyState, useAI)
 			if err != nil {
 				os.Exit(1)
 			}
 			return nil
 		}
+
 		// No plan file provided - use the regular apply flow with auto-approve option
 		approve := applyAutoApprove
 		err := terraform.Apply(approve, applyVarNameValue, applyVarFile, applyLock, applyDir, applyTarget, applyState, useAI)
@@ -42,6 +51,7 @@ var applyCmd = &cobra.Command{
 		return nil
 	},
 	Example: `
+	# Appply command
 	smurf stf apply
 
 	# Specify variables
