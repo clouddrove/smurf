@@ -15,15 +15,35 @@ var applyDir string
 var applyAutoApprove bool
 var applyTarget []string
 var applyState string
+var applyPlanFile string
 var useAI bool
 
 // applyCmd defines a subcommand that applies the changes required to reach the desired state of Terraform Infrastructure.
 var applyCmd = &cobra.Command{
-	Use:          "apply",
+	Use:          "apply [plan-file]",
 	Short:        "Apply the changes required to reach the desired state of Terraform Infrastructure",
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		approve := applyApprove || applyAutoApprove
+		// If a plan file is provided, we skip the approval prompt entirely
+		// and auto-approve is ignored
+		planFile := applyPlanFile
+
+		if len(args) > 0 && applyPlanFile == "" {
+			planFile = args[0]
+		}
+
+		// If we have a plan file (either from flag or positional arg), use ApplyWithPlan
+
+		if planFile != "" {
+			err := terraform.ApplyWithPlan(planFile, applyVarNameValue, applyVarFile, applyLock, applyDir, applyTarget, applyState, useAI)
+			if err != nil {
+				os.Exit(1)
+			}
+			return nil
+		}
+
+		// No plan file provided - use the regular apply flow with auto-approve option
+		approve := applyAutoApprove
 		err := terraform.Apply(approve, applyVarNameValue, applyVarFile, applyLock, applyDir, applyTarget, applyState, useAI)
 		if err != nil {
 			os.Exit(1)
@@ -31,6 +51,7 @@ var applyCmd = &cobra.Command{
 		return nil
 	},
 	Example: `
+	# Appply command
 	smurf stf apply
 
 	# Specify variables
@@ -38,6 +59,12 @@ var applyCmd = &cobra.Command{
 
 	# Skip approval prompt
 	smurf stf apply --auto-approve
+
+	# Apply using a plan file (automatically skips confirmation)
+	smurf stf apply plan.out
+
+	# Apply using a plan file with variables
+	smurf stf apply plan.out -var="region=us-west-2"
 
 	# Specify multiple variables
 	smurf stf apply -var="region=us-west-2" -var="instance_type=t2.micro"
@@ -64,6 +91,7 @@ func init() {
 	applyCmd.Flags().StringVar(&applyDir, "dir", ".", "Specify the directory containing Terraform files")
 	applyCmd.Flags().StringArrayVar(&applyTarget, "target", []string{}, "Target specific resources, modules, or resources in modules")
 	applyCmd.Flags().StringVar(&applyState, "state", "", "Path to read and save the Terraform state")
+	applyCmd.Flags().StringVar(&applyPlanFile, "plan", "", "Path to a plan file to apply (skips approval prompt)")
 	applyCmd.Flags().BoolVar(&useAI, "ai", false, "To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.")
 	stfCmd.AddCommand(applyCmd)
 }

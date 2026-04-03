@@ -9,67 +9,34 @@ import (
 
 	"github.com/clouddrove/smurf/internal/ai"
 	"github.com/hashicorp/terraform-exec/tfexec"
+	tfjson "github.com/hashicorp/terraform-json"
 )
 
-// Apply executes 'apply' to apply the planned changes.
 func Apply(approve bool, vars []string,
 	varFiles []string, lock bool,
 	dir string, targets []string,
 	state string, useAI bool) error {
+
 	defer cleanupPlanFile()
 
 	Step("Initializing Terraform client...")
-	tf, err := GetTerraform(dir)
+	tf, err := initTerraform(dir, useAI)
 	if err != nil {
 		Error("Failed to initialize Terraform client: %v", err)
 		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 
-	applyOptions := []tfexec.PlanOption{
-		tfexec.Out("plan.out"),
+	planOptions, err := buildPlanOptions(vars, varFiles, targets, state)
+	if err != nil {
+		Error("Failed to build plan: %v", err)
+		ai.AIExplainError(useAI, err.Error())
+		return err
 	}
 
-	// Handle state file
-	if state != "" {
-		Info("Using custom state file: %s", state)
-		applyOptions = append(applyOptions, tfexec.State(state))
-	}
-
-	// Handle inline variables
-	if vars != nil {
-		Info("Setting %d variable(s)...", len(vars))
-		for _, v := range vars {
-			Info("Using variable: %s", v)
-			applyOptions = append(applyOptions, tfexec.Var(v))
-		}
-	}
-
-	// Handle variable files with existence check
-	if varFiles != nil {
-		Info("Loading %d variable file(s)...", len(varFiles))
-		for _, vf := range varFiles {
-			if _, err := os.Stat(vf); os.IsNotExist(err) {
-				Error("Variable file not found: %s", vf)
-				return fmt.Errorf("variable file not found: %s", vf)
-			}
-			Info("Using var-file: %s", vf)
-			applyOptions = append(applyOptions, tfexec.VarFile(vf))
-		}
-	}
-
-	// Handle targets
-	if targets != nil {
-		Info("Targeting %d resource(s)...", len(targets))
-		for _, target := range targets {
-			Info("Using target: %s", target)
-			applyOptions = append(applyOptions, tfexec.Target(target))
-		}
-	}
-
-	// Generate Terraform plan
+	// Generate Plan
 	Step("Generating Terraform plan...")
-	_, err = tf.Plan(context.Background(), applyOptions...)
+	_, err = tf.Plan(context.Background(), append(planOptions, tfexec.Out("plan.out"))...)
 	if err != nil {
 		Error("Failed to generate plan: %v", err)
 		ai.AIExplainError(useAI, err.Error())
@@ -77,87 +44,81 @@ func Apply(approve bool, vars []string,
 	}
 	Success("Terraform plan generated successfully.")
 
-	// Show plan details
-	Step("Fetching plan details...")
-	planDetail, err := tf.ShowPlanFileRaw(context.Background(), "plan.out")
+	// Show Plan
+	show, err := showPlan(tf, "plan.out", useAI)
 	if err != nil {
-		Error("Failed to read plan details: %v", err)
-		ai.AIExplainError(useAI, err.Error())
-		return err
-	}
-
-	var outputBuffer bytes.Buffer
-	customWriter := &CustomColorWriter{
-		Buffer: &outputBuffer,
-		Writer: os.Stdout,
-	}
-
-	// NEW: Colorize the "No changes" message if present
-	planStr := string(planDetail)
-	if strings.Contains(planStr, "No changes.") {
-		// Find and colorize the "No changes" section
-		lines := strings.Split(planStr, "\n")
-		for i, line := range lines {
-			if strings.Contains(line, "No changes.") ||
-				strings.Contains(line, "Your infrastructure matches the configuration") ||
-				strings.Contains(line, "found no differences") ||
-				strings.Contains(line, "so no changes are needed") {
-				// Colorize these lines in green (like Terraform CLI does)
-				lines[i] = fmt.Sprintf("\033[32m%s\033[0m", line)
-			}
-		}
-		planStr = strings.Join(lines, "\n")
-	}
-
-	customWriter.Write([]byte(planStr))
-
-	show, err := tf.ShowPlanFile(context.Background(), "plan.out")
-	if err != nil {
-		Error("Failed to parse plan file: %v", err)
-		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 
 	if len(show.ResourceChanges) == 0 {
-		// Also colorize the warning message when no changes are found
 		Warn("No changes to apply. Everything is up to date.")
 		return nil
 	}
 
-	// Approval prompt (if not auto-approved)
+	// Approval
 	if !approve {
-		var confirmation string
-		fmt.Print("\nDo you want to perform these actions? Only 'yes' will be accepted to approve.\nEnter a value: ")
-		fmt.Scanln(&confirmation)
-		fmt.Println()
-
-		if confirmation != "yes" {
+		if !askForApproval() {
 			Warn("Operation cancelled by user.")
 			return nil
 		}
 	}
 
-	// Apply phase with spinner
+	// Apply
 	Step("Applying changes...")
-
 	tf.SetStdout(os.Stdout)
 	tf.SetStderr(os.Stderr)
 
-	applyOpts := []tfexec.ApplyOption{
-		tfexec.Lock(lock),
-		tfexec.DirOrPlan("plan.out"),
+	applyOpts := buildApplyOptions(lock, "plan.out", state, targets)
+
+	err = tf.Apply(context.Background(), applyOpts...)
+	if err != nil {
+		Error("Terraform apply failed: %v", err)
+		ai.AIExplainError(useAI, err.Error())
+		return err
 	}
 
-	// Add state option to apply as well
-	if state != "" {
-		applyOpts = append(applyOpts, tfexec.State(state))
+	Success("Terraform changes applied successfully.")
+	summarizeChanges(show)
+
+	return nil
+}
+
+func ApplyWithPlan(planFile string, vars []string,
+	varFiles []string, lock bool,
+	dir string, targets []string,
+	state string, useAI bool) error {
+
+	Step("Initializing Terraform client...")
+	tf, err := initTerraform(dir, useAI)
+	if err != nil {
+		return err
 	}
 
-	// Add target options to apply as well
-	if len(targets) > 0 {
-		for _, target := range targets {
-			applyOpts = append(applyOpts, tfexec.Target(target))
-		}
+	if _, err := os.Stat(planFile); os.IsNotExist(err) {
+		return fmt.Errorf("plan file not found: %s", planFile)
+	}
+
+	Info("Applying plan from file: %s", planFile)
+
+	show, err := showPlan(tf, planFile, useAI)
+	if err != nil {
+		return err
+	}
+
+	if len(show.ResourceChanges) == 0 {
+		Warn("No changes to apply. Everything is up to date.")
+		return nil
+	}
+
+	Step("Applying changes from plan file...")
+	tf.SetStdout(os.Stdout)
+	tf.SetStderr(os.Stderr)
+
+	applyOpts := buildApplyOptions(lock, planFile, state, targets)
+
+	applyOpts, err = addVarsAndFiles(vars, varFiles, applyOpts)
+	if err != nil {
+		return err
 	}
 
 	err = tf.Apply(context.Background(), applyOpts...)
@@ -168,28 +129,152 @@ func Apply(approve bool, vars []string,
 	}
 
 	Success("Terraform changes applied successfully.")
+	summarizeChanges(show)
 
-	// Summarize resource changes
+	return nil
+}
+
+///////////////////////
+// 🔧 Helper Functions
+///////////////////////
+
+func initTerraform(dir string, useAI bool) (*tfexec.Terraform, error) {
+	tf, err := GetTerraform(dir)
+	if err != nil {
+		Error("Failed to initialize Terraform client: %v", err)
+		ai.AIExplainError(useAI, err.Error())
+		return nil, err
+	}
+	return tf, nil
+}
+
+func buildPlanOptions(vars []string, varFiles []string, targets []string, state string) ([]tfexec.PlanOption, error) {
+	opts := []tfexec.PlanOption{}
+
+	if state != "" {
+		opts = append(opts, tfexec.State(state))
+	}
+
+	for _, v := range vars {
+		opts = append(opts, tfexec.Var(v))
+	}
+
+	for _, vf := range varFiles {
+		if _, err := os.Stat(vf); os.IsNotExist(err) {
+			return nil, fmt.Errorf("variable file not found: %s", vf)
+		}
+		opts = append(opts, tfexec.VarFile(vf))
+	}
+
+	for _, t := range targets {
+		opts = append(opts, tfexec.Target(t))
+	}
+
+	return opts, nil
+}
+
+func buildApplyOptions(lock bool, planOrDir string, state string, targets []string) []tfexec.ApplyOption {
+	opts := []tfexec.ApplyOption{
+		tfexec.Lock(lock),
+		tfexec.DirOrPlan(planOrDir),
+	}
+
+	if state != "" {
+		opts = append(opts, tfexec.State(state))
+	}
+
+	for _, t := range targets {
+		opts = append(opts, tfexec.Target(t))
+	}
+
+	return opts
+}
+
+func addVarsAndFiles(vars []string, varFiles []string, opts []tfexec.ApplyOption) ([]tfexec.ApplyOption, error) {
+	for _, vf := range varFiles {
+		if _, err := os.Stat(vf); os.IsNotExist(err) {
+			return nil, fmt.Errorf("variable file not found: %s", vf)
+		}
+		opts = append(opts, tfexec.VarFile(vf))
+	}
+
+	for _, v := range vars {
+		opts = append(opts, tfexec.Var(v))
+	}
+
+	return opts, nil
+}
+
+func showPlan(tf *tfexec.Terraform, planFile string, useAI bool) (*tfjson.Plan, error) {
+	Step("Showing plan details...")
+
+	planDetail, err := tf.ShowPlanFileRaw(context.Background(), planFile)
+	if err != nil {
+		Error("Failed to read plan: %v", err)
+		ai.AIExplainError(useAI, err.Error())
+		return nil, err
+	}
+
+	var buffer bytes.Buffer
+	writer := &CustomColorWriter{
+		Buffer: &buffer,
+		Writer: os.Stdout,
+	}
+
+	writer.Write([]byte(colorizeNoChanges(string(planDetail))))
+
+	show, err := tf.ShowPlanFile(context.Background(), planFile)
+	if err != nil {
+		Error("Failed to parse plan: %v", err)
+		ai.AIExplainError(useAI, err.Error())
+		return nil, err
+	}
+
+	return show, nil
+}
+
+func summarizeChanges(show *tfjson.Plan) {
 	added, changed, destroyed := 0, 0, 0
 
 	for _, resource := range show.ResourceChanges {
 		for _, action := range resource.Change.Actions {
-			switch strings.ToUpper(string(action)) {
-			case "CREATE":
+			switch action {
+			case tfjson.ActionCreate:
 				added++
-			case "UPDATE":
+			case tfjson.ActionUpdate:
 				changed++
-			case "DELETE":
+			case tfjson.ActionDelete:
 				destroyed++
 			}
 		}
 	}
 
 	Success("Apply complete! Resources: %d added, %d changed, %d destroyed", added, changed, destroyed)
-	return nil
 }
 
-// cleanupPlanFile removes the temporary plan file
+func askForApproval() bool {
+	var input string
+	fmt.Print("\nDo you want to perform these actions? Only 'yes' will be accepted to approve.\nEnter a value: ")
+	fmt.Scanln(&input)
+	fmt.Println()
+	return input == "yes"
+}
+
+func colorizeNoChanges(plan string) string {
+	lines := strings.Split(plan, "\n")
+
+	for i, line := range lines {
+		if strings.Contains(line, "No changes.") ||
+			strings.Contains(line, "Your infrastructure matches the configuration") ||
+			strings.Contains(line, "no differences") ||
+			strings.Contains(line, "no changes are needed") {
+			lines[i] = fmt.Sprintf("\033[32m%s\033[0m", line)
+		}
+	}
+
+	return strings.Join(lines, "\n")
+}
+
 func cleanupPlanFile() {
 	if _, err := os.Stat("plan.out"); err == nil {
 		os.Remove("plan.out")
