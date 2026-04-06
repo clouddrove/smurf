@@ -121,26 +121,22 @@ func Plan(vars []string, varFiles []string,
 		return err
 	}
 
-	// Handle based on whether changes were detected
-	if hasChanges {
-		if out != "" {
-			Success(" Terraform plan saved to: %s", out)
+	// Add success message based on whether there are changes
+	if out != "" {
+		// Check if plan file was created and has content
+		if fileInfo, err := os.Stat(out); err == nil && fileInfo.Size() > 0 {
+			Success("Terraform plan saved to: %s", out)
 			Info("To apply this plan, run: smurf stf apply %s", out)
-		} else {
-			Success("\nTerraform plan executed successfully. Review the changes above before applying.")
-		}
-	} else {
-		Success("\nNo changes. Your infrastructure matches the configuration.")
-
-		if out != "" {
-			// If we saved a plan file but there are no changes, it's still saved but empty
-			Info("Note: Plan file was saved even though no changes detected: %s", out)
+		} else if !hasChanges {
+			Success("No changes; the infrastructure is up to date with the current configuration.")
 			// Clean up empty plan file
-			if fileInfo, err := os.Stat(out); err == nil && fileInfo.Size() == 0 {
-				os.Remove(out)
-				Info("Removed empty plan file: %s", out)
-			}
+			os.Remove(out)
+			Info(" Removed empty plan file: %s", out)
 		}
+	} else if !hasChanges {
+		Success("No changes; the infrastructure is up to date with the current configuration.")
+	} else {
+		Success("Terraform plan executed successfully. Review the changes above before applying.")
 	}
 
 	return nil
