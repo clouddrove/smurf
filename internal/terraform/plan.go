@@ -125,6 +125,7 @@ func Plan(vars []string, varFiles []string,
 	// Get the captured output (human-readable plan)
 	planOutput := outputBuffer.String()
 
+	fmt.Println("----| yes repeated strt from here |----")
 	// Clean up the output to show only human-readable content
 	// Remove JSON output if present (starts with {)
 	lines := strings.Split(planOutput, "\n")
@@ -151,25 +152,7 @@ func Plan(vars []string, varFiles []string,
 		}
 	}
 
-	// Rejoin the cleaned output
-	cleanOutput := strings.Join(cleanLines, "\n")
-
-	// Colorize the "No changes" message if present
-	if strings.Contains(cleanOutput, "No changes.") {
-		lines := strings.Split(cleanOutput, "\n")
-		for i, line := range lines {
-			if strings.Contains(line, "No changes.") ||
-				strings.Contains(line, "Your infrastructure matches the configuration") ||
-				strings.Contains(line, "found no differences") ||
-				strings.Contains(line, "so no changes are needed") {
-				lines[i] = fmt.Sprintf("\033[32m%s\033[0m", line)
-			}
-		}
-		cleanOutput = strings.Join(lines, "\n")
-	}
-
-	// Print the clean plan output
-	fmt.Print(cleanOutput)
+	fmt.Println("----| yes middle repeated strt from here |----")
 
 	// If we saved a plan file, we need to examine it to determine if there are actual changes
 	hasChanges := false
@@ -195,10 +178,12 @@ func Plan(vars []string, varFiles []string,
 		}
 	}
 
+	fmt.Println("----| yes last part repeated strt from here |----")
+
 	// Handle based on whether changes were detected
 	if hasChanges {
 		if out != "" {
-			Success("\nTerraform plan saved to: %s", out)
+			Success(" Terraform plan saved to: %s", out)
 			Info("To apply this plan, run: smurf stf apply %s", out)
 		} else {
 			Success("\nTerraform plan executed successfully. Review the changes above before applying.")
@@ -216,6 +201,8 @@ func Plan(vars []string, varFiles []string,
 			}
 		}
 	}
+
+	fmt.Println("----| yes we need this strt from here |----")
 
 	return nil
 }
