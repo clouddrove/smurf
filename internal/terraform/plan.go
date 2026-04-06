@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/clouddrove/smurf/internal/ai"
 	"github.com/hashicorp/terraform-exec/tfexec"
@@ -116,69 +115,11 @@ func Plan(vars []string, varFiles []string,
 
 	// Execute Terraform plan and get the hasChanges boolean
 	Step("Generating Terraform plan...")
-	_, err = tf.Plan(context.Background(), planOptions...)
+	hasChanges, err := tf.Plan(context.Background(), planOptions...)
 	if err != nil {
 		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
-
-	// Get the captured output (human-readable plan)
-	planOutput := outputBuffer.String()
-
-	fmt.Println("----| yes repeated strt from here |----")
-	// Clean up the output to show only human-readable content
-	// Remove JSON output if present (starts with {)
-	lines := strings.Split(planOutput, "\n")
-	var cleanLines []string
-	inJSON := false
-
-	for _, line := range lines {
-		// Check if this line starts a JSON block
-		if strings.HasPrefix(strings.TrimSpace(line), "{") {
-			inJSON = true
-			continue
-		}
-		// Skip JSON content
-		if inJSON {
-			// Check if this line ends the JSON block
-			if strings.HasSuffix(strings.TrimSpace(line), "}") {
-				inJSON = false
-			}
-			continue
-		}
-		// Keep non-JSON lines
-		if line != "" {
-			cleanLines = append(cleanLines, line)
-		}
-	}
-
-	fmt.Println("----| yes middle repeated strt from here |----")
-
-	// If we saved a plan file, we need to examine it to determine if there are actual changes
-	hasChanges := false
-
-	if out != "" {
-		// We saved a plan file, examine it to determine if there are changes
-		plan, err := tf.ShowPlanFile(context.Background(), out)
-		if err == nil && plan != nil {
-			hasChanges = len(plan.ResourceChanges) > 0
-		} else {
-			// Fallback: check if the plan file has content
-			if fileInfo, err := os.Stat(out); err == nil && fileInfo.Size() > 0 {
-				// Plan file exists and has content, assume there are changes
-				hasChanges = true
-			}
-		}
-	} else {
-		// No plan file saved, we need to check the output
-		// The easiest way is to check if the output contains "Plan:"
-		outputStr := outputBuffer.String()
-		if strings.Contains(outputStr, "Plan:") && !strings.Contains(outputStr, "Plan: 0 to add") {
-			hasChanges = true
-		}
-	}
-
-	fmt.Println("----| yes last part repeated strt from here |----")
 
 	// Handle based on whether changes were detected
 	if hasChanges {
@@ -201,8 +142,6 @@ func Plan(vars []string, varFiles []string,
 			}
 		}
 	}
-
-	fmt.Println("----| yes we need this strt from here |----")
 
 	return nil
 }
