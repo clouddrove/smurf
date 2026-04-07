@@ -94,3 +94,23 @@ type SelmConfig struct {
 	FileName    string `yaml:"fileName"`
 	Revision    int    `yaml:"revision"`
 }
+
+// InitOptions represents all options for Terraform init
+type InitOptions struct {
+	Dir           string
+	Upgrade       bool
+	UseAI         bool
+	Reconfigure   bool
+	MigrateState  bool
+	BackendConfig []string
+	Backend       bool
+	ForceCopy     bool
+	Lock          bool
+	LockTimeout   string
+	Get           bool
+	GetPlugins    bool
+	VerifyPlugins bool
+	PluginDir     string
+	FromModule    string
+	RegistryOnly  bool
+}

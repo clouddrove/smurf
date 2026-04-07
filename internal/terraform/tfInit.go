@@ -2,10 +2,13 @@ package terraform
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"strings"
+	"time"
 
+	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/ai"
 	"github.com/hashicorp/terraform-exec/tfexec"
 	"github.com/pterm/pterm"
@@ -26,14 +29,12 @@ func (l *CustomLogger) Write(p []byte) (n int, err error) {
 	switch {
 	case strings.Contains(msg, "Downloading"):
 		parts := strings.Fields(msg)
-		// Check for enough parts to safely access indices
-		if len(parts) >= 5 { // Changed from >= 4 to >= 5 since we need parts[4]
+		if len(parts) >= 5 {
 			Info("Downloading %s %s for %s...",
 				pterm.Cyan(parts[1]),
 				pterm.Yellow(parts[2]),
 				pterm.Cyan(strings.TrimSpace(parts[4])))
 		} else {
-			// Fallback to generic message if format doesn't match
 			Info("Downloading: %s", strings.TrimSpace(msg))
 		}
 		return len(p), nil
@@ -60,46 +61,214 @@ func (l *CustomLogger) Write(p []byte) (n int, err error) {
 		Success("Infrastructure successfully initialized!")
 		Info("You may now begin working with Smurf. Run `smurf stf plan` to review changes.")
 		return len(p), nil
+
+	case strings.Contains(msg, "Backend reinitialization required"):
+		Warning("Backend configuration changed. Run with --reconfigure or --migrate-state")
+		return len(p), nil
+
+	case strings.Contains(msg, "migrate state"):
+		Info("State migration may be required. Use --migrate-state to proceed.")
+		return len(p), nil
 	}
 
-	// For any other output, write it as-is
 	return l.writer.Write(p)
 }
 
-// Init initializes the Terraform working directory by running 'init'.
-// It sets up the Terraform client, executes the initialization with upgrade options,
-// and provides user feedback through spinners and colored messages.
-// Upon successful initialization, it configures custom writers for enhanced output.
-func Init(dir string, upgrade, useAI bool) error {
-	tf, err := GetTerraform(dir)
+// InitWithOptions initializes Terraform with all available options
+func InitWithOptions(opts configs.InitOptions) error {
+	// Handle from-module special case (copies module source to directory)
+	if opts.FromModule != "" {
+		return initFromModule(opts)
+	}
+
+	// Get Terraform client
+	tf, err := GetTerraform(opts.Dir)
 	if err != nil {
 		Error("Failed to initialize Terraform client: %v", err)
-		ai.AIExplainError(useAI, err.Error())
+		ai.AIExplainError(opts.UseAI, err.Error())
 		return err
 	}
 
+	// Setup logging
 	logger := &CustomLogger{writer: os.Stdout}
 	tf.SetStdout(logger)
 	tf.SetStderr(logger)
 
+	// Show working directory
 	workingDir := "."
-	if dir != "" {
-		workingDir = dir
+	if opts.Dir != "" {
+		workingDir = opts.Dir
 	}
-
 	Info("Starting infrastructure initialization in %s", workingDir)
 
-	initOptions := tfexec.InitOption(
-		tfexec.Upgrade(upgrade),
-	)
+	// Build init options
+	var initOptions []tfexec.InitOption
 
-	err = tf.Init(context.Background(), initOptions)
+	// Basic options
+	initOptions = append(initOptions, tfexec.Upgrade(opts.Upgrade))
+	initOptions = append(initOptions, tfexec.Backend(opts.Backend))
+	initOptions = append(initOptions, tfexec.Get(opts.Get))
+	initOptions = append(initOptions, tfexec.GetPlugins(opts.GetPlugins))
+	initOptions = append(initOptions, tfexec.VerifyPlugins(opts.VerifyPlugins))
+
+	// Lock options
+	if !opts.Lock {
+		initOptions = append(initOptions, tfexec.Lock(false))
+	}
+
+	// Lock timeout - LockTimeout expects a string like "10s", not time.Duration
+	if opts.LockTimeout != "" && opts.LockTimeout != "0s" {
+		initOptions = append(initOptions, tfexec.LockTimeout(opts.LockTimeout))
+	}
+
+	// Plugin directory
+	if opts.PluginDir != "" {
+		initOptions = append(initOptions, tfexec.PluginDir(opts.PluginDir))
+	}
+
+	// Backend configuration
+	for _, config := range opts.BackendConfig {
+		initOptions = append(initOptions, tfexec.BackendConfig(config))
+	}
+
+	// Reconfigure (replaces existing backend config)
+	if opts.Reconfigure {
+		initOptions = append(initOptions, tfexec.Reconfigure(true))
+	}
+
+	// Note: MigrateState and ForceCopy are not directly available in tfexec
+	// They need to be handled via environment variables or config options
+	// We'll handle them differently
+	if opts.MigrateState || opts.ForceCopy {
+		// Set environment variables for terraform to handle migration
+		if opts.MigrateState {
+			os.Setenv("TF_MIGRATE_STATE", "true")
+			defer os.Unsetenv("TF_MIGRATE_STATE")
+			Info("State migration enabled")
+		}
+
+		if opts.ForceCopy {
+			os.Setenv("TF_FORCE_COPY", "true")
+			defer os.Unsetenv("TF_FORCE_COPY")
+			Info("Force copy mode enabled")
+		}
+	}
+
+	// Execute init with retry logic for lock conflicts
+	err = runInitWithRetry(tf, initOptions, opts)
 	if err != nil {
-		Error("Error: %v", err)
-		ai.AIExplainError(useAI, err.Error())
+		// Check for specific error types and provide helpful messages
+		if strings.Contains(err.Error(), "backend configuration changed") {
+			Error("Backend configuration has changed")
+			Info("Use --reconfigure to accept the new configuration, or")
+			Info("Use --migrate-state to migrate existing state to the new backend")
+			Info("Example: smurf stf init --reconfigure --migrate-state")
+		} else if strings.Contains(err.Error(), "state lock") {
+			Error("Failed to acquire state lock")
+			Info("Try increasing lock timeout with --lock-timeout=5m")
+			Info("Or check if another process is holding the lock")
+		} else {
+			Error("Initialization failed: %v", err)
+		}
+
+		ai.AIExplainError(opts.UseAI, err.Error())
 		return err
 	}
 
-	Success("Terraform backend and providers successfully initialized.")
+	// Display success message with backend info
+	displayBackendInfo(tf, opts)
+
 	return nil
+}
+
+// runInitWithRetry executes terraform init with retry logic for lock conflicts
+func runInitWithRetry(tf *tfexec.Terraform, initOptions []tfexec.InitOption, opts configs.InitOptions) error {
+	maxRetries := 3
+	retryDelay := 2 * time.Second
+
+	for i := 0; i < maxRetries; i++ {
+		err := tf.Init(context.Background(), initOptions...)
+		if err == nil {
+			return nil
+		}
+
+		// Retry on lock conflicts
+		if strings.Contains(err.Error(), "state lock") && i < maxRetries-1 {
+			Warning("State lock detected, retrying in %v... (attempt %d/%d)", retryDelay, i+2, maxRetries)
+			time.Sleep(retryDelay)
+			retryDelay *= 2 // Exponential backoff
+			continue
+		}
+
+		return err
+	}
+
+	return fmt.Errorf("max retries exceeded")
+}
+
+// initFromModule handles initialization from a module source
+func initFromModule(opts configs.InitOptions) error {
+	Info("Initializing from module: %s", opts.FromModule)
+
+	tf, err := GetTerraform(opts.Dir)
+	if err != nil {
+		Error("Failed to initialize Terraform client: %v", err)
+		return err
+	}
+
+	// Use terraform init -from-module
+	err = tf.Init(context.Background(),
+		tfexec.FromModule(opts.FromModule),
+		tfexec.Upgrade(opts.Upgrade),
+		tfexec.Get(opts.Get),
+		tfexec.GetPlugins(opts.GetPlugins),
+	)
+
+	if err != nil {
+		Error("Failed to initialize from module: %v", err)
+		return err
+	}
+
+	Success("Successfully initialized from module: %s", opts.FromModule)
+	return nil
+}
+
+// displayBackendInfo shows information about the configured backend
+func displayBackendInfo(tf *tfexec.Terraform, opts configs.InitOptions) {
+	Success("Terraform backend and providers successfully initialized.")
+
+	// Show backend configuration info if available
+	if len(opts.BackendConfig) > 0 {
+		Info("Using backend configuration files:")
+		for _, config := range opts.BackendConfig {
+			Info("  • %s", config)
+		}
+	}
+
+	if opts.Reconfigure && opts.MigrateState {
+		Info("Backend reconfigured and state migration completed")
+	} else if opts.Reconfigure {
+		Info("Backend reconfigured (existing state preserved)")
+	} else if opts.MigrateState {
+		Info("State migrated to new backend")
+	}
+
+	// Provide next steps
+	Info("\nNext steps:")
+	Info("  1. Review infrastructure changes: smurf stf plan")
+	Info("  2. Apply infrastructure changes: smurf stf apply")
+	Info("  3. Check resource state: smurf stf state list")
+}
+
+// Init - Simplified version for backward compatibility
+func Init(dir string, upgrade, useAI bool) error {
+	return InitWithOptions(configs.InitOptions{
+		Dir:        dir,
+		Upgrade:    upgrade,
+		UseAI:      useAI,
+		Backend:    true,
+		Get:        true,
+		GetPlugins: true,
+		Lock:       true,
+	})
 }
