@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/clouddrove/smurf/internal/ai"
 	"github.com/hashicorp/terraform-exec/tfexec"
@@ -116,105 +115,28 @@ func Plan(vars []string, varFiles []string,
 
 	// Execute Terraform plan and get the hasChanges boolean
 	Step("Generating Terraform plan...")
-	_, err = tf.Plan(context.Background(), planOptions...)
+	hasChanges, err := tf.Plan(context.Background(), planOptions...)
 	if err != nil {
 		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
 
-	// Get the captured output (human-readable plan)
-	planOutput := outputBuffer.String()
-
-	// Clean up the output to show only human-readable content
-	// Remove JSON output if present (starts with {)
-	lines := strings.Split(planOutput, "\n")
-	var cleanLines []string
-	inJSON := false
-
-	for _, line := range lines {
-		// Check if this line starts a JSON block
-		if strings.HasPrefix(strings.TrimSpace(line), "{") {
-			inJSON = true
-			continue
-		}
-		// Skip JSON content
-		if inJSON {
-			// Check if this line ends the JSON block
-			if strings.HasSuffix(strings.TrimSpace(line), "}") {
-				inJSON = false
-			}
-			continue
-		}
-		// Keep non-JSON lines
-		if line != "" {
-			cleanLines = append(cleanLines, line)
-		}
-	}
-
-	// Rejoin the cleaned output
-	cleanOutput := strings.Join(cleanLines, "\n")
-
-	// Colorize the "No changes" message if present
-	if strings.Contains(cleanOutput, "No changes.") {
-		lines := strings.Split(cleanOutput, "\n")
-		for i, line := range lines {
-			if strings.Contains(line, "No changes.") ||
-				strings.Contains(line, "Your infrastructure matches the configuration") ||
-				strings.Contains(line, "found no differences") ||
-				strings.Contains(line, "so no changes are needed") {
-				lines[i] = fmt.Sprintf("\033[32m%s\033[0m", line)
-			}
-		}
-		cleanOutput = strings.Join(lines, "\n")
-	}
-
-	// Print the clean plan output
-	fmt.Print(cleanOutput)
-
-	// If we saved a plan file, we need to examine it to determine if there are actual changes
-	hasChanges := false
-
+	// Add success message based on whether there are changes
 	if out != "" {
-		// We saved a plan file, examine it to determine if there are changes
-		plan, err := tf.ShowPlanFile(context.Background(), out)
-		if err == nil && plan != nil {
-			hasChanges = len(plan.ResourceChanges) > 0
-		} else {
-			// Fallback: check if the plan file has content
-			if fileInfo, err := os.Stat(out); err == nil && fileInfo.Size() > 0 {
-				// Plan file exists and has content, assume there are changes
-				hasChanges = true
-			}
-		}
-	} else {
-		// No plan file saved, we need to check the output
-		// The easiest way is to check if the output contains "Plan:"
-		outputStr := outputBuffer.String()
-		if strings.Contains(outputStr, "Plan:") && !strings.Contains(outputStr, "Plan: 0 to add") {
-			hasChanges = true
-		}
-	}
-
-	// Handle based on whether changes were detected
-	if hasChanges {
-		if out != "" {
-			Success("\nTerraform plan saved to: %s", out)
+		// Check if plan file was created and has content
+		if fileInfo, err := os.Stat(out); err == nil && fileInfo.Size() > 0 {
+			Success("Terraform plan saved to: %s", out)
 			Info("To apply this plan, run: smurf stf apply %s", out)
-		} else {
-			Success("\nTerraform plan executed successfully. Review the changes above before applying.")
-		}
-	} else {
-		Success("\nNo changes. Your infrastructure matches the configuration.")
-
-		if out != "" {
-			// If we saved a plan file but there are no changes, it's still saved but empty
-			Info("Note: Plan file was saved even though no changes detected: %s", out)
+		} else if !hasChanges {
+			Success("No changes; the infrastructure is up to date with the current configuration.")
 			// Clean up empty plan file
-			if fileInfo, err := os.Stat(out); err == nil && fileInfo.Size() == 0 {
-				os.Remove(out)
-				Info("Removed empty plan file: %s", out)
-			}
+			os.Remove(out)
+			Info(" Removed empty plan file: %s", out)
 		}
+	} else if !hasChanges {
+		Success("No changes; the infrastructure is up to date with the current configuration.")
+	} else {
+		Success("Terraform plan executed successfully. Review the changes above before applying.")
 	}
 
 	return nil
