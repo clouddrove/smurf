@@ -63,11 +63,8 @@ var initCmd = &cobra.Command{
 		return nil
 	},
 	Example: `
-  # Basic initialization
+ # Basic initialization
   smurf stf init
-
-  # Initialize with specific directory
-  smurf stf init --dir=/path/to/terraform/files
 
   # Initialize with backend configuration file
   smurf stf init --backend-config=backend.hcl
@@ -84,29 +81,14 @@ var initCmd = &cobra.Command{
   # Reconfigure and migrate state
   smurf stf init --reconfigure --migrate-state
 
-  # Force copy backend configuration
-  smurf stf init --force-copy
-
-  # Disable provider plugin verification
-  smurf stf init --verify-plugins=false
-
   # Initialize from module source
   smurf stf init --from-module=github.com/terraform-aws-modules/terraform-aws-vpc
 
-  # Skip downloading modules
-  smurf stf init --get=false
-
-  # Skip downloading plugins
-  smurf stf init --get-plugins=false
-
-  # Custom plugin directory
+  # Custom plugin directory (via TF_PLUGIN_CACHE_DIR)
   smurf stf init --plugin-dir=/custom/plugins
 
-  # Set lock timeout
-  smurf stf init --lock-timeout=10m
-
-  # Use registry only (no mirror)
-  smurf stf init --registry-only
+  # Skip downloading modules
+  smurf stf init --get=false
 `,
 }
 
@@ -122,10 +104,6 @@ func init() {
 	initCmd.Flags().StringArrayVar(&initBackendConfig, "backend-config", []string{}, "Path to backend configuration file (can be used multiple times)")
 	initCmd.Flags().BoolVar(&initBackend, "backend", true, "Configure backend (disable with --backend=false)")
 	initCmd.Flags().BoolVar(&initForceCopy, "force-copy", false, "Suppress prompts about copying state data during backend migration")
-
-	// Locking flags
-	initCmd.Flags().BoolVar(&initLock, "lock", true, "Lock the state file when supported")
-	initCmd.Flags().StringVar(&initLockTimeout, "lock-timeout", "0s", "Duration to retry state lock (e.g., '10s', '2m')")
 
 	// Module and plugin flags
 	initCmd.Flags().BoolVar(&initGet, "get", true, "Download and install modules")

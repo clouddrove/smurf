@@ -107,9 +107,16 @@ func InitWithOptions(opts configs.InitOptions) error {
 	// Basic options
 	initOptions = append(initOptions, tfexec.Upgrade(opts.Upgrade))
 	initOptions = append(initOptions, tfexec.Backend(opts.Backend))
-	initOptions = append(initOptions, tfexec.Get(opts.Get))
-	initOptions = append(initOptions, tfexec.GetPlugins(opts.GetPlugins))
-	initOptions = append(initOptions, tfexec.VerifyPlugins(opts.VerifyPlugins))
+
+	// Get modules - still supported
+	if !opts.Get {
+		initOptions = append(initOptions, tfexec.Get(false))
+	}
+
+	// Backend configuration
+	for _, config := range opts.BackendConfig {
+		initOptions = append(initOptions, tfexec.BackendConfig(config))
+	}
 
 	// Lock options
 	if !opts.Lock {
@@ -123,12 +130,9 @@ func InitWithOptions(opts configs.InitOptions) error {
 
 	// Plugin directory
 	if opts.PluginDir != "" {
-		initOptions = append(initOptions, tfexec.PluginDir(opts.PluginDir))
-	}
-
-	// Backend configuration
-	for _, config := range opts.BackendConfig {
-		initOptions = append(initOptions, tfexec.BackendConfig(config))
+		os.Setenv("TF_PLUGIN_CACHE_DIR", opts.PluginDir)
+		Info("Using plugin directory: %s", opts.PluginDir)
+		defer os.Unsetenv("TF_PLUGIN_CACHE_DIR")
 	}
 
 	// Reconfigure (replaces existing backend config)
@@ -138,24 +142,21 @@ func InitWithOptions(opts configs.InitOptions) error {
 
 	// Note: MigrateState and ForceCopy are not directly available in tfexec
 	// They need to be handled via environment variables or config options
-	// We'll handle them differently
-	if opts.MigrateState || opts.ForceCopy {
-		// Set environment variables for terraform to handle migration
-		if opts.MigrateState {
-			os.Setenv("TF_MIGRATE_STATE", "true")
-			defer os.Unsetenv("TF_MIGRATE_STATE")
-			Info("State migration enabled")
-		}
+	// Handle migrate-state and force-copy via environment variables
+	if opts.MigrateState {
+		os.Setenv("TF_MIGRATE_STATE", "true")
+		defer os.Unsetenv("TF_MIGRATE_STATE")
+		Info("State migration enabled")
+	}
 
-		if opts.ForceCopy {
-			os.Setenv("TF_FORCE_COPY", "true")
-			defer os.Unsetenv("TF_FORCE_COPY")
-			Info("Force copy mode enabled")
-		}
+	if opts.ForceCopy {
+		os.Setenv("TF_FORCE_COPY", "true")
+		defer os.Unsetenv("TF_FORCE_COPY")
+		Info("Force copy mode enabled")
 	}
 
 	// Execute init with retry logic for lock conflicts
-	err = runInitWithRetry(tf, initOptions, opts)
+	err = runInitWithRetry(tf, initOptions)
 	if err != nil {
 		// Check for specific error types and provide helpful messages
 		if strings.Contains(err.Error(), "backend configuration changed") {
@@ -176,13 +177,13 @@ func InitWithOptions(opts configs.InitOptions) error {
 	}
 
 	// Display success message with backend info
-	displayBackendInfo(tf, opts)
+	displayBackendInfo(opts)
 
 	return nil
 }
 
 // runInitWithRetry executes terraform init with retry logic for lock conflicts
-func runInitWithRetry(tf *tfexec.Terraform, initOptions []tfexec.InitOption, opts configs.InitOptions) error {
+func runInitWithRetry(tf *tfexec.Terraform, initOptions []tfexec.InitOption) error {
 	maxRetries := 3
 	retryDelay := 2 * time.Second
 
@@ -207,6 +208,7 @@ func runInitWithRetry(tf *tfexec.Terraform, initOptions []tfexec.InitOption, opt
 }
 
 // initFromModule handles initialization from a module source
+// initFromModule handles initialization from a module source
 func initFromModule(opts configs.InitOptions) error {
 	Info("Initializing from module: %s", opts.FromModule)
 
@@ -216,13 +218,18 @@ func initFromModule(opts configs.InitOptions) error {
 		return err
 	}
 
-	// Use terraform init -from-module
-	err = tf.Init(context.Background(),
-		tfexec.FromModule(opts.FromModule),
-		tfexec.Upgrade(opts.Upgrade),
-		tfexec.Get(opts.Get),
-		tfexec.GetPlugins(opts.GetPlugins),
-	)
+	// Build options for from-module
+	var options []tfexec.InitOption
+	options = append(options, tfexec.FromModule(opts.FromModule))
+	options = append(options, tfexec.Upgrade(opts.Upgrade))
+
+	// Get modules flag
+	if !opts.Get {
+		options = append(options, tfexec.Get(false))
+	}
+
+	// Execute init
+	err = tf.Init(context.Background(), options...)
 
 	if err != nil {
 		Error("Failed to initialize from module: %v", err)
@@ -234,7 +241,7 @@ func initFromModule(opts configs.InitOptions) error {
 }
 
 // displayBackendInfo shows information about the configured backend
-func displayBackendInfo(tf *tfexec.Terraform, opts configs.InitOptions) {
+func displayBackendInfo(opts configs.InitOptions) {
 	Success("Terraform backend and providers successfully initialized.")
 
 	// Show backend configuration info if available
@@ -263,12 +270,10 @@ func displayBackendInfo(tf *tfexec.Terraform, opts configs.InitOptions) {
 // Init - Simplified version for backward compatibility
 func Init(dir string, upgrade, useAI bool) error {
 	return InitWithOptions(configs.InitOptions{
-		Dir:        dir,
-		Upgrade:    upgrade,
-		UseAI:      useAI,
-		Backend:    true,
-		Get:        true,
-		GetPlugins: true,
-		Lock:       true,
+		Dir:     dir,
+		Upgrade: upgrade,
+		UseAI:   useAI,
+		Backend: true,
+		Get:     true,
 	})
 }
