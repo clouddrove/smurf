@@ -105,12 +105,6 @@ type InitOptions struct {
 	BackendConfig []string
 	Backend       bool
 	ForceCopy     bool
-	Lock          bool
-	LockTimeout   string
 	Get           bool
-	GetPlugins    bool
-	VerifyPlugins bool
-	PluginDir     string
 	FromModule    string
-	RegistryOnly  bool
 }

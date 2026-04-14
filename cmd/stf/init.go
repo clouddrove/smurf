@@ -16,14 +16,8 @@ var (
 	initBackendConfig []string // Support multiple -backend-config flags
 	initBackend       bool
 	initForceCopy     bool
-	initLock          bool
-	initLockTimeout   string
 	initGet           bool
-	initGetPlugins    bool
-	initVerifyPlugins bool
-	initPluginDir     string
 	initFromModule    string
-	initRegistryOnly  bool
 )
 
 // initCmd defines a subcommand that initializes Terraform.
@@ -47,14 +41,8 @@ var initCmd = &cobra.Command{
 			BackendConfig: initBackendConfig,
 			Backend:       initBackend,
 			ForceCopy:     initForceCopy,
-			Lock:          initLock,
-			LockTimeout:   initLockTimeout,
 			Get:           initGet,
-			GetPlugins:    initGetPlugins,
-			VerifyPlugins: initVerifyPlugins,
-			PluginDir:     initPluginDir,
 			FromModule:    initFromModule,
-			RegistryOnly:  initRegistryOnly,
 		}
 		err := terraform.InitWithOptions(opts)
 		if err != nil {
@@ -84,9 +72,6 @@ var initCmd = &cobra.Command{
   # Initialize from module source
   smurf stf init --from-module=github.com/terraform-aws-modules/terraform-aws-vpc
 
-  # Custom plugin directory (via TF_PLUGIN_CACHE_DIR)
-  smurf stf init --plugin-dir=/custom/plugins
-
   # Skip downloading modules
   smurf stf init --get=false
 `,
@@ -107,11 +92,7 @@ func init() {
 
 	// Module and plugin flags
 	initCmd.Flags().BoolVar(&initGet, "get", true, "Download and install modules")
-	initCmd.Flags().BoolVar(&initGetPlugins, "get-plugins", true, "Download and install provider plugins")
-	initCmd.Flags().BoolVar(&initVerifyPlugins, "verify-plugins", true, "Verify provider plugins with signature checking")
-	initCmd.Flags().StringVar(&initPluginDir, "plugin-dir", "", "Directory containing provider plugins")
 	initCmd.Flags().StringVar(&initFromModule, "from-module", "", "Copy the source module into the target directory")
-	initCmd.Flags().BoolVar(&initRegistryOnly, "registry-only", false, "Only check the official registry for providers")
 
 	// Add command to parent
 	stfCmd.AddCommand(initCmd)

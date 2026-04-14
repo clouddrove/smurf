@@ -118,23 +118,6 @@ func InitWithOptions(opts configs.InitOptions) error {
 		initOptions = append(initOptions, tfexec.BackendConfig(config))
 	}
 
-	// Lock options
-	if !opts.Lock {
-		initOptions = append(initOptions, tfexec.Lock(false))
-	}
-
-	// Lock timeout - LockTimeout expects a string like "10s", not time.Duration
-	if opts.LockTimeout != "" && opts.LockTimeout != "0s" {
-		initOptions = append(initOptions, tfexec.LockTimeout(opts.LockTimeout))
-	}
-
-	// Plugin directory
-	if opts.PluginDir != "" {
-		os.Setenv("TF_PLUGIN_CACHE_DIR", opts.PluginDir)
-		Info("Using plugin directory: %s", opts.PluginDir)
-		defer os.Unsetenv("TF_PLUGIN_CACHE_DIR")
-	}
-
 	// Reconfigure (replaces existing backend config)
 	if opts.Reconfigure {
 		initOptions = append(initOptions, tfexec.Reconfigure(true))
