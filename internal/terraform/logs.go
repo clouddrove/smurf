@@ -57,3 +57,8 @@ func Step(message string, args ...interface{}) {
 	coloredText := pterm.LightBlue(text)
 	fmt.Printf("%s ▶ %s\n", timestamp, coloredText)
 }
+
+// Warning prints a warning message
+func Warning(format string, args ...interface{}) {
+	pterm.Warning.Printf(format+"\n", args...)
+}
