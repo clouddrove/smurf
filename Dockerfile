@@ -28,8 +28,11 @@ ENV PATH $PATH:${CLOUDSDK_INSTALL_DIR}/google-cloud-sdk/bin
 # Install GKE plugin
 RUN gcloud components install gke-gcloud-auth-plugin --quiet
 
-# Install Terraform
-RUN curl -fsSL https://releases.hashicorp.com/terraform/1.5.7/terraform_1.5.7_linux_amd64.zip -o terraform.zip && \
+# Install Terraform (last MPL-licensed version before BSL switch)
+# See: https://www.hashicorp.com/license-faq
+# Do not bump beyond 1.5.x without reviewing license implications
+ARG TERRAFORM_VERSION=1.5.7
+RUN curl -fsSL https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip -o terraform.zip && \
     unzip terraform.zip && \
     mv terraform /usr/local/bin/ && \
     rm terraform.zip

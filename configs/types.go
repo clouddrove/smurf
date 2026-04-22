@@ -26,7 +26,7 @@ var (
 	Directory       string
 	File            []string
 	Namespace       string
-	Timeout         int
+	Timeout         int // in seconds
 	Atomic          bool
 	Debug           bool
 	Set             []string
