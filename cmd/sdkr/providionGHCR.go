@@ -10,6 +10,7 @@ import (
 
 	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/docker"
+	"github.com/distribution/reference"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 )
@@ -150,6 +151,11 @@ func validateGHCRImage(image string) error {
 		pterm.Error.Printfln("Invalid GHCR image format: %s", image)
 		pterm.Info.Println("Expected format: ghcr.io/OWNER/IMAGE_NAME:TAG")
 		return errors.New("invalid GHCR image format")
+	}
+	if _, err := reference.ParseNormalizedNamed(image); err != nil {
+		pterm.Error.Printfln("Invalid GHCR image reference: %s", image)
+		pterm.Info.Println("Expected format: ghcr.io/OWNER/IMAGE_NAME:TAG")
+		return fmt.Errorf("invalid GHCR image reference: %w", err)
 	}
 	return nil
 }

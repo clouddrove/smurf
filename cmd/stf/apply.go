@@ -51,7 +51,7 @@ var applyCmd = &cobra.Command{
 		return nil
 	},
 	Example: `
-	# Appply command
+	# Apply command
 	smurf stf apply
 
 	# Specify variables
