@@ -13,7 +13,7 @@ import (
 
 // ShowState displays the current Terraform state
 func ShowState(vars []string, varFiles []string, dir string, jsonOutput bool, useAI bool) error {
-	Step("Initializing Terraform client...")
+	Step("Initializing Terraform client for Show State...")
 	tf, err := GetTerraform(dir)
 	if err != nil {
 		Error("Failed to initialize Terraform client: %v", err)
@@ -40,12 +40,12 @@ func ShowState(vars []string, varFiles []string, dir string, jsonOutput bool, us
 			return err
 		}
 		// Convert state to JSON string
-		jsonOutput, err := json.MarshalIndent(state, "", "  ")
+		stateJSON, err := json.MarshalIndent(state, "", "  ")
 		if err != nil {
 			Error("Failed to marshal state to JSON: %v", err)
 			return err
 		}
-		fmt.Println(string(jsonOutput))
+		fmt.Println(string(stateJSON))
 	} else {
 		// For human-readable output, get the state as JSON
 		state, err := tf.Show(context.Background())
@@ -65,10 +65,10 @@ func ShowState(vars []string, varFiles []string, dir string, jsonOutput bool, us
 
 // ShowResource displays a specific resource from the state
 func ShowResource(resourceAddr string, vars []string, varFiles []string, dir string, jsonOutput bool, useAI bool) error {
-	Step("Initializing Terraform client...")
+	Step("Initializing Terraform client for Show Resource...")
 	tf, err := GetTerraform(dir)
 	if err != nil {
-		Error("Failed to initialize Terraform client: %v", err)
+		Error("Failed to initialize Terraform client for shoe resource: %v", err)
 		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
@@ -130,10 +130,10 @@ func ShowResource(resourceAddr string, vars []string, varFiles []string, dir str
 
 // ShowPlan displays details of a saved plan file
 func ShowPlan(planFile string, vars []string, varFiles []string, dir string, jsonOutput bool, useAI bool) error {
-	Step("Initializing Terraform client...")
+	Step("Initializing Terraform client for Show Plan...")
 	tf, err := GetTerraform(dir)
 	if err != nil {
-		Error("Failed to initialize Terraform client: %v", err)
+		Error("Failed to initialize Terraform client for show plan: %v", err)
 		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
@@ -215,7 +215,7 @@ func printStateHumanReadable(state *tfjson.State) {
 		return
 	}
 
-	fmt.Println("\n\033[1mResources:\033[0m")
+	fmt.Println("Resources: ")
 	if state.Values.RootModule != nil {
 		printResourcesFromModule(state.Values.RootModule, 0)
 	}

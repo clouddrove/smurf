@@ -14,13 +14,11 @@ LAST_RELEASE=
 REPO=$(shell go list | head -n 1)
 IMAGE=$(BASENAME)
 VERSION ?= $(shell git describe --tags --always --dirty)
-COMMIT ?= $(shell git rev-parse --short HEAD)
-DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 DOCKER=docker
 PACKAGE=$(DIST)/$(basename $(notdir $(PROGRAM)))-$(shell go env GOOS)-$(shell go env GOARCH).zip
 
 
-.PHONY: all compile $(PROGRAM) package install image test vet changelog hooks tools info
+.PHONY: $(PROGRAM)
 
 all: $(PROGRAM)
 
@@ -28,7 +26,7 @@ compile: $(PROGRAM)
 
 $(PROGRAM): $(BINDIR)
 	mkdir -p $(dir $@)
-	go build -ldflags="-X 'github.com/clouddrove/smurf/cmd.version=${VERSION}' -X 'github.com/clouddrove/smurf/cmd.commit=${COMMIT}' -X 'github.com/clouddrove/smurf/cmd.date=${DATE}'" -o $(PROGRAM)
+	go build -ldflags="-X '$(REPO)/program.Version=${VERSION}'" -o $(PROGRAM)
 
 package: $(PACKAGE)
 
@@ -44,16 +42,10 @@ $(PACKAGE): $(PROGRAM)
 	tar -czf $@ -C $(dir $<) $(notdir $<)
 
 install:
-	go install -ldflags="-X 'github.com/clouddrove/smurf/cmd.version=${VERSION}' -X 'github.com/clouddrove/smurf/cmd.commit=${COMMIT}' -X 'github.com/clouddrove/smurf/cmd.date=${DATE}'"
+	go install -ldflags="-X '$(REPO)/program.Version=${VERSION}'"
 
 image:
-	$(DOCKER) build -f Dockerfile \
-		--build-arg PROGRAM=$(BASENAME) \
-		--build-arg VERSION=$(VERSION) \
-		--build-arg COMMIT=$(COMMIT) \
-		--build-arg DATE=$(DATE) \
-		--build-arg BASENAME=$(BASENAME) \
-		-t $(IMAGE) .
+	$(DOCKER) build -f Dockerfile --build-arg PROGRAM=$(BASENAME) --build-arg VERSION=$(VERSION) --build-arg BASENAME=$(BASENAME) -t $(IMAGE) .
 
 test:
 	go test -v ./...
@@ -74,19 +66,15 @@ hooks: .git/hooks/pre-commit
 	pre-commit install
 	pre-commit install --hook-type commit-msg
 
+
 info::
 	@echo BASENAME=$(BASENAME)
 	@echo PROGRAM=$(PROGRAM)
 	@echo IMAGE=$(IMAGE)
-	@echo VERSION=$(VERSION)
-	@echo COMMIT=$(COMMIT)
-	@echo DATE=$(DATE)
+
 
 tools:
 	go install honnef.co/go/tools/cmd/staticcheck@latest
 	go install github.com/go-critic/go-critic/cmd/gocritic@latest
 	go install github.com/securego/gosec/v2/cmd/gosec@latest
-
-clean:
-	rm -f $(PROGRAM)
-	rm -rf $(DIST)
+	

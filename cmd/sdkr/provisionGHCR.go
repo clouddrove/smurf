@@ -149,14 +149,12 @@ func resolveImageRef(args []string, cfg *configs.Config) string {
 func validateGHCRImage(image string) error {
 	ghcrFormat := "ghcr.io/OWNER/IMAGE_NAME:TAG"
 	if !strings.HasPrefix(image, "ghcr.io/") {
-		pterm.Error.Printfln("Invalid GHCR image format: %s", image)
-		pterm.Info.Printf("Expected format: %s", ghcrFormat)
+		pterm.Error.Printfln("Invalid GHCR image format: %s\nExpected format: %s\n Missing Prefix : ghcr.io/", image, ghcrFormat)
 		return errors.New("invalid GHCR image format")
 	}
 	named, err := reference.ParseNormalizedNamed(image)
 	if err != nil {
-		pterm.Error.Printfln("Invalid GHCR image reference: %s", image)
-		pterm.Info.Printf("Expected format: %s", ghcrFormat)
+		pterm.Error.Printfln("Invalid GHCR image reference: %s\n Expected format: %s", image, ghcrFormat)
 		return fmt.Errorf("invalid GHCR image reference: %w", err)
 	}
 	// GHCR requires owner + repository: ghcr.io/<owner>/<repo>. named.Name()

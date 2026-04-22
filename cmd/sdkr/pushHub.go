@@ -61,7 +61,7 @@ Export DOCKER_USERNAME and DOCKER_PASSWORD as environment variables for Docker H
 		}
 
 		if os.Getenv("DOCKER_USERNAME") == "" || os.Getenv("DOCKER_PASSWORD") == "" {
-			pterm.Error.Println("ired")
+			pterm.Error.Println("Missing required Docker Hub credentials")
 			return errors.New("missing required Docker Hub credentials")
 		}
 
