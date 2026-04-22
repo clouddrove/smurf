@@ -118,7 +118,7 @@ func init() {
 	buildCmd.Flags().StringArrayVar(&configs.BuildArgs, "build-arg", []string{}, "Set build-time variables")
 	buildCmd.Flags().StringVar(&configs.Target, "target", "", "Set the target build stage to build")
 	buildCmd.Flags().StringVar(&configs.Platform, "platform", "", "Set the platform for the build (e.g., linux/amd64, linux/arm64)")
-	buildCmd.Flags().IntVar(&configs.BuildTimeout, "timeout", 1500, "Set the build timeout")
+	buildCmd.Flags().IntVar(&configs.BuildTimeout, "timeout", 1500, "Set the build timeout in seconds")
 	buildCmd.Flags().BoolVar(&configs.BuildKit, "buildkit", false, "Enable BuildKit for advanced Dockerfile features")
 	buildCmd.Flags().BoolVar(&useAI, "ai", false, "To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.")
 

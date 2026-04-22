@@ -7,7 +7,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var applyApprove bool
 var applyVarNameValue []string
 var applyVarFile []string
 var applyLock bool
@@ -51,7 +50,7 @@ var applyCmd = &cobra.Command{
 		return nil
 	},
 	Example: `
-	# Appply command
+	# Apply command
 	smurf stf apply
 
 	# Specify variables
