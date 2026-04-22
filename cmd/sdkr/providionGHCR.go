@@ -152,10 +152,19 @@ func validateGHCRImage(image string) error {
 		pterm.Info.Println("Expected format: ghcr.io/OWNER/IMAGE_NAME:TAG")
 		return errors.New("invalid GHCR image format")
 	}
-	if _, err := reference.ParseNormalizedNamed(image); err != nil {
+	named, err := reference.ParseNormalizedNamed(image)
+	if err != nil {
 		pterm.Error.Printfln("Invalid GHCR image reference: %s", image)
 		pterm.Info.Println("Expected format: ghcr.io/OWNER/IMAGE_NAME:TAG")
 		return fmt.Errorf("invalid GHCR image reference: %w", err)
+	}
+	// GHCR requires owner + repository: ghcr.io/<owner>/<repo>. named.Name()
+	// keeps the registry in the string, so a 2-slash minimum covers both
+	// ghcr.io/owner/repo and deeper paths like ghcr.io/org/team/app.
+	if strings.Count(named.Name(), "/") < 2 {
+		pterm.Error.Printfln("Invalid GHCR image reference: %s (missing owner)", image)
+		pterm.Info.Println("Expected format: ghcr.io/OWNER/IMAGE_NAME:TAG")
+		return errors.New("invalid GHCR image reference: missing owner")
 	}
 	return nil
 }
