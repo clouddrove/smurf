@@ -9,6 +9,7 @@ import (
 
 	"github.com/clouddrove/smurf/internal/ai"
 	tfjson "github.com/hashicorp/terraform-json"
+	"github.com/pterm/pterm"
 )
 
 // ShowState displays the current Terraform state
@@ -165,23 +166,21 @@ func ShowPlan(planFile string, vars []string, varFiles []string, dir string, jso
 		}
 		fmt.Println(string(output))
 	} else {
-		// Get raw output for human-readable display with colorization
-		output, err := tf.ShowPlanFileRaw(context.Background(), planFile)
+		// Parse the plan for structured output
+		plan, err := tf.ShowPlanFile(context.Background(), planFile)
 		if err != nil {
 			Error("Failed to read plan: %v", err)
 			ai.AIExplainError(useAI, err.Error())
 			return err
 		}
 
-		// Colorize and display the plan
-		coloredOutput := colorizePlanOutput(string(output))
-		fmt.Print(coloredOutput)
-
-		// Also show summary from parsed plan
-		plan, err := tf.ShowPlanFile(context.Background(), planFile)
-		if err == nil && plan != nil {
-			summarizePlanChanges(plan)
+		if plan == nil {
+			Error("Plan is empty or invalid")
+			return fmt.Errorf("plan is empty or invalid")
 		}
+
+		// Print human-readable plan summary
+		printPlanHumanReadable(plan)
 	}
 
 	Success("Plan displayed successfully")
@@ -211,20 +210,20 @@ func searchResourceInModules(modules []*tfjson.StateModule, resourceAddr string)
 // Helper function to print state in human-readable format
 func printStateHumanReadable(state *tfjson.State) {
 	if state == nil || state.Values == nil {
-		fmt.Println("No state found")
+		pterm.Info.Println("No state found")
 		return
 	}
 
-	fmt.Println("Resources: ")
+	pterm.DefaultSection.Println("Resources")
 	if state.Values.RootModule != nil {
 		printResourcesFromModule(state.Values.RootModule, 0)
 	}
 
 	// Print outputs if any
 	if state.Values.Outputs != nil && len(state.Values.Outputs) > 0 {
-		fmt.Println("\n\033[1mOutputs:\033[0m")
+		pterm.DefaultSection.Println("Outputs")
 		for name, output := range state.Values.Outputs {
-			fmt.Printf("  \033[33m%s\033[0m = %v\n", name, output.Value)
+			pterm.Printf("  %s = %v\n", pterm.FgYellow.Sprint(name), output.Value)
 		}
 	}
 }
@@ -234,18 +233,18 @@ func printResourcesFromModule(module *tfjson.StateModule, indent int) {
 	indentStr := strings.Repeat("  ", indent)
 
 	for _, resource := range module.Resources {
-		fmt.Printf("%s\033[36m%s\033[0m\n", indentStr, resource.Address)
-		fmt.Printf("%s  Type: %s\n", indentStr, resource.Type)
-		fmt.Printf("%s  Provider: %s\n", indentStr, resource.ProviderName)
+		pterm.Printf("%s%s\n", indentStr, pterm.FgCyan.Sprint(resource.Address))
+		pterm.Printf("%s  Type: %s\n", indentStr, resource.Type)
+		pterm.Printf("%s  Provider: %s\n", indentStr, resource.ProviderName)
 
 		// Print important attributes
 		if id, ok := resource.AttributeValues["id"]; ok {
-			fmt.Printf("%s  ID: %v\n", indentStr, id)
+			pterm.Printf("%s  ID: %v\n", indentStr, id)
 		}
 		if arn, ok := resource.AttributeValues["arn"]; ok {
-			fmt.Printf("%s  ARN: %v\n", indentStr, arn)
+			pterm.Printf("%s  ARN: %v\n", indentStr, arn)
 		}
-		fmt.Println()
+		pterm.Println()
 	}
 
 	// Print resources from child modules
@@ -256,47 +255,94 @@ func printResourcesFromModule(module *tfjson.StateModule, indent int) {
 
 // Helper function to print resource in human-readable format
 func printResourceHumanReadable(resource *tfjson.StateResource) {
-	fmt.Printf("\n\033[1mResource: %s\033[0m\n", resource.Address)
-	fmt.Printf("  Type: %s\n", resource.Type)
-	fmt.Printf("  Provider: %s\n", resource.ProviderName)
+	pterm.DefaultSection.Println(pterm.Bold.Sprintf("Resource: %s", resource.Address))
+	pterm.Printf("  Type: %s\n", resource.Type)
+	pterm.Printf("  Provider: %s\n", resource.ProviderName)
 
-	fmt.Println("\n  \033[1mAttributes:\033[0m")
+	pterm.Println()
+	pterm.DefaultSection.Println("Attributes")
 	for key, value := range resource.AttributeValues {
 		// Skip sensitive values or very long values for readability
 		valueStr := fmt.Sprintf("%v", value)
 		if len(valueStr) > 100 {
 			valueStr = valueStr[:97] + "..."
 		}
-		fmt.Printf("    \033[36m%s\033[0m = %s\n", key, valueStr)
+		pterm.Printf("  %s = %s\n", pterm.FgCyan.Sprint(key), valueStr)
 	}
 }
 
-// Helper function to colorize plan output
-func colorizePlanOutput(output string) string {
-	lines := strings.Split(output, "\n")
-	for i, line := range lines {
-		switch {
-		case strings.Contains(line, "Plan:"):
-			lines[i] = fmt.Sprintf("\033[1m%s\033[0m", line)
-		case strings.Contains(line, "to add"):
-			lines[i] = fmt.Sprintf("\033[32m%s\033[0m", line)
-		case strings.Contains(line, "to change"):
-			lines[i] = fmt.Sprintf("\033[33m%s\033[0m", line)
-		case strings.Contains(line, "to destroy"):
-			lines[i] = fmt.Sprintf("\033[31m%s\033[0m", line)
-		case strings.Contains(line, "No changes."):
-			lines[i] = fmt.Sprintf("\033[36m%s\033[0m", line)
-		case strings.Contains(line, "Terraform will perform the following actions:"):
-			lines[i] = fmt.Sprintf("\033[1m%s\033[0m", line)
-		case strings.Contains(line, "~"):
-			lines[i] = fmt.Sprintf("\033[33m%s\033[0m", line)
-		case strings.Contains(line, "+"):
-			lines[i] = fmt.Sprintf("\033[32m%s\033[0m", line)
-		case strings.Contains(line, "-"):
-			lines[i] = fmt.Sprintf("\033[31m%s\033[0m", line)
+// Helper function to print plan in human-readable format with proper styling
+func printPlanHumanReadable(plan *tfjson.Plan) {
+	if plan == nil {
+		pterm.Info.Println("No plan found")
+		return
+	}
+
+	// Print resource changes
+	if plan.ResourceChanges != nil && len(plan.ResourceChanges) > 0 {
+		pterm.DefaultSection.Println("Resource Changes")
+
+		for _, rc := range plan.ResourceChanges {
+			// Print resource address with appropriate color based on action
+			var addressPrefix string
+			var addressColor pterm.Color
+			switch {
+			case containsAction(rc.Change.Actions, tfjson.ActionCreate):
+				addressPrefix = "+"
+				addressColor = pterm.FgGreen
+			case containsAction(rc.Change.Actions, tfjson.ActionDelete):
+				addressPrefix = "-"
+				addressColor = pterm.FgRed
+			default:
+				addressPrefix = "~"
+				addressColor = pterm.FgYellow
+			}
+
+			pterm.Printf("  %s %s\n",
+				addressColor.Sprint(addressPrefix),
+				addressColor.Sprint(rc.Address))
+			pterm.Printf("    Type: %s\n", rc.Type)
+			pterm.Printf("    Provider: %s\n", rc.ProviderName)
+
+			// Show action summary
+			actionStr := formatActions(rc.Change.Actions)
+			pterm.Printf("    Actions: %s\n", actionStr)
+			pterm.Println()
 		}
 	}
-	return strings.Join(lines, "\n")
+
+	// Print summary
+	summarizePlanChanges(plan)
+}
+
+// Helper function to check if actions slice contains a specific action
+func containsAction(actions []tfjson.Action, action tfjson.Action) bool {
+	for _, a := range actions {
+		if a == action {
+			return true
+		}
+	}
+	return false
+}
+
+// Helper function to format actions for display
+func formatActions(actions []tfjson.Action) string {
+	var formatted []string
+	for _, action := range actions {
+		switch action {
+		case tfjson.ActionCreate:
+			formatted = append(formatted, pterm.FgGreen.Sprint("create"))
+		case tfjson.ActionUpdate:
+			formatted = append(formatted, pterm.FgYellow.Sprint("update"))
+		case tfjson.ActionDelete:
+			formatted = append(formatted, pterm.FgRed.Sprint("delete"))
+		case tfjson.ActionRead:
+			formatted = append(formatted, pterm.FgCyan.Sprint("read"))
+		default:
+			formatted = append(formatted, string(action))
+		}
+	}
+	return strings.Join(formatted, ", ")
 }
 
 // Helper function to summarize plan changes
@@ -308,19 +354,23 @@ func summarizePlanChanges(plan *tfjson.Plan) {
 	added, changed, destroyed := 0, 0, 0
 
 	for _, resource := range plan.ResourceChanges {
-		for _, action := range resource.Change.Actions {
-			switch action {
-			case tfjson.ActionCreate:
-				added++
-			case tfjson.ActionUpdate:
-				changed++
-			case tfjson.ActionDelete:
-				destroyed++
-			}
+		if containsAction(resource.Change.Actions, tfjson.ActionCreate) {
+			added++
+		}
+		if containsAction(resource.Change.Actions, tfjson.ActionUpdate) {
+			changed++
+		}
+		if containsAction(resource.Change.Actions, tfjson.ActionDelete) {
+			destroyed++
 		}
 	}
 
 	if added > 0 || changed > 0 || destroyed > 0 {
-		fmt.Printf("\n\033[1mSummary:\033[0m \033[32m%d to add\033[0m, \033[33m%d to change\033[0m, \033[31m%d to destroy\033[0m\n", added, changed, destroyed)
+		summaryText := pterm.Sprintf("%s, %s, %s",
+			pterm.FgGreen.Sprintf("%d to add", added),
+			pterm.FgYellow.Sprintf("%d to change", changed),
+			pterm.FgRed.Sprintf("%d to destroy", destroyed))
+		pterm.DefaultSection.Println("Summary")
+		pterm.Println(summaryText)
 	}
 }
