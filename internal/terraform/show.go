@@ -69,7 +69,7 @@ func ShowResource(resourceAddr string, vars []string, varFiles []string, dir str
 	Step("Initializing Terraform client for Show Resource...")
 	tf, err := GetTerraform(dir)
 	if err != nil {
-		Error("Failed to initialize Terraform client for shoe resource: %v", err)
+		Error("Failed to initialize Terraform client for show resource: %v", err)
 		ai.AIExplainError(useAI, err.Error())
 		return err
 	}
@@ -220,7 +220,7 @@ func printStateHumanReadable(state *tfjson.State) {
 	}
 
 	// Print outputs if any
-	if state.Values.Outputs != nil && len(state.Values.Outputs) > 0 {
+	if len(state.Values.Outputs) > 0 {
 		pterm.DefaultSection.Println("Outputs")
 		for name, output := range state.Values.Outputs {
 			pterm.Printf("  %s = %v\n", pterm.FgYellow.Sprint(name), output.Value)
@@ -279,7 +279,7 @@ func printPlanHumanReadable(plan *tfjson.Plan) {
 	}
 
 	// Print resource changes
-	if plan.ResourceChanges != nil && len(plan.ResourceChanges) > 0 {
+	if len(plan.ResourceChanges) > 0 {
 		pterm.DefaultSection.Println("Resource Changes")
 
 		for _, rc := range plan.ResourceChanges {
