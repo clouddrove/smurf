@@ -194,6 +194,7 @@ func ensureGHCRAuth(username, token string) error {
 func prepareBuildOptions() (docker.BuildOptions, error) {
 	if configs.ContextDir == "" {
 		wd, err := os.Getwd()
+		pterm.Error.Println("GitHub Container Registry credentials missing.")
 		if err != nil {
 			return docker.BuildOptions{}, fmt.Errorf("failed to get working directory: %v", err)
 		}
