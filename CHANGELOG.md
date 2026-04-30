@@ -4,6 +4,12 @@ All notable and important changes to **Smurf Tool** are documented here.
 
 ---
 
+## [v1.1.2] - 2026-04-30
+### :bug: Bug Fixes
+- [`85efac3`](https://github.com/clouddrove/smurf/commit/85efac3d47f7ebe56353b560b70243d34a2ef9c6) - update go version 1.25.5 to 1.25.8 *(PR [#396](https://github.com/clouddrove/smurf/pull/396) by [@anket-cd](https://github.com/anket-cd))*
+- [`aad25c0`](https://github.com/clouddrove/smurf/commit/aad25c071c1bc7bc057a9f5de8693cbf0eed76c5) - replace ANSI escape sequences with pterm for safe, consistent show command output *(PR [#397](https://github.com/clouddrove/smurf/pull/397) by [@anket-cd](https://github.com/anket-cd))*
+
+
 ## [v1.0.0] — 2026-01-20
 ### Added
 - Add missing Smurf STF commands:
@@ -139,3 +145,4 @@ All notable and important changes to **Smurf Tool** are documented here.
     - `smurf sdkr --help`
     - `smurf selm --help`
 
+[v1.1.2]: https://github.com/clouddrove/smurf/compare/v1.1.1...v1.1.2
