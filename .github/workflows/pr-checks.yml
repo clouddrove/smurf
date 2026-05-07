@@ -11,4 +11,4 @@ on:
 jobs:
   pr-validation:
     if: github.actor != 'dependabot[bot]'
-    uses: clouddrove/github-shared-workflows/.github/workflows/pr-checks.yml@c0dc8f22e1836ac0a76ee7a7d9f4c2e30e5293e8
+    uses: clouddrove/github-shared-workflows/.github/workflows/pr-checks.yml@c165f939ce9ad3de94da8fc50b3368565bea4fda
