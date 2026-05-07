@@ -7,7 +7,7 @@ on:
 jobs:
   handle-release:
     if: github.event.pull_request.merged == true
-    uses: clouddrove/github-shared-workflows/.github/workflows/release-tag.yml@c0dc8f22e1836ac0a76ee7a7d9f4c2e30e5293e8
+    uses: clouddrove/github-shared-workflows/.github/workflows/release-tag.yml@c165f939ce9ad3de94da8fc50b3368565bea4fda
     with:
       target_branch: ${{ github.event.pull_request.base.ref }}
       tag_format: "vX.Y.Z"  # or "X.Y.Z" depending on your preference
