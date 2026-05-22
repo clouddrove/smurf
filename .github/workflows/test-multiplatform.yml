@@ -5,7 +5,7 @@ on:
 
 env:
   GO_VERSION: 1.26.0
-  TERRAFORM_VERSION: 1.1.7
+  TERRAFORM_VERSION: 1.15.2
 
 jobs:
   test:
