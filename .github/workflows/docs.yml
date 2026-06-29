@@ -12,7 +12,7 @@ jobs:
     name: Build Docs
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Configure Git Credentials
         run: |
@@ -24,7 +24,7 @@ jobs:
           python-version: 3.x
       - run: echo "cache_id=$(date --utc '+%V')" >> $GITHUB_ENV
 
-      - uses: actions/cache@v5
+      - uses: actions/cache@v6
         with:
           key: mkdocs-material-${{ env.cache_id }}
           path: .cache
@@ -47,7 +47,7 @@ jobs:
     needs: build
     steps:
       - name: Checkout gh-pages branch
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: gh-pages
           token: ${{ secrets.GITHUB }}
