@@ -243,6 +243,11 @@ func resourcesReady(clientset *kubernetes.Clientset, namespace string, resources
 				pterm.Error.Println(err)
 				return false, nil, err
 			}
+			// Check if pod is Succeeded (valid terminal state for Jobs)
+			if pod.Status.Phase == corev1.PodSucceeded {
+				// Pod completed successfully, consider it ready
+				continue
+			}
 			if pod.Status.Phase != corev1.PodRunning {
 				notReadyResources = append(notReadyResources, fmt.Sprintf("Pod/%s (Phase: %s)", res.Name, pod.Status.Phase))
 			} else {

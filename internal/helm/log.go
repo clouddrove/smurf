@@ -8,6 +8,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/pterm/pterm"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -36,7 +37,7 @@ func getPodStatusColor(status string) string {
 		return ColorGreen
 	case "Pending":
 		return ColorYellow
-	case "Failed", "Error", "CrashLoopBackOff":
+	case "Failed", "Error", "CrashLoopBackOff", "ImagePullBackOff", "ErrImagePull":
 		return ColorRed
 	case "Unknown":
 		return ColorGray
@@ -116,23 +117,28 @@ func printReleaseResources(namespace, release string) {
 			status := string(pod.Status.Phase)
 			var messages []string
 
-			// Check container statuses for actual state
-			for _, cs := range pod.Status.ContainerStatuses {
-				if cs.State.Waiting != nil {
-					// Use Waiting reason as the main status (e.g., CrashLoopBackOff, ImagePullBackOff)
-					status = cs.State.Waiting.Reason
-					// Store the message for Info column
-					if cs.State.Waiting.Message != "" {
-						messages = append(messages, cs.State.Waiting.Message)
-					}
-				} else if cs.State.Terminated != nil {
-					status = cs.State.Terminated.Reason
-					// Store the message for Info column
-					if cs.State.Terminated.Message != "" {
-						messages = append(messages, cs.State.Terminated.Message)
+			// Check if pod is Succeeded (valid success state for Jobs)
+			if pod.Status.Phase == corev1.PodSucceeded {
+				status = "Succeeded"
+				messages = append(messages, "Pod completed successfully")
+			} else {
+				// Check container statuses for actual state
+				for _, cs := range pod.Status.ContainerStatuses {
+					if cs.State.Waiting != nil {
+						// Use Waiting reason as the main status (e.g., CrashLoopBackOff, ImagePullBackOff)
+						status = cs.State.Waiting.Reason
+						// Store the message for Info column
+						if cs.State.Waiting.Message != "" {
+							messages = append(messages, cs.State.Waiting.Message)
+						}
+					} else if cs.State.Terminated != nil {
+						status = cs.State.Terminated.Reason
+						// Store the message for Info column
+						if cs.State.Terminated.Message != "" {
+							messages = append(messages, cs.State.Terminated.Message)
+						}
 					}
 				}
-
 			}
 
 			statusColor := getPodStatusColor(status)
