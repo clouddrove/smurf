@@ -10,7 +10,7 @@ permissions: write-all
 jobs:
   build:
     name: Build Docs
-    runs-on: ubuntu-latest
+    runs-on: "arc-runners"
     steps:
       - uses: actions/checkout@v7
 
@@ -40,7 +40,7 @@ jobs:
 
   deploy:
     name: Deploy Docs
-    runs-on: ubuntu-latest
+    runs-on: "arc-runners"
     environment:
       name: smurf-url
       url: https://smurf.clouddrove.com

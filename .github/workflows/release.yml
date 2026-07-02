@@ -10,7 +10,7 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: "arc-runners"
     strategy:
       matrix:
         GOOS: [linux, darwin, windows]
@@ -102,7 +102,7 @@ jobs:
         if-no-files-found: error
 
   release:
-    runs-on: ubuntu-latest
+    runs-on: "arc-runners"
     needs:
       - build
     permissions:
@@ -172,7 +172,7 @@ jobs:
         echo "   https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}"
 
   docker-build:
-    runs-on: ubuntu-latest
+    runs-on: "arc-runners"
     name: Build the docker image
     needs: build
     steps:
