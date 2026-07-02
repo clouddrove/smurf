@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/pterm/pterm"
 	corev1 "k8s.io/api/core/v1"
@@ -12,6 +13,21 @@ import (
 )
 
 const defaultPodLogTailLines int64 = 100
+
+type cachedPodDiagnostics struct {
+	current    map[string]string // container -> current logs
+	previous   map[string]string // container -> previous logs
+	events     []corev1.Event
+	capturedAt time.Time
+	podExists  bool
+}
+
+func newCachedPodDiagnostics() *cachedPodDiagnostics {
+	return &cachedPodDiagnostics{
+		current:  make(map[string]string),
+		previous: make(map[string]string),
+	}
+}
 
 type podLogFetchOpts struct {
 	container string
@@ -181,8 +197,119 @@ func printLogSectionBody(logs string, fetchErr error) {
 	fmt.Println(strings.Repeat("-", 80))
 }
 
-// printFailedPodLogs prints pod logs in kubectl-style sections (current + --previous when needed).
+func containerNeverStarted(cs corev1.ContainerStatus) bool {
+	if cs.State.Waiting == nil {
+		return false
+	}
+	switch cs.State.Waiting.Reason {
+	case "ImagePullBackOff", "ErrImagePull", "InvalidImageName",
+		"CreateContainerConfigError", "CreateContainerError", "PodInitializing":
+		return true
+	}
+	return false
+}
+
+func capturePodDiagnostics(clientset *kubernetes.Clientset, namespace string, pod *corev1.Pod) *cachedPodDiagnostics {
+	cache := newCachedPodDiagnostics()
+	cache.capturedAt = time.Now()
+	cache.podExists = true
+
+	for _, target := range containersForLogFetch(pod) {
+		if logs, err := fetchPodContainerLogs(clientset, namespace, pod.Name, podLogFetchOpts{
+			container: target.name,
+			previous:  false,
+			tailLines: defaultPodLogTailLines,
+		}); err == nil && strings.TrimSpace(logs) != "" {
+			cache.current[target.name] = logs
+		}
+
+		if target.previous {
+			if logs, err := fetchPodContainerLogs(clientset, namespace, pod.Name, podLogFetchOpts{
+				container: target.name,
+				previous:  true,
+				tailLines: defaultPodLogTailLines,
+			}); err == nil && strings.TrimSpace(logs) != "" {
+				cache.previous[target.name] = logs
+			}
+		}
+	}
+
+	if events, err := getPodEvents(clientset, namespace, pod.Name); err == nil {
+		cache.events = events
+	}
+
+	return cache
+}
+
+func mergePodDiagnostics(existing, fresh *cachedPodDiagnostics) *cachedPodDiagnostics {
+	if existing == nil {
+		return fresh
+	}
+	if fresh == nil {
+		return existing
+	}
+
+	for k, v := range fresh.current {
+		if v != "" {
+			existing.current[k] = v
+		}
+	}
+	for k, v := range fresh.previous {
+		if v != "" {
+			existing.previous[k] = v
+		}
+	}
+	if len(fresh.events) > 0 {
+		existing.events = fresh.events
+	}
+	if !fresh.capturedAt.IsZero() {
+		existing.capturedAt = fresh.capturedAt
+	}
+	existing.podExists = fresh.podExists
+	return existing
+}
+
+func printPodEventsSection(events []corev1.Event, title string) {
+	if len(events) == 0 {
+		return
+	}
+	fmt.Println()
+	pterm.DefaultSection.WithLevel(2).Println(title)
+	fmt.Println("  Type    Reason              Message")
+	fmt.Println("  ----    ------              -------")
+	for _, evt := range events {
+		icon := "ℹ"
+		if evt.Type == "Warning" {
+			icon = "⚠"
+		}
+		fmt.Printf("  %s %-7s %-19s %s\n", icon, evt.Type, evt.Reason, evt.Message)
+	}
+	fmt.Println(strings.Repeat("-", 80))
+}
+
+func printContainerNeverStartedReason(pod corev1.Pod, containerName string) {
+	for _, cs := range pod.Status.ContainerStatuses {
+		if cs.Name != containerName {
+			continue
+		}
+		if cs.State.Waiting != nil {
+			pterm.Warning.Printf("  Container never started — no runtime logs available.\n")
+			pterm.Error.Printf("  Reason  : %s\n", cs.State.Waiting.Reason)
+			if cs.State.Waiting.Message != "" {
+				pterm.Error.Printf("  Message : %s\n", cs.State.Waiting.Message)
+			}
+			return
+		}
+	}
+}
+
+// printFailedPodLogs prints pod logs fetched live from the cluster.
 func printFailedPodLogs(clientset *kubernetes.Clientset, namespace string, pod corev1.Pod) {
+	printFailedPodLogsWithCache(clientset, namespace, pod, nil)
+}
+
+// printFailedPodLogsWithCache prints logs from cache (captured during upgrade) with live fallback.
+func printFailedPodLogsWithCache(clientset *kubernetes.Clientset, namespace string, pod corev1.Pod, cache *cachedPodDiagnostics) {
 	targets := containersForLogFetch(&pod)
 	if len(targets) == 0 {
 		pterm.Warning.Printf("No containers to fetch logs for pod %s\n", pod.Name)
@@ -190,6 +317,7 @@ func printFailedPodLogs(clientset *kubernetes.Clientset, namespace string, pod c
 	}
 
 	multiContainer := len(pod.Spec.Containers) > 1
+	podRemoved := cache != nil && !cache.podExists
 
 	for _, target := range targets {
 		containerLabel := target.name
@@ -197,7 +325,6 @@ func printFailedPodLogs(clientset *kubernetes.Clientset, namespace string, pod c
 			containerLabel = target.name + " (init)"
 		}
 
-		// Current instance logs (kubectl logs podname)
 		containerArg := ""
 		if multiContainer || target.init {
 			containerArg = target.name
@@ -205,28 +332,80 @@ func printFailedPodLogs(clientset *kubernetes.Clientset, namespace string, pod c
 		currentCmd := kubectlLogsCommand(namespace, pod.Name, containerArg, false, defaultPodLogTailLines)
 
 		title := fmt.Sprintf("Logs — %s", containerLabel)
+		if podRemoved {
+			title += " (captured before pod removal)"
+		}
 		printLogSectionHeader(title, currentCmd)
 
-		logs, err := fetchPodContainerLogs(clientset, namespace, pod.Name, podLogFetchOpts{
-			container: target.name,
-			previous:  false,
-			tailLines: defaultPodLogTailLines,
-		})
-		printLogSectionBody(logs, err)
+		var logs string
+		var fetchErr error
 
-		// Previous instance logs (kubectl logs podname --previous) for crash loops
-		if target.previous {
-			prevCmd := kubectlLogsCommand(namespace, pod.Name, target.name, true, defaultPodLogTailLines)
-			printLogSectionHeader(fmt.Sprintf("Previous logs — %s", containerLabel), prevCmd)
-
-			prevLogs, prevErr := fetchPodContainerLogs(clientset, namespace, pod.Name, podLogFetchOpts{
+		if cache != nil {
+			if cached, ok := cache.current[target.name]; ok && strings.TrimSpace(cached) != "" {
+				logs = cached
+			}
+		}
+		if logs == "" && !podRemoved {
+			logs, fetchErr = fetchPodContainerLogs(clientset, namespace, pod.Name, podLogFetchOpts{
 				container: target.name,
-				previous:  true,
+				previous:  false,
 				tailLines: defaultPodLogTailLines,
 			})
+		} else if logs == "" && podRemoved {
+			fetchErr = fmt.Errorf("pod %q was removed during rollback (no cached logs)", pod.Name)
+		}
+
+		if logs != "" {
+			printLogSectionBody(logs, nil)
+		} else if containerNeverStarted(findContainerStatus(pod, target.name)) {
+			printContainerNeverStartedReason(pod, target.name)
+			if cache != nil && len(cache.events) > 0 {
+				printPodEventsSection(cache.events, "Pod Events (captured during failure)")
+			} else if events, err := getPodEvents(clientset, namespace, pod.Name); err == nil {
+				printPodEventsSection(events, "Pod Events")
+			}
+			fmt.Println(strings.Repeat("-", 80))
+		} else {
+			printLogSectionBody("", fetchErr)
+			if cache != nil && len(cache.events) > 0 {
+				printPodEventsSection(cache.events, "Pod Events (captured during failure)")
+			}
+		}
+
+		if target.previous {
+			prevCmd := kubectlLogsCommand(namespace, pod.Name, target.name, true, defaultPodLogTailLines)
+			prevTitle := fmt.Sprintf("Previous logs — %s", containerLabel)
+			if podRemoved {
+				prevTitle += " (captured before pod removal)"
+			}
+			printLogSectionHeader(prevTitle, prevCmd)
+
+			var prevLogs string
+			var prevErr error
+			if cache != nil {
+				if cached, ok := cache.previous[target.name]; ok && strings.TrimSpace(cached) != "" {
+					prevLogs = cached
+				}
+			}
+			if prevLogs == "" && !podRemoved {
+				prevLogs, prevErr = fetchPodContainerLogs(clientset, namespace, pod.Name, podLogFetchOpts{
+					container: target.name,
+					previous:  true,
+					tailLines: defaultPodLogTailLines,
+				})
+			}
 			printLogSectionBody(prevLogs, prevErr)
 		}
 	}
+}
+
+func findContainerStatus(pod corev1.Pod, name string) corev1.ContainerStatus {
+	for _, cs := range pod.Status.ContainerStatuses {
+		if cs.Name == name {
+			return cs
+		}
+	}
+	return corev1.ContainerStatus{Name: name}
 }
 
 // getPodLogs kept for callers that only need raw log text.
