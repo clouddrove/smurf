@@ -297,30 +297,43 @@ func describeFailedResources(namespace, releaseName string) {
 	}
 
 	for _, pod := range podList.Items {
-		pterm.FgGreen.Printfln("Pod: %s \n", pod.Name)
-		pterm.FgGreen.Printfln("Phase: %s \n", pod.Status.Phase)
+		status := getKubectlLikeStatus(pod)
+		unhealthy := isPodUnhealthyForUpgrade(&pod) ||
+			pod.Status.Phase == corev1.PodFailed ||
+			strings.Contains(status, "CrashLoopBackOff") ||
+			strings.Contains(status, "ImagePullBackOff") ||
+			strings.Contains(status, "Failed")
+
+		if !unhealthy {
+			continue
+		}
+
+		pterm.Error.Printfln("Pod: %s — %s", pod.Name, status)
+		pterm.Error.Printfln("Phase: %s", pod.Status.Phase)
 		for _, cs := range pod.Status.ContainerStatuses {
 			if cs.State.Waiting != nil {
-				pterm.FgRed.Printfln("Container: %s is waiting with reason: %s, message: %s \n", cs.Name, cs.State.Waiting.Reason, cs.State.Waiting.Message)
+				pterm.FgRed.Printfln("Container: %s is waiting with reason: %s, message: %s", cs.Name, cs.State.Waiting.Reason, cs.State.Waiting.Message)
 			} else if cs.State.Terminated != nil {
-				pterm.FgRed.Printfln("Container: %s is terminated with reason: %s, message: %s \n", cs.Name, cs.State.Terminated.Reason, cs.State.Terminated.Message)
+				pterm.FgRed.Printfln("Container: %s is terminated with reason: %s, message: %s", cs.Name, cs.State.Terminated.Reason, cs.State.Terminated.Message)
 			}
 		}
+
+		printFailedPodLogs(clientset, namespace, pod)
 
 		evts, err := clientset.CoreV1().Events(namespace).List(context.Background(), metav1.ListOptions{
 			FieldSelector: fmt.Sprintf("involvedObject.name=%s", pod.Name),
 		})
 		if err != nil {
-			pterm.Warning.Printfln("Error fetching events for pod %s: %v \n", pod.Name, err)
+			pterm.Warning.Printfln("Error fetching events for pod %s: %v", pod.Name, err)
 			continue
 		}
 
 		if len(evts.Items) == 0 {
-			pterm.Warning.Printfln("No events found for pod %s \n", pod.Name)
+			pterm.Warning.Printfln("No events found for pod %s", pod.Name)
 		} else {
-			pterm.FgGreen.Printfln("Events for pod %s: \n", pod.Name)
+			pterm.FgGreen.Printfln("Events for pod %s:", pod.Name)
 			for _, evt := range evts.Items {
-				pterm.FgGreen.Printfln("  %s: %s \n", evt.Reason, evt.Message)
+				pterm.FgGreen.Printfln("  %s: %s", evt.Reason, evt.Message)
 			}
 		}
 		pterm.FgCyan.Println("-------------------------------------------------------")

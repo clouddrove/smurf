@@ -3,7 +3,6 @@ package helm
 import (
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -144,18 +143,25 @@ func HelmUpgrade(
 	fmt.Printf("🚀 Starting upgrade for release '%s'...\n", releaseName)
 	upgradeStartTime := time.Now()
 
+	podMonitor, monitorErr := newUpgradePodMonitor(namespace, releaseName, debug)
+	if monitorErr != nil {
+		if debug {
+			pterm.Warning.Printf("Could not start upgrade pod monitor: %v\n", monitorErr)
+		}
+	} else {
+		podMonitor.start()
+		defer podMonitor.stop()
+	}
+
 	// Run the upgrade
 	rel, err := client.Run(releaseName, chart, vals)
 	if err != nil {
-		errorMsg := err.Error()
-		if atomic && strings.Contains(errorMsg, "rolled back") {
-			fmt.Printf("\n⚠️  Upgrade failed and rollback may have issues\n")
-
-			// Check if rollback actually happened
-			handleInstallationSuccess(rel, namespace)
-			printFinalPodStatus(namespace, releaseName, debug)
+		if podMonitor != nil {
+			printUpgradeFailureDiagnostics(namespace, releaseName, podMonitor, atomic, err, debug)
+		} else {
+			describeFailedResources(namespace, releaseName)
+			printReleaseResources(namespace, releaseName)
 		}
-		//printReleaseResources(namespace, releaseName)
 		printErrorSummary("Helm upgradation", releaseName, namespace, chartRef, err)
 		ai.AIExplainError(useAI, err.Error())
 		return fmt.Errorf("upgrade failed: %w", err)
@@ -176,6 +182,12 @@ func HelmUpgrade(
 	handleInstallationSuccess(rel, namespace)
 
 	if err := printFinalPodStatus(namespace, releaseName, debug); err != nil {
+		if podMonitor != nil {
+			printUpgradeFailureDiagnostics(namespace, releaseName, podMonitor, atomic, err, debug)
+		} else {
+			describeFailedResources(namespace, releaseName)
+			printReleaseResources(namespace, releaseName)
+		}
 		printErrorSummary("Pod not healthy", releaseName, namespace, chartRef, err)
 		ai.AIExplainError(useAI, err.Error())
 		return fmt.Errorf("upgrade failed: %w", err)
@@ -951,29 +963,6 @@ func isPodFromRelease(pod corev1.Pod, releaseName string) bool {
 	return false
 }
 
-// Helper function to get pod logs
-func getPodLogs(clientset *kubernetes.Clientset, namespace, podName, containerName string, tailLines int64) (string, error) {
-	podLogOpts := corev1.PodLogOptions{
-		Container: containerName,
-		TailLines: &tailLines,
-	}
-
-	req := clientset.CoreV1().Pods(namespace).GetLogs(podName, &podLogOpts)
-	podLogs, err := req.Stream(context.Background())
-	if err != nil {
-		return "", err
-	}
-	defer podLogs.Close()
-
-	buf := new(strings.Builder)
-	_, err = io.Copy(buf, podLogs)
-	if err != nil {
-		return "", err
-	}
-
-	return buf.String(), nil
-}
-
 // Print status summary
 func printStatusSummary(statusCount map[string]int, total int) {
 	fmt.Printf("📈 Status: ")
@@ -1196,24 +1185,6 @@ func describePod(clientset *kubernetes.Clientset, pod corev1.Pod, namespace stri
 				age.String(),
 				event.Source.Component,
 				event.Message)
-		}
-	}
-
-	// Show logs for failed/error containers
-	if pod.Status.Phase == corev1.PodFailed || pod.Status.Phase == corev1.PodPending {
-		for _, cs := range pod.Status.ContainerStatuses {
-			if cs.State.Waiting != nil || (cs.State.Terminated != nil && cs.State.Terminated.ExitCode != 0) {
-				fmt.Printf("\n📝 Attempting to get logs for container '%s':\n", cs.Name)
-				logs, err := getPodLogs(clientset, namespace, pod.Name, cs.Name, 20) // last 20 lines
-				if err != nil {
-					fmt.Printf("  ❌ Failed : %v\n", err)
-				} else if logs != "" {
-					fmt.Println("  Last 20 lines of logs:")
-					fmt.Println(strings.Repeat("-", 40))
-					fmt.Println(logs)
-					fmt.Println(strings.Repeat("-", 40))
-				}
-			}
 		}
 	}
 
