@@ -67,7 +67,7 @@ jobs:
         mkdir -p "bin/${{ matrix.GOOS }}-${{ matrix.GOARCH }}"
         
         # CORRECTED BUILD COMMAND - using current directory (.)
-        GOOS=${{ matrix.GOOS }} GOARCH=${{ matrix.GOARCH }} go build -a \
+        GOOS=${{ matrix.GOOS }} GOARCH=${{ matrix.GOARCH }} go build \
           -ldflags "\
             -X '${{env.APP_PACKAGE}}.version=${{steps.buildinfo.outputs.version}}' \
             -X '${{env.APP_PACKAGE}}.commit=${{steps.buildinfo.outputs.commit}}' \
