@@ -19,22 +19,33 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-// getKubeClient returns a Kubernetes clientset using the kubeconfig file specified in the settings.
+// getKubeClient returns the shared Kubernetes clientset, built from the kubeconfig
+// file specified in settings. Initialization runs exactly once via kubeClientOnce,
+// even when called concurrently (e.g. HelmProvision's parallel lint/template/install
+// goroutines, or the upgrade monitor's poll goroutine racing the main goroutine).
+//
+// If initialization fails, the error is cached in kubeClientErr and returned to
+// every caller for the lifetime of the process; it is not retried. This keeps the
+// error behavior simple and coherent (every caller sees the same failure), and is
+// acceptable here because each smurf invocation is a short lived process, so a
+// transient kubeconfig problem can be fixed by simply re-running the command.
 func getKubeClient() (*kubernetes.Clientset, error) {
-	if kubeClientset != nil {
-		return kubeClientset, nil
-	}
-	config, err := clientcmd.BuildConfigFromFlags("", settings.KubeConfig)
-	if err != nil {
-		pterm.Error.Println("Failed to build Kubernetes configuration: ", err)
-		return nil, fmt.Errorf("failed to build Kubernetes configuration: %v", err)
-	}
-	kubeClientset, err = kubernetes.NewForConfig(config)
-	if err != nil {
-		pterm.Error.Println("Failed to create Kubernetes clientset: ", err)
-		return nil, fmt.Errorf("failed to create Kubernetes clientset: %v", err)
-	}
-	return kubeClientset, nil
+	kubeClientOnce.Do(func() {
+		config, err := clientcmd.BuildConfigFromFlags("", settings.KubeConfig)
+		if err != nil {
+			pterm.Error.Println("Failed to build Kubernetes configuration: ", err)
+			kubeClientErr = fmt.Errorf("failed to build Kubernetes configuration: %v", err)
+			return
+		}
+		clientset, err := kubernetes.NewForConfig(config)
+		if err != nil {
+			pterm.Error.Println("Failed to create Kubernetes clientset: ", err)
+			kubeClientErr = fmt.Errorf("failed to create Kubernetes clientset: %v", err)
+			return
+		}
+		kubeClientset = clientset
+	})
+	return kubeClientset, kubeClientErr
 }
 
 // logDetailedError prints a detailed error message based on the error type and provides suggestions for troubleshooting.

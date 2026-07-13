@@ -427,20 +427,33 @@ func findHelmBinary() (string, error) {
 		}
 	}
 
-	// Fallback: Try PATH but only with safe directories
+	// Fallback: look for helm in a fixed list of safe directories, without
+	// touching the process-wide PATH (mutating os.Setenv("PATH") here would race
+	// with other goroutines that shell out concurrently, e.g. provision.go's
+	// parallel lint/template/install run).
 	safePathDirs := getSafePathDirectories()
-
-	// Temporarily set PATH to safe directories for lookup
-	originalPath := os.Getenv("PATH")
-	os.Setenv("PATH", strings.Join(safePathDirs, string(os.PathListSeparator)))
-	defer os.Setenv("PATH", originalPath) // Restore original PATH
-
-	// Use exec.LookPath with the safe PATH
-	if path, err := exec.LookPath("helm"); err == nil {
+	if path, err := lookupInDirs(safePathDirs, "helm"); err == nil {
 		return path, nil
 	}
 
 	return "", fmt.Errorf("helm not found in common locations or safe PATH")
+}
+
+// lookupInDirs searches the given directories in order for an executable file
+// named name, without relying on (or mutating) the process PATH environment
+// variable.
+func lookupInDirs(dirs []string, name string) (string, error) {
+	execName := name
+	if runtime.GOOS == "windows" {
+		execName = name + ".exe"
+	}
+	for _, dir := range dirs {
+		candidate := filepath.Join(dir, execName)
+		if stat, err := os.Stat(candidate); err == nil && !stat.IsDir() && isExecutable(candidate) {
+			return candidate, nil
+		}
+	}
+	return "", fmt.Errorf("%s not found in provided directories", name)
 }
 
 // getSafeEnvironment returns a sanitized environment
