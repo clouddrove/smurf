@@ -7,11 +7,28 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/pterm/pterm"
 	"github.com/sashabaranov/go-openai"
 )
+
+// defaultModel is used when OPENAI_MODEL is not set.
+const defaultModel = openai.GPT4oMini
+
+// aiRequestTimeout bounds how long a single OpenAI call may take.
+const aiRequestTimeout = 15 * time.Second
+
+// modelFromEnv returns the model to use for chat completions, allowing an
+// override via the OPENAI_MODEL environment variable and falling back to
+// defaultModel otherwise.
+func modelFromEnv() string {
+	if model := os.Getenv("OPENAI_MODEL"); model != "" {
+		return model
+	}
+	return defaultModel
+}
 
 // Check if API key exists or not
 func IsEnabled() bool {
@@ -25,6 +42,7 @@ func IsEnabled() bool {
 
 // Explain error in human readable format using AI
 func ExplainError(errText string) (string, error) {
+	errText = Redact(errText)
 	prompt := fmt.Sprintf(`
 You are a Senior DevOps Engineer AI.
 
@@ -84,7 +102,7 @@ func AskAI(prompt string) (string, error) {
 
 	// Build request
 	req := openai.ChatCompletionRequest{
-		Model: openai.GPT4oMini, // or openai.GPT3Dot5Turbo
+		Model: modelFromEnv(),
 		Messages: []openai.ChatCompletionMessage{
 			{
 				Role:    openai.ChatMessageRoleUser,
@@ -93,8 +111,12 @@ func AskAI(prompt string) (string, error) {
 		},
 	}
 
-	// Call OpenAI API
-	resp, err := client.CreateChatCompletion(context.Background(), req)
+	// Call OpenAI API with a bounded timeout so a slow/unreachable API never
+	// hangs the CLI indefinitely.
+	ctx, cancel := context.WithTimeout(context.Background(), aiRequestTimeout)
+	defer cancel()
+
+	resp, err := client.CreateChatCompletion(ctx, req)
 	if err != nil {
 		return "", fmt.Errorf("openai error: %v", err)
 	}
