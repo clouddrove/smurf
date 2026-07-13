@@ -273,8 +273,8 @@ func cleanupImages(imageRef *ImageReference, registry *ImageRegistry) {
 	pterm.Success.Println("Successfully cleaned up local images")
 }
 
-// provisionGcpCmd encapsulates the logic to build a Docker image, run a security scan,
-// and optionally push that image to Google Container Registry or Artifact Registry.
+// provisionGcpCmd encapsulates the logic to build a Docker image and optionally
+// push that image to Google Container Registry or Artifact Registry.
 var provisionGcpCmd = &cobra.Command{
 	Use:   "provision-gcp [IMAGE_NAME[:TAG]]",
 	Short: "Build and push a Docker image to Google Container Registry or Artifact Registry.",
@@ -346,6 +346,10 @@ Supports:
 			return fmt.Errorf("failed to tag image: %w", err)
 		}
 
+		if err := confirmPush(); err != nil {
+			return err
+		}
+
 		// Push to registry
 		pterm.Info.Printf("Pushing image %s to %s...\n", parsedImage.FullPath, parsedImage.RegistryType)
 		if err := docker.PushImageToGCR(configs.ProjectID, parsedImage.FullPath, useAI); err != nil {
@@ -370,20 +374,20 @@ Supports:
   # Build and push using full Artifact Registry path
   smurf sdkr provision-gcp us-central1-docker.pkg.dev/my-project/smurf-test/smurfimage/smurfab:v1
 
-  # Build and push using full GCR path  
+  # Build and push using full GCR path
   smurf sdkr provision-gcp gcr.io/my-project/myapp:v1.0
 
   # Build and push with short name (auto Artifact Registry)
-  smurf sdkr provision-gcp myapp:v1.0 -p my-project
+  smurf sdkr provision-gcp myapp:v1.0 --project-id my-project
 
   # Build and push with repository path (auto Artifact Registry)
-  smurf sdkr provision-gcp my-repo/myapp:v1.0 -p my-project
+  smurf sdkr provision-gcp my-repo/myapp:v1.0 --project-id my-project
 
   # Build and push with short name to GCR
-  smurf sdkr provision-gcp myapp:v1.0 -p my-project --use-gcr
+  smurf sdkr provision-gcp myapp:v1.0 --project-id my-project --use-gcr
 
   # With additional options
-  smurf sdkr provision-gcp myapp:v1.0 -p my-project --file Dockerfile --no-cache \
+  smurf sdkr provision-gcp myapp:v1.0 --project-id my-project --file Dockerfile --no-cache \
     --build-arg key1=value1 --build-arg key2=value2 --target my-target \
     --delete --platform linux/amd64
 `,
@@ -391,20 +395,19 @@ Supports:
 
 func init() {
 	// Project and registry flags
-	provisionGcpCmd.Flags().StringVarP(&configs.ProjectID, "project-id", "p", "", "GCP project ID (required for short image names)")
+	provisionGcpCmd.Flags().StringVar(&configs.ProjectID, "project-id", "", "GCP project ID (required for short image names)")
 	provisionGcpCmd.Flags().BoolVar(&configs.UseGCR, "use-gcr", false, "Use legacy Google Container Registry (gcr.io) instead of Artifact Registry")
 
 	// Build configuration flags
 	provisionGcpCmd.Flags().StringVarP(&configs.DockerfilePath, "file", "f", "", "Name of the Dockerfile relative to the context directory (default: 'Dockerfile')")
 	provisionGcpCmd.Flags().BoolVarP(&configs.NoCache, "no-cache", "c", false, "Do not use cache when building the image")
 	provisionGcpCmd.Flags().StringArrayVarP(&configs.BuildArgs, "build-arg", "a", []string{}, "Set build-time variables (e.g. --build-arg key=value)")
-	provisionGcpCmd.Flags().StringVarP(&configs.Target, "target", "T", "", "Set the target build stage to build")
-	provisionGcpCmd.Flags().StringVarP(&configs.Platform, "platform", "P", "", "Set the platform for the image (e.g., linux/amd64)")
+	provisionGcpCmd.Flags().StringVarP(&configs.Target, "target", "t", "", "Set the target build stage to build")
+	provisionGcpCmd.Flags().StringVarP(&configs.Platform, "platform", "p", "", "Set the platform for the image (e.g., linux/amd64)")
 	provisionGcpCmd.Flags().StringVar(&configs.ContextDir, "context", "", "Build context directory (default: current directory)")
 	provisionGcpCmd.Flags().IntVar(&configs.BuildTimeout, "timeout", DefaultTimeout, "Build timeout in seconds")
 
-	// Output and behavior flags
-	provisionGcpCmd.Flags().StringVarP(&configs.SarifFile, "output", "o", "", "Output file for SARIF report")
+	// Behavior flags
 	provisionGcpCmd.Flags().BoolVarP(&configs.ConfirmAfterPush, "yes", "y", false, "Push the image to registry without confirmation")
 	provisionGcpCmd.Flags().BoolVarP(&configs.DeleteAfterPush, "delete", "d", false, "Delete the local image after pushing")
 	provisionGcpCmd.Flags().BoolVar(&useAI, "ai", false, "To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.")
