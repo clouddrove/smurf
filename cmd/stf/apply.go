@@ -1,8 +1,6 @@
 package stf
 
 import (
-	"os"
-
 	"github.com/clouddrove/smurf/internal/terraform"
 	"github.com/spf13/cobra"
 )
@@ -34,27 +32,18 @@ var applyCmd = &cobra.Command{
 		// If we have a plan file (either from flag or positional arg), use ApplyWithPlan
 
 		if planFile != "" {
-			err := terraform.ApplyWithPlan(planFile, applyVarNameValue, applyVarFile, applyLock, applyDir, applyTarget, applyState, useAI)
-			if err != nil {
-				os.Exit(1)
-			}
-			return nil
+			return terraform.ApplyWithPlan(planFile, applyVarNameValue, applyVarFile, applyLock, applyDir, applyTarget, applyState, useAI)
 		}
 
 		// No plan file provided - use the regular apply flow with auto-approve option
-		approve := applyAutoApprove
-		err := terraform.Apply(approve, applyVarNameValue, applyVarFile, applyLock, applyDir, applyTarget, applyState, useAI)
-		if err != nil {
-			os.Exit(1)
-		}
-		return nil
+		return terraform.Apply(applyAutoApprove, applyVarNameValue, applyVarFile, applyLock, applyDir, applyTarget, applyState, useAI)
 	},
 	Example: `
 	# Apply command
 	smurf stf apply
 
 	# Specify variables
-	smurf stf apply -var="region=us-west-2"
+	smurf stf apply --var="region=us-west-2"
 
 	# Skip approval prompt
 	smurf stf apply --auto-approve
@@ -63,10 +52,10 @@ var applyCmd = &cobra.Command{
 	smurf stf apply plan.out
 
 	# Apply using a plan file with variables
-	smurf stf apply plan.out -var="region=us-west-2"
+	smurf stf apply plan.out --var="region=us-west-2"
 
 	# Specify multiple variables
-	smurf stf apply -var="region=us-west-2" -var="instance_type=t2.micro"
+	smurf stf apply --var="region=us-west-2" --var="instance_type=t2.micro"
 
 	# Specify a custom directory
 	smurf stf apply --dir=/path/to/terraform/files
@@ -78,7 +67,7 @@ var applyCmd = &cobra.Command{
 
 	# Use custom state file
 	smurf stf apply --state=/path/to/terraform.tfstate
-	smurf stf apply -state=prod.tfstate
+	smurf stf apply --state=prod.tfstate
 	`,
 }
 
@@ -86,7 +75,7 @@ func init() {
 	applyCmd.Flags().StringArrayVar(&applyVarNameValue, "var", []string{}, "Specify a variable in 'NAME=VALUE' format")
 	applyCmd.Flags().StringArrayVar(&applyVarFile, "var-file", []string{}, "Specify a file containing variables")
 	applyCmd.Flags().BoolVar(&applyAutoApprove, "auto-approve", false, "Skip interactive approval of plan before applying")
-	applyCmd.Flags().BoolVar(&applyLock, "lock", true, "Don't hold a state lock during the operation. This is dangerous if others might concurrently run commands against the same workspace.")
+	applyCmd.Flags().BoolVar(&applyLock, "lock", true, "Hold a state lock during the operation (disable with --lock=false)")
 	applyCmd.Flags().StringVar(&applyDir, "dir", ".", "Specify the directory containing Terraform files")
 	applyCmd.Flags().StringArrayVar(&applyTarget, "target", []string{}, "Target specific resources, modules, or resources in modules")
 	applyCmd.Flags().StringVar(&applyState, "state", "", "Path to read and save the Terraform state")
