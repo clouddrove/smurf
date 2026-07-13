@@ -108,7 +108,7 @@ Export DOCKER_USERNAME and DOCKER_PASSWORD as environment variables for Docker H
 
 func init() {
 	pushHubCmd.Flags().BoolVarP(&configs.DeleteAfterPush, "delete", "d", false, "Delete the local image after pushing")
-	pushHubCmd.Flags().IntVar(&configs.BuildTimeout, "timeout", 1500, "Timeout for the push operation in minutes")
+	pushHubCmd.Flags().IntVar(&configs.BuildTimeout, "timeout", 1500, "Timeout for the push operation in seconds")
 	pushHubCmd.Flags().BoolVar(&useAI, "ai", false, "To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.")
 	pushCmd.AddCommand(pushHubCmd)
 }
