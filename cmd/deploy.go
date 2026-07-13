@@ -17,8 +17,14 @@ import (
 )
 
 var deployCmd = &cobra.Command{
-	Use:          "deploy",
-	Short:        "Deploy builds and pushes Docker image as per smurf.yaml, then optionally runs Helm deploy.",
+	Use:   "deploy",
+	Short: "Deploy builds and pushes Docker image as per smurf.yaml, then optionally runs Helm deploy.",
+	Long: `Deploy reads smurf.yaml and runs the full pipeline: build the Docker image,
+push it to whichever registry is enabled (awsECR, dockerHub, ghcrRepo, or gcpRepo),
+and then, if selm.deployHelm is true, install or upgrade the Helm release with the
+new image repository and tag.
+
+Use --timeout to control how long the push and Helm operations are allowed to run.`,
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := configs.LoadConfig(configs.FileName)
@@ -57,9 +63,19 @@ var deployCmd = &cobra.Command{
 
 		return nil
 	},
+	Example: `
+  # Run the full build, push, and Helm deploy pipeline using smurf.yaml
+  smurf deploy
+
+  # Override the timeout for push and Helm operations (in seconds)
+  smurf deploy --timeout 900
+`,
 }
 
-func init() { RootCmd.AddCommand(deployCmd) }
+func init() {
+	deployCmd.Flags().IntVar(&configs.Timeout, "timeout", 600, "Timeout in seconds for push and Helm operations")
+	RootCmd.AddCommand(deployCmd)
+}
 
 func buildImageWithOpts(imageName, tag string) error {
 	opts, err := prepareDockerBuild()
@@ -165,7 +181,7 @@ func handleDockerHubPush(cfg *configs.Config) (string, string, error) {
 
 	if err := docker.PushImage(docker.PushOptions{
 		ImageName: fullImage,
-		Timeout:   1000 * time.Second,
+		Timeout:   time.Duration(configs.Timeout) * time.Second,
 	}, false); err != nil {
 		return "", "", err
 	}
@@ -209,7 +225,7 @@ func handleGHCRPush(cfg *configs.Config) (string, string, error) {
 
 	if err := docker.PushToGHCR(docker.PushOptions{
 		ImageName: fullImage,
-		Timeout:   1000 * time.Second,
+		Timeout:   time.Duration(configs.Timeout) * time.Second,
 	}, false); err != nil {
 		return "", "", err
 	}
