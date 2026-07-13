@@ -28,25 +28,38 @@ func HelmPluginList() error {
 	return nil
 }
 
+func runPluginList(cmd *cobra.Command, args []string) error {
+	pterm.Info.Println("Listing Helm plugins...")
+	if err := HelmPluginList(); err != nil {
+		return err
+	}
+
+	pterm.Success.Printfln("Helm plugins listed successfully.")
+	return nil
+}
+
 // pluginListCmd is a subcommand that lists installed Helm plugins.
 var pluginListCmd = &cobra.Command{
+	Use:          "list",
+	Short:        "List all installed Helm plugins.",
+	Example:      `smurf selm plugin list`,
+	SilenceUsage: true,
+	RunE:         runPluginList,
+}
+
+// pluginListDeprecatedCmd keeps the old top-level "plugin_list" command working
+// as a hidden alias that forwards to "selm plugin list".
+var pluginListDeprecatedCmd = &cobra.Command{
 	Use:          "plugin_list",
 	Short:        "List all installed Helm plugins.",
-	Example:      `smurf selm plugin_list`,
+	Hidden:       true,
+	Deprecated:   "use `smurf selm plugin list` instead",
 	SilenceUsage: true,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		fmt.Println("Listing Helm plugins...")
-		err := HelmPluginList()
-		if err != nil {
-			return err
-		}
-
-		pterm.Success.Printfln("Helm plugins listed successfully.")
-		return nil
-	},
+	RunE:         runPluginList,
 }
 
 // Initialize subcommands
 func init() {
-	selmCmd.AddCommand(pluginListCmd)
+	pluginCmd.AddCommand(pluginListCmd)
+	selmCmd.AddCommand(pluginListDeprecatedCmd)
 }

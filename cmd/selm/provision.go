@@ -65,7 +65,7 @@ var provisionCmd = &cobra.Command{
 			configs.Namespace = "default"
 		}
 
-		err := helm.HelmProvision(releaseName, chartPath, configs.Namespace)
+		err := helm.HelmProvision(releaseName, chartPath, configs.Namespace, useAI)
 		if err != nil {
 			return err
 		}
@@ -81,5 +81,6 @@ smurf selm provision my-release ./mychart -n custom-namespace
 
 func init() {
 	provisionCmd.Flags().StringVarP(&configs.Namespace, "namespace", "n", "", "Specify the namespace to provision the Helm chart")
+	provisionCmd.Flags().BoolVar(&useAI, "ai", false, "To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.")
 	selmCmd.AddCommand(provisionCmd)
 }

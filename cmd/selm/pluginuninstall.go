@@ -43,9 +43,24 @@ func HelmPluginUninstall(plugins []string) error {
 
 // pluginUninstallCmd is a subcommand that uninstalls one or multiple Helm plugins.
 var pluginUninstallCmd = &cobra.Command{
-	Use:          "plugin-uninstall [plugin1 plugin2 ...]",
+	Use:          "uninstall [PLUGIN]...",
 	Short:        "Uninstall one or multiple Helm plugins.",
 	Args:         cobra.MinimumNArgs(1),
+	SilenceUsage: true,
+	Example:      `smurf selm plugin uninstall my-plugin1 my-plugin2`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return HelmPluginUninstall(args)
+	},
+}
+
+// pluginUninstallDeprecatedCmd keeps the old top-level "plugin-uninstall" command
+// working as a hidden alias that forwards to "selm plugin uninstall".
+var pluginUninstallDeprecatedCmd = &cobra.Command{
+	Use:          "plugin-uninstall [PLUGIN]...",
+	Short:        "Uninstall one or multiple Helm plugins.",
+	Args:         cobra.MinimumNArgs(1),
+	Hidden:       true,
+	Deprecated:   "use `smurf selm plugin uninstall` instead",
 	SilenceUsage: true,
 	Example:      `smurf selm plugin-uninstall my-plugin1 my-plugin2`,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -55,5 +70,6 @@ var pluginUninstallCmd = &cobra.Command{
 
 // Initialize the command
 func init() {
-	selmCmd.AddCommand(pluginUninstallCmd)
+	pluginCmd.AddCommand(pluginUninstallCmd)
+	selmCmd.AddCommand(pluginUninstallDeprecatedCmd)
 }
