@@ -55,7 +55,7 @@ Example: ghcr.io/my-org/my-app:latest`,
 func init() {
 	provisionGHCRCmd.Flags().StringVarP(&configs.DockerfilePath, "file", "f", "", "Path to Dockerfile (default: Dockerfile)")
 	provisionGHCRCmd.Flags().BoolVar(&configs.NoCache, "no-cache", false, "Disable build cache")
-	provisionGHCRCmd.Flags().StringArrayVar(&configs.BuildArgs, "build-arg", []string{}, "Build-time variables (e.g. --build-arg key=value)")
+	provisionGHCRCmd.Flags().StringArrayVar(&configs.BuildArgs, "build-arg", []string{}, "Set build-time variables (key=value). Repeat the flag or pass comma-separated pairs")
 	provisionGHCRCmd.Flags().StringVar(&configs.Target, "target", "", "Target build stage")
 	provisionGHCRCmd.Flags().StringVar(&configs.Platform, "platform", "", "Platform (e.g. linux/amd64)")
 	provisionGHCRCmd.Flags().IntVar(&configs.BuildTimeout, "timeout", 1500, "Build timeout in seconds")
@@ -207,12 +207,9 @@ pterm.Error.Println("Failed to determine working directory.")
 		configs.DockerfilePath = filepath.Join(configs.ContextDir, configs.DockerfilePath)
 	}
 
-	buildArgsMap := make(map[string]string)
-	for _, arg := range configs.BuildArgs {
-		parts := strings.SplitN(arg, "=", 2)
-		if len(parts) == 2 {
-			buildArgsMap[parts[0]] = parts[1]
-		}
+	buildArgsMap, err := configs.ParseBuildArgs(configs.BuildArgs)
+	if err != nil {
+		return docker.BuildOptions{}, fmt.Errorf("invalid build-arg: %w", err)
 	}
 
 	return docker.BuildOptions{

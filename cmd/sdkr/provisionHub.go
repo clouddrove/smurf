@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/clouddrove/smurf/configs"
@@ -79,12 +78,9 @@ var provisionHubCmd = &cobra.Command{
 
 		fullImageName := fmt.Sprintf("%s:%s", localImageName, localTag)
 
-		buildArgsMap := make(map[string]string)
-		for _, arg := range configs.BuildArgs {
-			parts := strings.SplitN(arg, "=", 2)
-			if len(parts) == 2 {
-				buildArgsMap[parts[0]] = parts[1]
-			}
+		buildArgsMap, err := configs.ParseBuildArgs(configs.BuildArgs)
+		if err != nil {
+			return fmt.Errorf("invalid build-arg: %w", err)
 		}
 
 		if configs.ContextDir == "" {
@@ -155,7 +151,7 @@ var provisionHubCmd = &cobra.Command{
 	Example: `
   # Provide "myuser/myimage:latest" as an argument
   smurf sdkr provision-hub myuser/myimage:latest --context . --file Dockerfile --no-cache \
-    --build-arg key1=value1 --build-arg key2=value2 --target my-target --platform linux/amd64 \
+    --build-arg key1=value1,key2=value2 --target my-target --platform linux/amd64 \
     --yes --delete
 
   # If you omit the argument, it will read from config and rely on "image_name" from there
@@ -180,7 +176,7 @@ func init() {
 		&configs.BuildArgs,
 		"build-arg",
 		[]string{},
-		"Set build-time variables (e.g. --build-arg key=value)",
+		"Set build-time variables (key=value). Repeat the flag or pass comma-separated pairs",
 	)
 	provisionHubCmd.Flags().StringVar(
 		&configs.Target,

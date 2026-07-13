@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/clouddrove/smurf/configs"
@@ -58,12 +57,9 @@ var provisionAcrCmd = &cobra.Command{
 
 		fullAcrImage := fmt.Sprintf("%s.azurecr.io/%s", configs.RegistryName, imageRef)
 
-		buildArgsMap := make(map[string]string)
-		for _, arg := range configs.BuildArgs {
-			parts := strings.SplitN(arg, "=", 2)
-			if len(parts) == 2 {
-				buildArgsMap[parts[0]] = parts[1]
-			}
+		buildArgsMap, err := configs.ParseBuildArgs(configs.BuildArgs)
+		if err != nil {
+			return fmt.Errorf("invalid build-arg: %w", err)
 		}
 
 		if configs.ContextDir == "" {
@@ -118,12 +114,14 @@ var provisionAcrCmd = &cobra.Command{
 			_, _ = buf.ReadBytes('\n')
 		}
 
+		localImage := fmt.Sprintf("%s:%s", localImageName, localTag)
+
 		pterm.Info.Printf("Pushing image %s to ACR...\n", pushImage)
 		if err := docker.PushImageToACR(
 			configs.SubscriptionID,
 			configs.ResourceGroup,
 			configs.RegistryName,
-			localImageName,
+			localImage,
 			useAI,
 		); err != nil {
 			pterm.Error.Println("Push to ACR failed:", err)
@@ -156,7 +154,7 @@ func init() {
 
 	provisionAcrCmd.Flags().StringVarP(&configs.DockerfilePath, "file", "f", "", "path to Dockerfile relative to context directory")
 	provisionAcrCmd.Flags().BoolVarP(&configs.NoCache, "no-cache", "c", false, "Do not use cache when building the image")
-	provisionAcrCmd.Flags().StringArrayVarP(&configs.BuildArgs, "build-arg", "a", []string{}, "Set build-time variables")
+	provisionAcrCmd.Flags().StringArrayVarP(&configs.BuildArgs, "build-arg", "a", []string{}, "Set build-time variables (key=value). Repeat the flag or pass comma-separated pairs")
 	provisionAcrCmd.Flags().StringVarP(&configs.Target, "target", "t", "", "Set the target build stage to build")
 	provisionAcrCmd.Flags().StringVarP(&configs.Platform, "platform", "p", "", "Platform for the image")
 	provisionAcrCmd.Flags().StringVar(&configs.ContextDir, "context", "", "Build context directory (default: current directory)")

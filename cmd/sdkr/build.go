@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/clouddrove/smurf/configs"
@@ -59,12 +58,9 @@ var buildCmd = &cobra.Command{
 			}
 		}
 
-		buildArgsMap := make(map[string]string)
-		for _, arg := range configs.BuildArgs {
-			parts := strings.SplitN(arg, "=", 2)
-			if len(parts) == 2 {
-				buildArgsMap[parts[0]] = parts[1]
-			}
+		buildArgsMap, err := configs.ParseBuildArgs(configs.BuildArgs)
+		if err != nil {
+			return fmt.Errorf("invalid build-arg: %w", err)
 		}
 
 		if configs.ContextDir == "" {
@@ -97,7 +93,7 @@ var buildCmd = &cobra.Command{
 			BuildKit:       configs.BuildKit,
 		}
 
-		err := docker.Build(imageName, tag, opts, useAI)
+		err = docker.Build(imageName, tag, opts, useAI)
 		if err != nil {
 			return err
 		}
@@ -105,7 +101,7 @@ var buildCmd = &cobra.Command{
 	},
 	Example: `
 smurf sdkr build my-image:v1
-smurf sdkr build my-image:v1 --file Dockerfile --context ./build-context --no-cache --build-arg key1=value1 --build-arg key2=value2 --target my-target --platform linux/amd64 --timeout 400
+smurf sdkr build my-image:v1 --file Dockerfile --context ./build-context --no-cache --build-arg key1=value1,key2=value2 --target my-target --platform linux/amd64 --timeout 400
 smurf sdkr build
 # In the last example, it will read "image:v1" from config and use the parsed image name and tag
 `,
@@ -115,7 +111,7 @@ func init() {
 	buildCmd.Flags().StringVarP(&configs.DockerfilePath, "file", "f", "", "Path to Dockerfile relative to context directory")
 	buildCmd.Flags().StringVar(&configs.ContextDir, "context", "", "Build context directory (default: current directory)")
 	buildCmd.Flags().BoolVar(&configs.NoCache, "no-cache", false, "Do not use cache when building the image")
-	buildCmd.Flags().StringArrayVar(&configs.BuildArgs, "build-arg", []string{}, "Set build-time variables")
+	buildCmd.Flags().StringArrayVar(&configs.BuildArgs, "build-arg", []string{}, "Set build-time variables (key=value). Repeat the flag or pass comma-separated pairs")
 	buildCmd.Flags().StringVar(&configs.Target, "target", "", "Set the target build stage to build")
 	buildCmd.Flags().StringVar(&configs.Platform, "platform", "", "Set the platform for the build (e.g., linux/amd64, linux/arm64)")
 	buildCmd.Flags().IntVar(&configs.BuildTimeout, "timeout", 1500, "Set the build timeout in seconds")
