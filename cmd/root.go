@@ -6,6 +6,7 @@ import (
 	"github.com/pterm/pterm"
 	"github.com/pterm/pterm/putils"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 var (
@@ -40,7 +41,9 @@ func init() {
 	// Set up custom help display
 	originalHelpFunc = RootCmd.HelpFunc()
 	RootCmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
-		displayBigText()
+		if term.IsTerminal(int(os.Stdout.Fd())) {
+			displayBigText()
+		}
 		originalHelpFunc(cmd, args)
 	})
 
