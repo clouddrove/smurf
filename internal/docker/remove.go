@@ -19,7 +19,7 @@ func RemoveImage(imageTag string, useAI bool) error {
 	if err != nil {
 		pterm.Error.Printf("failed to create Docker client : %v", err)
 		ai.AIExplainError(useAI, err.Error())
-		return fmt.Errorf("failed to create Docker client : %v", err)
+		return fmt.Errorf("failed to create Docker client : %w", err)
 	}
 
 	pterm.Info.Println("Removing local Docker image:", imageTag)
@@ -29,7 +29,7 @@ func RemoveImage(imageTag string, useAI bool) error {
 	if err != nil {
 		spinner.Fail("Failed to remove local Docker image:", imageTag, "error :", err)
 		ai.AIExplainError(useAI, err.Error())
-		return fmt.Errorf("failed to remove local Docker image : %v", err)
+		return fmt.Errorf("failed to remove local Docker image : %w", err)
 	}
 
 	spinner.Success("Successfully removed local Docker image:", imageTag)
