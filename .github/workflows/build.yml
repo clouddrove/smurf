@@ -73,6 +73,17 @@ jobs:
           ./smurf --version
           ./smurf version
 
+      - name: Check CLI docs are up to date
+        run: |
+          make docs
+          if [ -n "$(git status --porcelain docs/sm/docs/cli)" ]; then
+            echo "Generated CLI docs in docs/sm/docs/cli are out of date."
+            echo "Run 'make docs' locally and commit the result."
+            git status --porcelain docs/sm/docs/cli
+            git diff -- docs/sm/docs/cli
+            exit 1
+          fi
+
   format:
     name: Check Formatting
     runs-on: ubuntu-latest
