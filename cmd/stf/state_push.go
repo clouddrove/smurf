@@ -38,7 +38,7 @@ This command should be used with caution as it can overwrite remote state.`,
     smurf stf state-push --force
 
     # Push without creating backup
-    smurf stf state-push --no-backup
+    smurf stf state-push --backup=false
 
     # Push from specific directory
     smurf stf state-push --dir=path/to/terraform/code
