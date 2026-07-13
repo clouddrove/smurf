@@ -2,7 +2,6 @@ package selm
 
 import (
 	"errors"
-	"os"
 	"path/filepath"
 
 	"github.com/clouddrove/smurf/configs"
@@ -40,7 +39,7 @@ var statusCmd = &cobra.Command{
 
 			if releaseName == "" {
 				pterm.Error.Printfln("NAME must be provided either as an argument or in the config")
-				return errors.New(pterm.Error.Sprintfln("NAME must be provided either as an argument or in the config"))
+				return errors.New("NAME must be provided either as an argument or in the config")
 			}
 
 			if configs.Namespace == "" && data.Selm.Namespace != "" {
@@ -54,7 +53,7 @@ var statusCmd = &cobra.Command{
 
 		err := helm.HelmStatus(releaseName, configs.Namespace, useAI)
 		if err != nil {
-			os.Exit(1)
+			return err
 		}
 		return nil
 	},

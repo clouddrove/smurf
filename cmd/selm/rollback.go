@@ -21,11 +21,11 @@ var rollbackCmd = &cobra.Command{
 	Short: "Roll back a release to a previous revision",
 	Long: `Roll back a release to a previous revision.
 The first argument is the name of the release to roll back, and the second is the revision number to roll back to.`,
-	Example: ` 
-      smurf helm rollback nginx 2
-      smurf helm rollback nginx 2 --namespace mynamespace --debug
-      smurf helm rollback nginx 2 --force --timeout 600
-      smurf helm rollback
+	Example: `
+      smurf selm rollback nginx 2
+      smurf selm rollback nginx 2 --namespace mynamespace --debug
+      smurf selm rollback nginx 2 --force --timeout 600
+      smurf selm rollback
 	  smurf selm rollback --history-max 5
       # In this example, it will read RELEASE and REVISION from the config file
     `,

@@ -6,9 +6,10 @@ import (
 )
 
 var repoDebugCmd = &cobra.Command{
-	Use:   "debug",
-	Short: "Debug Helm repository configuration",
-	Long:  `Show debug information about Helm repository configuration paths and compatibility`,
+	Use:          "debug",
+	Short:        "Debug Helm repository configuration",
+	Long:         `Show debug information about Helm repository configuration paths and compatibility`,
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		helm.DebugHelmPaths()
 		return nil
