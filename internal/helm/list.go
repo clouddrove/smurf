@@ -93,9 +93,9 @@ func printOutput(releases []*release.Release, format, namespace string) error {
 
 	switch format {
 	case "json":
-		return printJSON(releases)
+		return printJSON(convertToElements(releases))
 	case "yaml":
-		return printYAML(releases)
+		return printYAML(convertToElements(releases))
 	default:
 		printTable(releases)
 	}
@@ -111,9 +111,10 @@ func printNoReleasesFound(namespace string) {
 	}
 }
 
-// List with JSON output
-func printJSON(releases []*release.Release) error {
-	data, err := json.MarshalIndent(convertToElements(releases), "", "  ")
+// printJSON marshals v as indented JSON and prints it alone, so it doubles
+// as the machine-readable output helper for list, status, and history.
+func printJSON(v interface{}) error {
+	data, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		return fmt.Errorf("json marshal error: %w", err)
 	}
@@ -121,9 +122,9 @@ func printJSON(releases []*release.Release) error {
 	return nil
 }
 
-// List with YAML output
-func printYAML(releases []*release.Release) error {
-	data, err := yaml.Marshal(convertToElements(releases))
+// printYAML marshals v as YAML and prints it alone, mirroring printJSON.
+func printYAML(v interface{}) error {
+	data, err := yaml.Marshal(v)
 	if err != nil {
 		return fmt.Errorf("yaml marshal error: %w", err)
 	}

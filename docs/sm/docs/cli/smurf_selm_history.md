@@ -16,6 +16,9 @@ smurf selm history my-release
 # Show last 5 revisions
 smurf selm history my-release --max 5
 
+# Show history as a JSON document
+smurf selm history my-release -o json
+
 ```
 
 ### Options
@@ -25,6 +28,7 @@ smurf selm history my-release --max 5
   -h, --help               help for history
       --max int            maximum number of revisions to show (default 256)
   -n, --namespace string   namespace of the release
+  -o, --output string      output format (table|json|yaml) (default "table")
 ```
 
 ### SEE ALSO

@@ -11,62 +11,106 @@ import (
 // HelmStatus retrieves and displays the status of a specified Helm release within a given namespace.
 // It initializes the Helm action configuration, fetches the release status, and presents it in a formatted table.
 // Additionally, it checks the readiness of the associated Kubernetes resources and provides detailed feedback.
-func HelmStatus(releaseName, namespace string, useAI bool) error {
-	spinner, _ := pterm.DefaultSpinner.Start(fmt.Sprintf("Retrieving status for release: %s", releaseName))
-	defer spinner.Stop()
+//
+// format selects the output shape: "table" (default) renders the existing
+// human-facing table, spinner, notes and readiness report; "json"/"yaml"
+// print a single machine-readable document to stdout and suppress every
+// other stdout write (spinner, tables, notes, AI explanations) so pipelines
+// consuming stdout only ever see that document. Errors are still returned
+// normally and land on stderr via the caller.
+func HelmStatus(releaseName, namespace, format string, useAI bool) error {
+	isTable := format == "" || format == "table"
+
+	var spinner *pterm.SpinnerPrinter
+	if isTable {
+		spinner, _ = pterm.DefaultSpinner.Start(fmt.Sprintf("Retrieving status for release: %s", releaseName))
+		defer spinner.Stop()
+	}
 
 	actionConfig := new(action.Configuration)
 	if err := actionConfig.Init(settings.RESTClientGetter(), namespace, "secrets", nil); err != nil {
-		logDetailedError("helm status", err, namespace, releaseName)
-		ai.AIExplainError(useAI, err.Error())
+		if isTable {
+			logDetailedError("helm status", err, namespace, releaseName)
+			ai.AIExplainError(useAI, err.Error())
+		}
 		return err
 	}
 
 	statusAction := action.NewStatus(actionConfig)
 	rel, err := statusAction.Run(releaseName)
 	if err != nil {
-		logDetailedError("helm status", err, namespace, releaseName)
-		ai.AIExplainError(useAI, err.Error())
+		if isTable {
+			logDetailedError("helm status", err, namespace, releaseName)
+			ai.AIExplainError(useAI, err.Error())
+		}
 		return err
 	}
 
-	data := [][]string{
-		{"NAME", rel.Name},
-		{"NAMESPACE", rel.Namespace},
-		{"STATUS", rel.Info.Status.String()},
-		{"REVISION", fmt.Sprintf("%d", rel.Version)},
-		{"TEST SUITE", "None"},
+	if isTable {
+		data := [][]string{
+			{"NAME", rel.Name},
+			{"NAMESPACE", rel.Namespace},
+			{"STATUS", rel.Info.Status.String()},
+			{"REVISION", fmt.Sprintf("%d", rel.Version)},
+			{"TEST SUITE", "None"},
+		}
+
+		pterm.DefaultTable.WithHasHeader(false).WithData(data).Render()
+
+		if rel.Info.Notes != "" {
+			pterm.Info.Printfln("NOTES: %s\n", rel.Info.Notes)
+		} else {
+			pterm.Info.Printfln("No additional notes provided for this release.\n")
+		}
+
+		printResourcesFromRelease(rel)
 	}
-
-	pterm.DefaultTable.WithHasHeader(false).WithData(data).Render()
-
-	if rel.Info.Notes != "" {
-		pterm.Info.Printfln("NOTES: %s\n", rel.Info.Notes)
-	} else {
-		pterm.Info.Printfln("No additional notes provided for this release.\n")
-	}
-
-	printResourcesFromRelease(rel)
 
 	resources, err := parseResourcesFromManifest(rel.Manifest)
 	if err != nil {
-		pterm.Error.Printfln("Error parsing manifest for readiness check: %v \n", err)
-		ai.AIExplainError(useAI, err.Error())
-		return nil
+		if isTable {
+			pterm.Error.Printfln("Error parsing manifest for readiness check: %v \n", err)
+			ai.AIExplainError(useAI, err.Error())
+			return nil
+		}
+		return fmt.Errorf("error parsing manifest for readiness check: %w", err)
 	}
 
 	clientset, err := getKubeClient()
 	if err != nil {
-		pterm.Error.Printfln("Error getting kube client for readiness check: %v \n", err)
-		ai.AIExplainError(useAI, err.Error())
+		if isTable {
+			pterm.Error.Printfln("Error getting kube client for readiness check: %v \n", err)
+			ai.AIExplainError(useAI, err.Error())
+		}
 		return err
 	}
 
 	allReady, notReadyResources, err := resourcesReady(clientset, rel.Namespace, resources)
 	if err != nil {
-		pterm.Error.Printfln("Error checking resource readiness: %v \n", err)
-		ai.AIExplainError(useAI, err.Error())
+		if isTable {
+			pterm.Error.Printfln("Error checking resource readiness: %v \n", err)
+			ai.AIExplainError(useAI, err.Error())
+		}
 		return err
+	}
+
+	if !isTable {
+		if notReadyResources == nil {
+			notReadyResources = []string{}
+		}
+		result := map[string]interface{}{
+			"name":                rel.Name,
+			"namespace":           rel.Namespace,
+			"status":              rel.Info.Status.String(),
+			"revision":            rel.Version,
+			"notes":               rel.Info.Notes,
+			"all_resources_ready": allReady,
+			"not_ready_resources": notReadyResources,
+		}
+		if format == "yaml" {
+			return printYAML(result)
+		}
+		return printJSON(result)
 	}
 
 	if !allReady {

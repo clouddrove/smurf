@@ -55,7 +55,7 @@ func HelmRollback(releaseName string, revision int, opts RollbackOptions, histor
 		return err
 	}
 
-	if err := HelmStatus(releaseName, opts.Namespace, useAI); err != nil {
+	if err := HelmStatus(releaseName, opts.Namespace, "table", useAI); err != nil {
 		pterm.FgYellow.Print("Rollback completed, but status retrieval failed. Check the release status manually.\n")
 		ai.AIExplainError(useAI, err.Error())
 		return nil

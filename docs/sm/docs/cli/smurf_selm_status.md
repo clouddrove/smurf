@@ -18,6 +18,9 @@ smurf selm status [NAME] [flags]
 
 	smurf selm status
 	# In this example, it will read the release name from the config file and fetch its status
+
+	smurf selm status my-release -o json
+	# In this example, it will print the status as a JSON document to stdout
 	
 ```
 
@@ -27,6 +30,7 @@ smurf selm status [NAME] [flags]
       --ai                 To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.
   -h, --help               help for status
   -n, --namespace string   Specify the namespace to get status of the Helm chart
+  -o, --output string      output format (table|json|yaml) (default "table")
 ```
 
 ### SEE ALSO
