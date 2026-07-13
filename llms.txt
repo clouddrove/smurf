@@ -1,0 +1,20 @@
+# Smurf
+
+> Smurf is a Go CLI that wraps Docker, Helm, and Terraform behind one consistent interface, using each tool's native Go SDK. It has three command groups (sdkr for Docker, selm for Helm, stf for Terraform), a top-level `smurf deploy` pipeline driven by a `smurf.yaml` config file, and ships as a binary, a Homebrew formula, a Docker image (ghcr.io/clouddrove/smurf), and a GitHub Action.
+
+Key facts: credentials and defaults fall back to `smurf.yaml` when flags or environment variables are missing; config values support `${ENV_VAR}` interpolation (braced form only); `stf provision` requires `--auto-approve` to apply; provision commands prompt for push confirmation on a TTY unless `--yes` is passed.
+
+## Docs
+
+- [README](https://github.com/clouddrove/smurf/blob/master/README.md): overview, installation methods, quickstart, feature summary
+- [Configuration reference](https://github.com/clouddrove/smurf/blob/master/docs/sm/docs/configuration.md): every smurf.yaml field, env interpolation, security guidance
+- [Installation guide](https://github.com/clouddrove/smurf/blob/master/docs/sm/docs/installation.md): all install paths including source builds
+- [Docker commands (sdkr)](https://github.com/clouddrove/smurf/blob/master/docs/sdkr/README.md): build, scan, tag, push, remove, per-registry provision commands
+- [Helm commands (selm)](https://github.com/clouddrove/smurf/blob/master/docs/selm/README.md): create, install, upgrade, lint, template, rollback, plugin management
+- [Terraform commands (stf)](https://github.com/clouddrove/smurf/blob/master/docs/stf/README.md): init, plan, apply, destroy, state management, drift detection
+
+## Optional
+
+- [Advanced usage](https://github.com/clouddrove/smurf/blob/master/docs/sm/docs/advanced.md): why smurf exists, deeper workflow examples
+- [Changelog](https://github.com/clouddrove/smurf/blob/master/CHANGELOG.md): release history
+- [Contributing](https://github.com/clouddrove/smurf/blob/master/CONTRIBUTING.md): development setup and conventions

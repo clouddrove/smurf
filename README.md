@@ -33,20 +33,45 @@
 </p>
 
 <p align="center">
-Smurf is a command-line interface (CLI) application built using Golang leveraging technology specific SDKs, designed to simplify and automate commands for essential tools like Terraform and Docker. It provides intuitive, unified commands to execute Terraform plans, Docker container management, and other DevOps tasks seamlessly from one interface. Whether you need to spin up environments, manage containers, or apply infrastructure as code, this CLI streamlines multi-tool operations, boosting productivity and reducing context-switching.
+Smurf is a Go CLI that wraps Docker, Helm, and Terraform behind one consistent interface, using each tool's native Go SDK instead of shelling out. One binary, one config file, unified commands: build and push images to any major registry, install and upgrade Helm releases, plan and apply Terraform, or chain the whole pipeline with a single <code>smurf deploy</code>. Less context switching, fewer one-off scripts, the same commands locally and in CI.
 </p>
 
 ## Installation ⚙️
-- [Smurf tool CLI Installation Guide](docs/sm/docs/installation.md)
-- Quick binary install (downloads the release archive for your OS/arch and verifies it against `checksums.txt`):
-  ```bash
-  curl -fsSL https://raw.githubusercontent.com/clouddrove/smurf/master/install/install.sh | bash
-  ```
-- Integrate in GitHub Actions
-  ```yaml
+
+### Homebrew (macOS and Linux)
+```bash
+brew tap clouddrove/homebrew-tap
+brew install smurf
+```
+
+### Install script (Linux and macOS)
+Downloads the release archive for your OS/arch and verifies it against `checksums.txt`:
+```bash
+curl -fsSL https://raw.githubusercontent.com/clouddrove/smurf/master/install/install.sh | bash
+```
+
+### Docker
+The image bundles smurf together with docker-cli, aws-cli, gcloud, terraform, and trivy:
+```bash
+docker run --rm ghcr.io/clouddrove/smurf:latest version
+```
+
+### Go
+```bash
+go install github.com/clouddrove/smurf@latest
+```
+
+### Manual download
+Grab the archive for your platform from the [releases page](https://github.com/clouddrove/smurf/releases), verify it against `checksums.txt`, and put the binary on your `PATH`.
+
+### GitHub Actions
+```yaml
     - name: Setup Smurf
       uses: clouddrove/smurf@v1.1.5
-  ```
+```
+
+### From source
+See the [installation guide](docs/sm/docs/installation.md) for building from source and platform notes.
 
 ## Quickstart 🏁
 
@@ -138,13 +163,7 @@ Big thanks to our contributors for elevating our project with their dedication a
 <br>
 <br> 
 
-If you're considering contributing to our project, here are a few quick guidelines that we have been following (Got a suggestion? We are all ears!):
-
-- **Fork the Repository:** Create a new branch for your feature or bug fix.
-- **Coding Standards:** You know the drill.
-- **Clear Commit Messages:** Write clear and concise commit messages to facilitate understanding.
-- **Thorough Testing:** Test your changes thoroughly before submitting a pull request.
-- **Documentation Updates:** Include relevant documentation updates if your changes impact it.
+Want to contribute? Read [CONTRIBUTING.md](CONTRIBUTING.md) for the development setup, project layout, and pull request conventions, and [SECURITY.md](SECURITY.md) for how to report vulnerabilities privately.
 
 ## License
 
