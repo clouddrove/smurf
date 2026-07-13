@@ -2,7 +2,6 @@ package selm
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"time"
 
@@ -21,7 +20,7 @@ var installCmd = &cobra.Command{
 	Args:         cobra.MaximumNArgs(2),
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		var releaseName, chartPath, namespace string
+		var releaseName, chartPath string
 		if len(args) >= 1 {
 			releaseName = args[0]
 		}
@@ -56,7 +55,7 @@ var installCmd = &cobra.Command{
 
 		timeoutDuration := time.Duration(configs.Timeout) * time.Second
 
-		if namespace == "" {
+		if configs.Namespace == "" {
 			configs.Namespace = "default"
 		}
 
@@ -93,7 +92,7 @@ var installCmd = &cobra.Command{
 			useAI,
 		)
 		if err != nil {
-			os.Exit(1)
+			return err
 		}
 		return nil
 	},
