@@ -45,7 +45,7 @@ func Output(dir, format string, useAI bool) error {
 	} else {
 		// Keep the underlying `terraform` process' own stdout (e.g. the
 		// refresh progress text) off real stdout so it can't mix with the
-		// JSON document; route it to stderr instead.
+		// JSON document; discard it (outputs are read via tf.Output).
 		tf.SetStdout(io.Discard)
 		tf.SetStderr(os.Stderr)
 	}

@@ -64,6 +64,7 @@ vet:
 # tree, so it can never drift from the code. Depends on compile (not
 # $(PROGRAM)) so this always rebuilds the binary before generating docs.
 docs: compile
+	rm -f docs/sm/docs/cli/*.md
 	./$(PROGRAM) docs --dir docs/sm/docs/cli --format markdown
 
 # Generate man pages into dist/man (dist/ is gitignored, these are build

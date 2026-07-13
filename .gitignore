@@ -33,3 +33,5 @@ docs/.venv
 
 # goreleaser / make package build output
 dist/
+# Local dev binary produced by make at repo root
+/smurf
