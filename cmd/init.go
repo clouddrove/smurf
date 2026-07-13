@@ -32,7 +32,7 @@ var defaultYamlContent = `sdkr:
 selm:
   deployHelm: false
   releaseName: "Release Name"
-  namespace: "Name Space"
+  namespace: "default"
   chartName: "Chart Name"
   fileName: ""
   revision: 0
