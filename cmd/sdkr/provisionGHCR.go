@@ -103,7 +103,7 @@ func runProvisionGHCR(cmd *cobra.Command, args []string) error {
 			}
 			cfg = loaded
 		}
-		if err := ensureGHCRAuth(cfg.Sdkr.GithubUsername, cfg.Sdkr.GithubToken); err != nil {
+		if err := exportGHCRCreds(cfg.Sdkr.GithubUsername, cfg.Sdkr.GithubToken); err != nil {
 			return err
 		}
 	}
@@ -111,6 +111,11 @@ func runProvisionGHCR(cmd *cobra.Command, args []string) error {
 	username := os.Getenv("GITHUB_USERNAME")
 	token := os.Getenv("GITHUB_TOKEN")
 	if username == "" || token == "" {
+		pterm.Error.Println("GitHub Container Registry credentials missing.")
+		pterm.Info.Println("Set using environment variables:")
+		pterm.Info.Println("  export GITHUB_USERNAME=\"your-username\"")
+		pterm.Info.Println("  export GITHUB_TOKEN=\"your-github-personal-access-token\"")
+		pterm.Info.Println("Or define github_username and github_token in smurf.yaml.")
 		return errors.New("missing required GHCR credentials")
 	}
 
@@ -173,27 +178,21 @@ func validateGHCRImage(image string) error {
 	return nil
 }
 
-func ensureGHCRAuth(username, token string) error {
-	if username == "" || token == "" {
-		envVars := map[string]string{
-			"GITHUB_USERNAME": os.Getenv("GITHUB_USERNAME"),
-			"GITHUB_TOKEN":    os.Getenv("GITHUB_TOKEN"),
-		}
-		if err := configs.ExportEnvironmentVariables(envVars); err != nil {
-			return err
-		}
-		username = envVars["GITHUB_USERNAME"]
-		token = envVars["GITHUB_TOKEN"]
+// exportGHCRCreds exports the config-provided GHCR credentials into the
+// environment for any variable that is not already set, so environment
+// variables always take precedence over smurf.yaml values.
+func exportGHCRCreds(configUsername, configToken string) error {
+	envVars := map[string]string{}
+	if os.Getenv("GITHUB_USERNAME") == "" && configUsername != "" {
+		envVars["GITHUB_USERNAME"] = configUsername
 	}
-
-	if username == "" || token == "" {
-		pterm.Error.Println("GitHub Container Registry credentials missing.")
-		pterm.Info.Println("Set using environment variables:")
-		pterm.Info.Println("  export GITHUB_USERNAME=\"your-username\"")
-		pterm.Info.Println("  export GITHUB_TOKEN=\"your-github-personal-access-token\"")
-		return errors.New("missing GHCR credentials")
+	if os.Getenv("GITHUB_TOKEN") == "" && configToken != "" {
+		envVars["GITHUB_TOKEN"] = configToken
 	}
-	return nil
+	if len(envVars) == 0 {
+		return nil
+	}
+	return configs.ExportEnvironmentVariables(envVars)
 }
 
 func prepareBuildOptions() (docker.BuildOptions, error) {
