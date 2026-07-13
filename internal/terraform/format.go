@@ -148,7 +148,13 @@ func (cf *CustomFormatter) FormatWithDetails(ctx context.Context, dir string, re
 
 			// Apply formatting if we haven't timed out yet
 			if !timeoutReached {
-				os.WriteFile(file, outputBuffer.Bytes(), 0600)
+				// Preserve the source file's original permissions; .tf files are
+				// source code, not secrets, and are commonly shared in checkouts.
+				mode := os.FileMode(0644)
+				if info, statErr := os.Stat(file); statErr == nil {
+					mode = info.Mode()
+				}
+				os.WriteFile(file, outputBuffer.Bytes(), mode)
 			}
 		}
 	}
