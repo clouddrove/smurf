@@ -72,5 +72,9 @@ var statusCmd = &cobra.Command{
 func init() {
 	statusCmd.Flags().StringVarP(&configs.Namespace, "namespace", "n", "", "Specify the namespace to get status of the Helm chart")
 	statusCmd.Flags().BoolVar(&useAI, "ai", false, "To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.")
+
+	statusCmd.ValidArgsFunction = completeReleaseNames
+	_ = statusCmd.RegisterFlagCompletionFunc("namespace", completeNamespaces)
+
 	selmCmd.AddCommand(statusCmd)
 }

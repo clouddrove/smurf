@@ -59,6 +59,7 @@ func init() {
 	listCmd.RegisterFlagCompletionFunc("output", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		return []string{"table", "json", "yaml"}, cobra.ShellCompDirectiveDefault
 	})
+	_ = listCmd.RegisterFlagCompletionFunc("namespace", completeNamespaces)
 
 	selmCmd.AddCommand(listCmd)
 }
