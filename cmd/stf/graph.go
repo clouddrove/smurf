@@ -1,8 +1,6 @@
 package stf
 
 import (
-	"os"
-
 	"github.com/clouddrove/smurf/internal/terraform"
 	"github.com/spf13/cobra"
 )
@@ -11,15 +9,11 @@ var graphDir string
 
 // graphCmd defines a subcommand that generates a visual representation of the Terraform resources.
 var graphCmd = &cobra.Command{
-	Use:           "graph",
-	Short:         "Generate a visual graph of Terraform resources",
-	SilenceErrors: true,
+	Use:          "graph",
+	Short:        "Generate a visual graph of Terraform resources",
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		err := terraform.Graph(graphDir, useAI)
-		if err != nil {
-			os.Exit(1)
-		}
-		return nil
+		return terraform.Graph(graphDir, useAI)
 	},
 	Example: `
 	smurf stf graph --dir <terraform-directory>
