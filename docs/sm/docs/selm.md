@@ -61,7 +61,7 @@ This creates the `smurf.yaml` configuration file for Helm.
 ```yaml
 selm:
   releaseName: "Release Name"
-  namespace: "Name Space"
+  namespace: "default"
   chartName: "Chart Name"
   revision: 0
 ```
