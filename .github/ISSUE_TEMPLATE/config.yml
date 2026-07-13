@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Community chat
+    url: https://www.launchpass.com/devops-talks
+    about: Ask questions and get help from the community on Slack.
+  - name: Report a security vulnerability
+    url: https://github.com/clouddrove/smurf/blob/main/SECURITY.md
+    about: Please do not report security vulnerabilities through public issues, see SECURITY.md for private reporting channels.
