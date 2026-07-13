@@ -48,6 +48,40 @@ func getKubeClient() (*kubernetes.Clientset, error) {
 	return kubeClientset, kubeClientErr
 }
 
+// ListNamespaces returns the names of all namespaces visible to the
+// configured Kubernetes client, for use in shell completion. It never
+// prints and honors ctx's deadline, so a slow or unreachable cluster can't
+// hang shell completion; callers should pass a context with a short (2-3s)
+// timeout.
+//
+// It intentionally builds its own client instead of reusing getKubeClient:
+// that helper prints an error message as a side effect of the first failed
+// call (cached for the process via kubeClientOnce), which is fine for
+// regular command output but would violate the "completion functions never
+// print" rule.
+func ListNamespaces(ctx context.Context) ([]string, error) {
+	config, err := clientcmd.BuildConfigFromFlags("", settings.KubeConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+
+	nsList, err := clientset.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	names := make([]string, 0, len(nsList.Items))
+	for _, ns := range nsList.Items {
+		names = append(names, ns.Name)
+	}
+	return names, nil
+}
+
 // logDetailedError prints a detailed error message based on the error type and provides suggestions for troubleshooting.
 // It also prints the resources that failed to be created or updated.
 // This function is used to provide more context to the user when an operation fails.

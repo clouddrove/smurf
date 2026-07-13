@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/clouddrove/smurf/internal/ai"
 	"github.com/pterm/pterm"
@@ -37,6 +38,51 @@ func ListReleases(namespace, format string, useAI bool) ([]*release.Release, err
 	}
 
 	return releases, nil
+}
+
+// ListReleaseNames returns just the names of Helm releases in the given
+// namespace (all namespaces if empty), for use in shell completion. Unlike
+// ListReleases it never prints anything and never blocks longer than
+// timeout: the Helm/Kubernetes call runs in the background and, if it has
+// not finished by the deadline, a timeout error is returned immediately so a
+// slow or unreachable cluster can't hang shell completion.
+func ListReleaseNames(namespace string, timeout time.Duration) ([]string, error) {
+	type result struct {
+		names []string
+		err   error
+	}
+	done := make(chan result, 1)
+
+	go func() {
+		cfg := new(action.Configuration)
+		if err := cfg.Init(settings.RESTClientGetter(), namespace, os.Getenv("HELM_DRIVER"), func(string, ...interface{}) {}); err != nil {
+			done <- result{nil, err}
+			return
+		}
+
+		client := action.NewList(cfg)
+		client.AllNamespaces = namespace == ""
+		client.StateMask = action.ListAll
+
+		releases, err := client.Run()
+		if err != nil {
+			done <- result{nil, err}
+			return
+		}
+
+		names := make([]string, 0, len(releases))
+		for _, r := range releases {
+			names = append(names, r.Name)
+		}
+		done <- result{names, nil}
+	}()
+
+	select {
+	case res := <-done:
+		return res.names, res.err
+	case <-time.After(timeout):
+		return nil, fmt.Errorf("timed out after %s listing helm releases", timeout)
+	}
 }
 
 func printOutput(releases []*release.Release, format, namespace string) error {

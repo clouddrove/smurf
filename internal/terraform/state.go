@@ -3,10 +3,12 @@ package terraform
 import (
 	"context"
 	"fmt"
+	"os/exec"
 	"sort"
 	"strings"
 
 	"github.com/clouddrove/smurf/internal/ai"
+	"github.com/hashicorp/terraform-exec/tfexec"
 	tfjson "github.com/hashicorp/terraform-json"
 )
 
@@ -43,6 +45,51 @@ func StateList(dir string, useAI bool) error {
 
 	Success("Total %d resources listed.", len(resources))
 	return nil
+}
+
+// StateResourceAddresses returns the addresses of resources currently
+// tracked in the Terraform state, for use in shell completion. Unlike
+// StateList it never prints and takes a context: the underlying `terraform
+// show` process is killed as soon as ctx is done, so a slow or unreachable
+// backend can't hang shell completion. Callers should pass a context with a
+// short (2-3s) timeout.
+//
+// This does not run `terraform init`; if the working directory has not been
+// initialized, Show simply fails fast with an error (no side effects), which
+// the caller should treat as "no completions available".
+//
+// It intentionally builds its own *tfexec.Terraform instead of calling
+// GetTerraform: that helper prints an error message as a side effect when
+// the terraform binary is missing or the instance can't be created, which
+// would violate the "completion functions never print" rule.
+func StateResourceAddresses(ctx context.Context, dir string) ([]string, error) {
+	terraformBinary, err := exec.LookPath("terraform")
+	if err != nil {
+		return nil, err
+	}
+
+	workingDir := "."
+	if dir != "" {
+		workingDir = dir
+	}
+
+	tf, err := tfexec.NewTerraform(workingDir, terraformBinary)
+	if err != nil {
+		return nil, err
+	}
+
+	state, err := tf.Show(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if state == nil || state.Values == nil || state.Values.RootModule == nil {
+		return nil, nil
+	}
+
+	resources := getAllResources(state.Values.RootModule)
+	sort.Strings(resources)
+	return resources, nil
 }
 
 // getAllResources recursively collects resources from all modules
