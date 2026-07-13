@@ -98,7 +98,7 @@ func NewResourceChecker(clientset *kubernetes.Clientset, namespace, releaseName 
 }
 
 // getPodFailureReason extracts the detailed reason for pod failure
-func getPodFailureReason(clientset *kubernetes.Clientset, pod *corev1.Pod) string {
+func getPodFailureReason(ctx context.Context, clientset *kubernetes.Clientset, pod *corev1.Pod) string {
 	// Check container statuses first
 	for _, status := range pod.Status.ContainerStatuses {
 		if status.State.Waiting != nil {
@@ -110,7 +110,7 @@ func getPodFailureReason(clientset *kubernetes.Clientset, pod *corev1.Pod) strin
 	}
 
 	// Try to get events for more context
-	events, err := clientset.CoreV1().Events(pod.Namespace).List(context.TODO(), metav1.ListOptions{
+	events, err := clientset.CoreV1().Events(pod.Namespace).List(ctx, metav1.ListOptions{
 		FieldSelector: fmt.Sprintf("involvedObject.name=%s,involvedObject.kind=Pod", pod.Name),
 	})
 	if err == nil && len(events.Items) > 0 {
@@ -193,6 +193,11 @@ func monitorEssentialResources(rel *release.Release, namespace string) error {
 		return err
 	}
 
+	// Bound all the diagnostic List calls below with a single timeout so a slow
+	// or unreachable API server can't hang this reporting path indefinitely.
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
 	// Print final summary
 	fmt.Println()
 	fmt.Println("🎉  Installation Summary")
@@ -215,37 +220,37 @@ func monitorEssentialResources(rel *release.Release, namespace string) error {
 	}
 
 	// Get all resources
-	details.Deployments, err = getDetailedDeployments(clientset, namespace, rel.Name)
+	details.Deployments, err = getDetailedDeployments(ctx, clientset, namespace, rel.Name)
 	if err != nil {
 		pterm.Warning.Printfln("Could not get deployment details: %v", err)
 	}
 
-	details.ReplicaSets, err = getDetailedReplicaSets(clientset, namespace, rel.Name)
+	details.ReplicaSets, err = getDetailedReplicaSets(ctx, clientset, namespace, rel.Name)
 	if err != nil {
 		pterm.Warning.Printfln("Could not get replicaset details: %v", err)
 	}
 
-	details.Pods, err = getDetailedPods(clientset, namespace, rel.Name)
+	details.Pods, err = getDetailedPods(ctx, clientset, namespace, rel.Name)
 	if err != nil {
 		pterm.Warning.Printfln("Could not get pod details: %v", err)
 	}
 
-	details.Services, err = getDetailedServices(clientset, namespace, rel.Name)
+	details.Services, err = getDetailedServices(ctx, clientset, namespace, rel.Name)
 	if err != nil {
 		pterm.Warning.Printfln("Could not get service details: %v", err)
 	}
 
-	details.Ingresses, err = getDetailedIngresses(clientset, namespace, rel.Name)
+	details.Ingresses, err = getDetailedIngresses(ctx, clientset, namespace, rel.Name)
 	if err != nil {
 		pterm.Warning.Printfln("Could not get ingress details: %v", err)
 	}
 
-	details.Secrets, err = getDetailedSecrets(clientset, namespace, rel.Name)
+	details.Secrets, err = getDetailedSecrets(ctx, clientset, namespace, rel.Name)
 	if err != nil {
 		pterm.Warning.Printfln("Could not get secret details: %v", err)
 	}
 
-	details.ConfigMaps, err = getDetailedConfigMaps(clientset, namespace, rel.Name)
+	details.ConfigMaps, err = getDetailedConfigMaps(ctx, clientset, namespace, rel.Name)
 	if err != nil {
 		pterm.Warning.Printfln("Could not get configmap details: %v", err)
 	}
@@ -256,8 +261,8 @@ func monitorEssentialResources(rel *release.Release, namespace string) error {
 }
 
 // Detailed resource getter functions
-func getDetailedDeployments(clientset *kubernetes.Clientset, namespace, releaseName string) ([]DeploymentInfo, error) {
-	deployments, err := clientset.AppsV1().Deployments(namespace).List(context.TODO(), metav1.ListOptions{
+func getDetailedDeployments(ctx context.Context, clientset *kubernetes.Clientset, namespace, releaseName string) ([]DeploymentInfo, error) {
+	deployments, err := clientset.AppsV1().Deployments(namespace).List(ctx, metav1.ListOptions{
 		LabelSelector: fmt.Sprintf("app.kubernetes.io/instance=%s", releaseName),
 	})
 	if err != nil {
@@ -281,8 +286,8 @@ func getDetailedDeployments(clientset *kubernetes.Clientset, namespace, releaseN
 	return deploymentInfos, nil
 }
 
-func getDetailedReplicaSets(clientset *kubernetes.Clientset, namespace, releaseName string) ([]ReplicaSetInfo, error) {
-	replicaSets, err := clientset.AppsV1().ReplicaSets(namespace).List(context.TODO(), metav1.ListOptions{
+func getDetailedReplicaSets(ctx context.Context, clientset *kubernetes.Clientset, namespace, releaseName string) ([]ReplicaSetInfo, error) {
+	replicaSets, err := clientset.AppsV1().ReplicaSets(namespace).List(ctx, metav1.ListOptions{
 		LabelSelector: fmt.Sprintf("app.kubernetes.io/instance=%s", releaseName),
 	})
 	if err != nil {
@@ -305,8 +310,8 @@ func getDetailedReplicaSets(clientset *kubernetes.Clientset, namespace, releaseN
 	return replicaSetInfos, nil
 }
 
-func getDetailedPods(clientset *kubernetes.Clientset, namespace, releaseName string) ([]PodInfo, error) {
-	pods, err := clientset.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{
+func getDetailedPods(ctx context.Context, clientset *kubernetes.Clientset, namespace, releaseName string) ([]PodInfo, error) {
+	pods, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
 		LabelSelector: fmt.Sprintf("app.kubernetes.io/instance=%s", releaseName),
 	})
 	if err != nil {
@@ -346,8 +351,8 @@ func getDetailedPods(clientset *kubernetes.Clientset, namespace, releaseName str
 	return podInfos, nil
 }
 
-func getDetailedServices(clientset *kubernetes.Clientset, namespace, releaseName string) ([]ServiceInfo, error) {
-	services, err := clientset.CoreV1().Services(namespace).List(context.TODO(), metav1.ListOptions{
+func getDetailedServices(ctx context.Context, clientset *kubernetes.Clientset, namespace, releaseName string) ([]ServiceInfo, error) {
+	services, err := clientset.CoreV1().Services(namespace).List(ctx, metav1.ListOptions{
 		LabelSelector: fmt.Sprintf("app.kubernetes.io/instance=%s", releaseName),
 	})
 	if err != nil {
@@ -375,8 +380,8 @@ func getDetailedServices(clientset *kubernetes.Clientset, namespace, releaseName
 	return serviceInfos, nil
 }
 
-func getDetailedIngresses(clientset *kubernetes.Clientset, namespace, releaseName string) ([]IngressInfo, error) {
-	ingresses, err := clientset.NetworkingV1().Ingresses(namespace).List(context.TODO(), metav1.ListOptions{
+func getDetailedIngresses(ctx context.Context, clientset *kubernetes.Clientset, namespace, releaseName string) ([]IngressInfo, error) {
+	ingresses, err := clientset.NetworkingV1().Ingresses(namespace).List(ctx, metav1.ListOptions{
 		LabelSelector: fmt.Sprintf("app.kubernetes.io/instance=%s", releaseName),
 	})
 	if err != nil {
@@ -415,8 +420,8 @@ func getDetailedIngresses(clientset *kubernetes.Clientset, namespace, releaseNam
 	return ingressInfos, nil
 }
 
-func getDetailedSecrets(clientset *kubernetes.Clientset, namespace, releaseName string) ([]SecretInfo, error) {
-	secrets, err := clientset.CoreV1().Secrets(namespace).List(context.TODO(), metav1.ListOptions{
+func getDetailedSecrets(ctx context.Context, clientset *kubernetes.Clientset, namespace, releaseName string) ([]SecretInfo, error) {
+	secrets, err := clientset.CoreV1().Secrets(namespace).List(ctx, metav1.ListOptions{
 		LabelSelector: fmt.Sprintf("app.kubernetes.io/instance=%s", releaseName),
 	})
 	if err != nil {
@@ -433,8 +438,8 @@ func getDetailedSecrets(clientset *kubernetes.Clientset, namespace, releaseName 
 	return secretInfos, nil
 }
 
-func getDetailedConfigMaps(clientset *kubernetes.Clientset, namespace, releaseName string) ([]ConfigMapInfo, error) {
-	configMaps, err := clientset.CoreV1().ConfigMaps(namespace).List(context.TODO(), metav1.ListOptions{
+func getDetailedConfigMaps(ctx context.Context, clientset *kubernetes.Clientset, namespace, releaseName string) ([]ConfigMapInfo, error) {
+	configMaps, err := clientset.CoreV1().ConfigMaps(namespace).List(ctx, metav1.ListOptions{
 		LabelSelector: fmt.Sprintf("app.kubernetes.io/instance=%s", releaseName),
 	})
 	if err != nil {
@@ -660,8 +665,9 @@ func min(a, b int) int {
 
 // Generic resource health checking functions
 func (r *ResourceChecker) checkResourceHealth(
+	ctx context.Context,
 	resourceType string,
-	listFunc func() (interface{}, error),
+	listFunc func(context.Context) (interface{}, error),
 	healthCheckFunc func(interface{}) (bool, error),
 ) (bool, error) {
 
@@ -669,7 +675,7 @@ func (r *ResourceChecker) checkResourceHealth(
 		fmt.Printf("🔍 Checking %s\n", resourceType)
 	}
 
-	resources, err := listFunc()
+	resources, err := listFunc(ctx)
 	if err != nil {
 		return false, fmt.Errorf("failed to list %s: %w", resourceType, err)
 	}
@@ -678,11 +684,12 @@ func (r *ResourceChecker) checkResourceHealth(
 }
 
 // Specific health check implementations
-func (r *ResourceChecker) checkDeploymentsHealthy() (bool, error) {
+func (r *ResourceChecker) checkDeploymentsHealthy(ctx context.Context) (bool, error) {
 	return r.checkResourceHealth(
+		ctx,
 		"deployments",
-		func() (interface{}, error) {
-			return r.clientset.AppsV1().Deployments(r.namespace).List(context.TODO(), metav1.ListOptions{
+		func(ctx context.Context) (interface{}, error) {
+			return r.clientset.AppsV1().Deployments(r.namespace).List(ctx, metav1.ListOptions{
 				LabelSelector: fmt.Sprintf("app.kubernetes.io/instance=%s", r.releaseName),
 			})
 		},
@@ -722,11 +729,12 @@ func (r *ResourceChecker) checkDeploymentsHealthy() (bool, error) {
 	)
 }
 
-func (r *ResourceChecker) checkStatefulSetsHealthy() (bool, error) {
+func (r *ResourceChecker) checkStatefulSetsHealthy(ctx context.Context) (bool, error) {
 	return r.checkResourceHealth(
+		ctx,
 		"statefulsets",
-		func() (interface{}, error) {
-			return r.clientset.AppsV1().StatefulSets(r.namespace).List(context.TODO(), metav1.ListOptions{
+		func(ctx context.Context) (interface{}, error) {
+			return r.clientset.AppsV1().StatefulSets(r.namespace).List(ctx, metav1.ListOptions{
 				LabelSelector: fmt.Sprintf("app.kubernetes.io/instance=%s", r.releaseName),
 			})
 		},
@@ -755,11 +763,12 @@ func (r *ResourceChecker) checkStatefulSetsHealthy() (bool, error) {
 	)
 }
 
-func (r *ResourceChecker) checkDaemonSetsHealthy() (bool, error) {
+func (r *ResourceChecker) checkDaemonSetsHealthy(ctx context.Context) (bool, error) {
 	return r.checkResourceHealth(
+		ctx,
 		"daemonsets",
-		func() (interface{}, error) {
-			return r.clientset.AppsV1().DaemonSets(r.namespace).List(context.TODO(), metav1.ListOptions{
+		func(ctx context.Context) (interface{}, error) {
+			return r.clientset.AppsV1().DaemonSets(r.namespace).List(ctx, metav1.ListOptions{
 				LabelSelector: fmt.Sprintf("app.kubernetes.io/instance=%s", r.releaseName),
 			})
 		},
@@ -788,11 +797,12 @@ func (r *ResourceChecker) checkDaemonSetsHealthy() (bool, error) {
 	)
 }
 
-func (r *ResourceChecker) checkJobsHealthy() (bool, error) {
+func (r *ResourceChecker) checkJobsHealthy(ctx context.Context) (bool, error) {
 	return r.checkResourceHealth(
+		ctx,
 		"jobs",
-		func() (interface{}, error) {
-			return r.clientset.BatchV1().Jobs(r.namespace).List(context.TODO(), metav1.ListOptions{
+		func(ctx context.Context) (interface{}, error) {
+			return r.clientset.BatchV1().Jobs(r.namespace).List(ctx, metav1.ListOptions{
 				LabelSelector: fmt.Sprintf("app.kubernetes.io/instance=%s", r.releaseName),
 			})
 		},
@@ -826,11 +836,12 @@ func (r *ResourceChecker) checkJobsHealthy() (bool, error) {
 	)
 }
 
-func (r *ResourceChecker) checkCronJobsHealthy() (bool, error) {
+func (r *ResourceChecker) checkCronJobsHealthy(ctx context.Context) (bool, error) {
 	return r.checkResourceHealth(
+		ctx,
 		"cronjobs",
-		func() (interface{}, error) {
-			return r.clientset.BatchV1().CronJobs(r.namespace).List(context.TODO(), metav1.ListOptions{
+		func(ctx context.Context) (interface{}, error) {
+			return r.clientset.BatchV1().CronJobs(r.namespace).List(ctx, metav1.ListOptions{
 				LabelSelector: fmt.Sprintf("app.kubernetes.io/instance=%s", r.releaseName),
 			})
 		},
@@ -853,11 +864,12 @@ func (r *ResourceChecker) checkCronJobsHealthy() (bool, error) {
 	)
 }
 
-func (r *ResourceChecker) checkPodsHealthy() (bool, error) {
+func (r *ResourceChecker) checkPodsHealthy(ctx context.Context) (bool, error) {
 	return r.checkResourceHealth(
+		ctx,
 		"pods",
-		func() (interface{}, error) {
-			return r.clientset.CoreV1().Pods(r.namespace).List(context.TODO(), metav1.ListOptions{
+		func(ctx context.Context) (interface{}, error) {
+			return r.clientset.CoreV1().Pods(r.namespace).List(ctx, metav1.ListOptions{
 				LabelSelector: fmt.Sprintf("app.kubernetes.io/instance=%s", r.releaseName),
 			})
 		},
@@ -876,7 +888,7 @@ func (r *ResourceChecker) checkPodsHealthy() (bool, error) {
 
 				// Check for pod failures
 				if isPodInFailureState(&pod) {
-					failureReason := getPodFailureReason(r.clientset, &pod)
+					failureReason := getPodFailureReason(ctx, r.clientset, &pod)
 					return false, fmt.Errorf("pod %s failed: %s", pod.Name, failureReason)
 				}
 
@@ -948,10 +960,16 @@ func verifyInstallationHealth(namespace, releaseName string, timeout time.Durati
 	}
 }
 
-// checkAllResourcesHealthy checks all resource types for health using the ResourceChecker
+// checkAllResourcesHealthy checks all resource types for health using the ResourceChecker.
+// Each round of checks gets its own bounded timeout, independent of the overall
+// polling deadline in verifyInstallationHealth, so a slow API server can't wedge a
+// single tick forever.
 func checkAllResourcesHealthy(checker *ResourceChecker) (bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
 	// Check Deployments
-	deploymentsHealthy, err := checker.checkDeploymentsHealthy()
+	deploymentsHealthy, err := checker.checkDeploymentsHealthy(ctx)
 	if err != nil {
 		return false, err
 	}
@@ -960,7 +978,7 @@ func checkAllResourcesHealthy(checker *ResourceChecker) (bool, error) {
 	}
 
 	// Check StatefulSets
-	statefulSetsHealthy, err := checker.checkStatefulSetsHealthy()
+	statefulSetsHealthy, err := checker.checkStatefulSetsHealthy(ctx)
 	if err != nil {
 		return false, err
 	}
@@ -969,7 +987,7 @@ func checkAllResourcesHealthy(checker *ResourceChecker) (bool, error) {
 	}
 
 	// Check DaemonSets
-	daemonSetsHealthy, err := checker.checkDaemonSetsHealthy()
+	daemonSetsHealthy, err := checker.checkDaemonSetsHealthy(ctx)
 	if err != nil {
 		return false, err
 	}
@@ -978,7 +996,7 @@ func checkAllResourcesHealthy(checker *ResourceChecker) (bool, error) {
 	}
 
 	// Check Jobs
-	jobsHealthy, err := checker.checkJobsHealthy()
+	jobsHealthy, err := checker.checkJobsHealthy(ctx)
 	if err != nil {
 		return false, err
 	}
@@ -987,7 +1005,7 @@ func checkAllResourcesHealthy(checker *ResourceChecker) (bool, error) {
 	}
 
 	// Check CronJobs
-	cronJobsHealthy, err := checker.checkCronJobsHealthy()
+	cronJobsHealthy, err := checker.checkCronJobsHealthy(ctx)
 	if err != nil {
 		return false, err
 	}
@@ -996,7 +1014,7 @@ func checkAllResourcesHealthy(checker *ResourceChecker) (bool, error) {
 	}
 
 	// Check Pods (as a final verification)
-	podsHealthy, err := checker.checkPodsHealthy()
+	podsHealthy, err := checker.checkPodsHealthy(ctx)
 	if err != nil {
 		return false, err
 	}
@@ -1049,8 +1067,11 @@ func isPodReadyInstall(pod *corev1.Pod) bool {
 func checkFinalHealthStatus(clientset *kubernetes.Clientset, namespace, releaseName string, startTime time.Time, debug bool) error {
 	var statusMessages []string
 
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
 	// Get final status of all resources
-	if deployments, err := clientset.AppsV1().Deployments(namespace).List(context.TODO(), metav1.ListOptions{
+	if deployments, err := clientset.AppsV1().Deployments(namespace).List(ctx, metav1.ListOptions{
 		LabelSelector: fmt.Sprintf("app.kubernetes.io/instance=%s", releaseName),
 	}); err == nil {
 		for _, dep := range deployments.Items {
@@ -1058,7 +1079,7 @@ func checkFinalHealthStatus(clientset *kubernetes.Clientset, namespace, releaseN
 		}
 	}
 
-	if pods, err := clientset.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{
+	if pods, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
 		LabelSelector: fmt.Sprintf("app.kubernetes.io/instance=%s", releaseName),
 	}); err == nil {
 		for _, pod := range pods.Items {
