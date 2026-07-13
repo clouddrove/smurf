@@ -68,20 +68,20 @@ func init() {
 
 func runProvisionGHCR(cmd *cobra.Command, args []string) error {
 	var imageRef string
+	var cfg *configs.Config
+
 	if len(args) == 1 {
 		imageRef = args[0]
 	} else {
-		cfg, err := configs.LoadConfig(configs.FileName)
+		loaded, err := configs.LoadConfig(configs.FileName)
 		if err != nil {
 			return err
 		}
-		if cfg.Sdkr.ImageName == "" {
+		if loaded.Sdkr.ImageName == "" {
 			return errors.New("image name (with optional tag) must be provided either as an argument or in the config")
 		}
-		imageRef = resolveImageRef(args, cfg)
-		if err := ensureGHCRAuth(cfg.Sdkr.GithubUsername, cfg.Sdkr.GithubToken); err != nil {
-			return err
-		}
+		cfg = loaded
+		imageRef = cfg.Sdkr.ImageName
 	}
 
 	if imageRef == "" {
@@ -92,14 +92,26 @@ func runProvisionGHCR(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// Load config-based credentials regardless of whether the image was passed
+	// as an argument, so smurf.yaml creds work in both cases. Already-set
+	// environment variables always win.
+	if os.Getenv("GITHUB_USERNAME") == "" || os.Getenv("GITHUB_TOKEN") == "" {
+		if cfg == nil {
+			loaded, err := configs.LoadConfig(configs.FileName)
+			if err != nil {
+				return err
+			}
+			cfg = loaded
+		}
+		if err := ensureGHCRAuth(cfg.Sdkr.GithubUsername, cfg.Sdkr.GithubToken); err != nil {
+			return err
+		}
+	}
+
 	username := os.Getenv("GITHUB_USERNAME")
 	token := os.Getenv("GITHUB_TOKEN")
 	if username == "" || token == "" {
 		return errors.New("missing required GHCR credentials")
-	}
-
-	if err := ensureGHCRAuth(username, token); err != nil {
-		return err
 	}
 
 	imageName, tag, err := configs.ParseImage(imageRef)
@@ -123,6 +135,10 @@ func runProvisionGHCR(cmd *cobra.Command, args []string) error {
 	}
 	pterm.Success.Println("✅ Build completed successfully.")
 
+	if err := confirmPush(); err != nil {
+		return err
+	}
+
 	if err := pushToGHCR(fullImage); err != nil {
 		return err
 	}
@@ -133,17 +149,6 @@ func runProvisionGHCR(cmd *cobra.Command, args []string) error {
 
 	pterm.Success.Println("🚀 GHCR provisioning completed successfully.")
 	return nil
-}
-
-func resolveImageRef(args []string, cfg *configs.Config) string {
-	if len(args) > 0 {
-		return args[0]
-	}
-	if cfg.Sdkr.ImageName != "" {
-		return cfg.Sdkr.ImageName
-	}
-	pterm.Error.Println("Image name must be provided either as argument or in config file.")
-	return ""
 }
 
 func validateGHCRImage(image string) error {
@@ -194,8 +199,8 @@ func ensureGHCRAuth(username, token string) error {
 func prepareBuildOptions() (docker.BuildOptions, error) {
 	if configs.ContextDir == "" {
 		wd, err := os.Getwd()
-pterm.Error.Println("Failed to determine working directory.")
 		if err != nil {
+			pterm.Error.Println("Failed to determine working directory.")
 			return docker.BuildOptions{}, fmt.Errorf("failed to get working directory: %v", err)
 		}
 		configs.ContextDir = wd
