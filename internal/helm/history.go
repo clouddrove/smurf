@@ -21,6 +21,15 @@ import (
 func HelmHistory(releaseName, namespace string, max int, format string, useAI bool) error {
 	isTable := format == "" || format == "table"
 
+	if !isTable {
+		// Helm and shared helpers can print via pterm unconditionally;
+		// redirect pterm's default writer to stderr for the duration of the
+		// call so nothing lands inside the JSON/YAML document on stdout,
+		// and restore it on return.
+		pterm.SetDefaultOutput(os.Stderr)
+		defer pterm.SetDefaultOutput(os.Stdout)
+	}
+
 	actionConfig := new(action.Configuration)
 	if err := actionConfig.Init(settings.RESTClientGetter(), namespace, os.Getenv("HELM_DRIVER"), debugLog); err != nil {
 		if isTable {

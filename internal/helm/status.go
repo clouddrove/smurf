@@ -2,6 +2,7 @@ package helm
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/clouddrove/smurf/internal/ai"
 	"github.com/pterm/pterm"
@@ -20,6 +21,15 @@ import (
 // normally and land on stderr via the caller.
 func HelmStatus(releaseName, namespace, format string, useAI bool) error {
 	isTable := format == "" || format == "table"
+
+	if !isTable {
+		// Shared helpers reached below (getKubeClient, resourcesReady) print
+		// via pterm unconditionally; redirect pterm's default writer to
+		// stderr for the duration of the call so none of that can land
+		// inside the JSON/YAML document on stdout, and restore it on return.
+		pterm.SetDefaultOutput(os.Stderr)
+		defer pterm.SetDefaultOutput(os.Stdout)
+	}
 
 	var spinner *pterm.SpinnerPrinter
 	if isTable {

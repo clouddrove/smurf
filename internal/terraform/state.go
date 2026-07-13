@@ -27,10 +27,11 @@ func StateList(dir, format string, useAI bool) error {
 
 	if !isTable {
 		// GetTerraform prints via pterm on failure (e.g. "terraform binary
-		// not found"); route that to stderr so stdout stays JSON-only. Safe
-		// as a one-way switch here: each smurf invocation is a short-lived
-		// process handling exactly one command.
+		// not found"); route that to stderr so stdout stays JSON-only, and
+		// restore the default writer on return so no code path leaves the
+		// global redirected.
 		pterm.SetDefaultOutput(os.Stderr)
+		defer pterm.SetDefaultOutput(os.Stdout)
 	}
 
 	tf, err := GetTerraform(dir)
