@@ -5,19 +5,12 @@ on:
 env:
   GO_VERSION: 1.26.0
   REPO: ${{ github.repository }}
-  APP_PACKAGE: github.com/clouddrove/smurf/cmd
-  BINARY_NAME: smurf
 
 jobs:
-  build:
+  goreleaser:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        GOOS: [linux, darwin, windows]
-        GOARCH: [amd64, arm64]
-        include:
-          - GOOS: windows
-            ext: .exe
+    permissions:
+      contents: write
     steps:
     - uses: actions/checkout@v7
       with:
@@ -28,153 +21,24 @@ jobs:
       with:
         go-version: ${{ env.GO_VERSION }}
 
-    - name: Get Version from Tag
-      id: version
-      run: |
-        echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-        echo "Building version: ${GITHUB_REF#refs/tags/}"
-
-    - name: Get Build Info
-      id: buildinfo
-      run: |
-        set -euo pipefail
-        echo "Collecting build information..."
-        
-        VERSION="${{ steps.version.outputs.version }}"
-        COMMIT=$(git rev-parse --short HEAD)
-        DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
-        
-        echo "Version: $VERSION"
-        echo "Commit: $COMMIT"
-        echo "Build Date: $DATE"
-        
-        echo "version=${VERSION}" >> $GITHUB_OUTPUT
-        echo "commit=${COMMIT}" >> $GITHUB_OUTPUT
-        echo "date=${DATE}" >> $GITHUB_OUTPUT
-
-    - name: Build Binary with Version Injection
-      run: |
-        echo "Building ${{ env.BINARY_NAME }} for ${{ matrix.GOOS }}/${{ matrix.GOARCH }}"
-        echo "Package: ${{env.APP_PACKAGE}}"
-        echo "Version: ${{steps.buildinfo.outputs.version}}"
-        
-        OUTPUT_NAME="${{ env.BINARY_NAME }}"
-        if [ "${{ matrix.GOOS }}" = "windows" ]; then
-          OUTPUT_NAME="$OUTPUT_NAME.exe"
-        fi
-        
-        # Create output directory
-        mkdir -p "bin/${{ matrix.GOOS }}-${{ matrix.GOARCH }}"
-        
-        # CORRECTED BUILD COMMAND - using current directory (.)
-        GOOS=${{ matrix.GOOS }} GOARCH=${{ matrix.GOARCH }} go build \
-          -ldflags "\
-            -X '${{env.APP_PACKAGE}}.version=${{steps.buildinfo.outputs.version}}' \
-            -X '${{env.APP_PACKAGE}}.commit=${{steps.buildinfo.outputs.commit}}' \
-            -X '${{env.APP_PACKAGE}}.date=${{steps.buildinfo.outputs.date}}'" \
-          -o "bin/${{ matrix.GOOS }}-${{ matrix.GOARCH }}/$OUTPUT_NAME" .
-
-    - name: Create Distribution Archive
-      run: |
-        mkdir -p dist
-        
-        ARCHIVE_NAME="${{ env.BINARY_NAME }}-${{ steps.buildinfo.outputs.version }}-${{ matrix.GOOS }}-${{ matrix.GOARCH }}"
-        
-        if [ "${{ matrix.GOOS }}" = "windows" ]; then
-          # For Windows: create zip with .exe binary
-          zip -j "dist/$ARCHIVE_NAME.zip" "bin/${{ matrix.GOOS }}-${{ matrix.GOARCH }}/${{ env.BINARY_NAME }}.exe"
-          echo "Created Windows archive: dist/$ARCHIVE_NAME.zip"
-        else
-          # For Linux/macOS: create tar.gz
-          tar -czf "dist/$ARCHIVE_NAME.tar.gz" -C "bin/${{ matrix.GOOS }}-${{ matrix.GOARCH }}" "${{ env.BINARY_NAME }}"
-          echo "Created Unix archive: dist/$ARCHIVE_NAME.tar.gz"
-        fi
-        
-        echo "Distribution archives:"
-        ls -la dist/
-
-    - name: 'Upload Artifact'
-      uses: actions/upload-artifact@v7
+    - name: Run GoReleaser
+      uses: goreleaser/goreleaser-action@v7
       with:
-        name: artifacts-${{ matrix.GOOS }}-${{ matrix.GOARCH }}
-        path: dist
-        retention-days: 1
-        if-no-files-found: error
-
-  release:
-    runs-on: ubuntu-latest
-    needs:
-      - build
-    permissions:
-      contents: write
-    steps:
-    - uses: actions/checkout@v7
-      with:
-        fetch-depth: 0
-
-    - name: Download All Artifacts
-      uses: actions/download-artifact@v8
-      with:
-        path: artifacts
-        pattern: artifacts-*
-        merge-multiple: true
-
-    - name: Install ChangeLog generator
-      run: |
-        wget https://github.com/git-chglog/git-chglog/releases/download/v0.15.1/git-chglog_0.15.1_linux_amd64.tar.gz
-        tar xzf git-chglog*.tar.gz git-chglog
-        
-    - name: "Get Last Release"
-      id: last_release
-      uses: InsonusK/get-latest-release@v1.1.0
-      with:
-        myToken: ${{ github.token }}
-        exclude_types: "draft|prerelease"
-
-    - name: Generate Changelog
-      id: generate-changelog
-      run: PATH="${PATH}:." make CHANGELOG.md
-
-    - name: Generate checksums
-      run: |
-        cd artifacts
-        echo "Files available for checksum generation:"
-        ls -la
-        
-        # Create checksums for all archive files
-        for file in *.tar.gz *.zip; do
-          if [ -f "$file" ]; then
-            sha256sum "$file" >> checksums.txt
-            echo "Added checksum for: $file"
-          fi
-        done
-        
-        echo "Generated checksums:"
-        cat checksums.txt
-
-    - name: Create GitHub Release
-      uses: softprops/action-gh-release@v3
-      with:
-        files: |
-          artifacts/*.tar.gz
-          artifacts/*.zip
-          artifacts/checksums.txt
-        body_path: ./CHANGELOG.md
-        generate_release_notes: true
-        draft: false
+        distribution: goreleaser
+        version: '~> v2'
+        args: release --clean
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Verify Release
-      run: |
-        echo "✅ Release created successfully!"
-        echo "📦 Binaries available in GitHub Releases:"
-        echo "   https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}"
+        # TAP_GITHUB_TOKEN must be a PAT (classic or fine-grained) with repo
+        # write access to clouddrove/homebrew-tap. It is used by the `brews`
+        # section in .goreleaser.yml to push the updated Formula/smurf.rb;
+        # the default GITHUB_TOKEN above only has write access to this repo.
+        TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
 
   docker-build:
     runs-on: ubuntu-latest
     name: Build the docker image
-    needs: build
+    needs: goreleaser
     steps:
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v4
