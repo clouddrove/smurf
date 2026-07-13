@@ -30,3 +30,6 @@ go.work.sum
 .idea
 
 docs/.venv
+
+# goreleaser / make package build output
+dist/

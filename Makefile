@@ -22,7 +22,7 @@ PACKAGE=$(DIST)/$(basename $(notdir $(PROGRAM)))-$(shell go env GOOS)-$(shell go
 LDFLAGS=-X '$(APP_PACKAGE).version=$(VERSION)' -X '$(APP_PACKAGE).commit=$(COMMIT)' -X '$(APP_PACKAGE).date=$(DATE)'
 
 
-.PHONY: $(PROGRAM) all compile install image test test-integration vet
+.PHONY: $(PROGRAM) all compile install image test test-integration vet release-snapshot
 
 all: $(PROGRAM)
 
@@ -59,6 +59,13 @@ test-integration:
 
 vet:
 	go vet ./...
+
+# Build every release target locally without publishing anything, using the
+# same .goreleaser.yml the release workflow runs on tag push. Requires
+# goreleaser (https://goreleaser.com/install/) on PATH.
+release-snapshot:
+	@command -v goreleaser >/dev/null 2>&1 || { echo "goreleaser not found on PATH; install it: https://goreleaser.com/install/"; exit 1; }
+	goreleaser release --snapshot --clean --skip=publish
 
 changelog: CHANGELOG.md
 CHANGELOG.md: .chglog/config.yml
