@@ -8,8 +8,8 @@
     <a href="https://goreportcard.com/report/github.com/clouddrove/smurf">
         <img alt="Go Report Status" src="https://goreportcard.com/badge/github.com/clouddrove/smurf">
     </a>
-    <a href="https://github.com/clouddrove/smurf/">
-        <img alt="Build Status" src="https://img.shields.io/badge/test-passing-green">
+    <a href="https://github.com/clouddrove/smurf/actions/workflows/build.yml">
+        <img alt="Build Status" src="https://github.com/clouddrove/smurf/actions/workflows/build.yml/badge.svg">
     </a>
     <a href="https://www.launchpass.com/devops-talks">
         <img alt="Slack Chat" src="https://img.shields.io/badge/join%20slack-blue">
@@ -38,25 +38,42 @@ Smurf is a command-line interface (CLI) application built using Golang leveragin
 
 ## Installation ⚙️
 - [Smurf tool CLI Installation Guide](docs/sm/docs/installation.md)
+- Quick binary install (downloads the release archive for your OS/arch and verifies it against `checksums.txt`):
+  ```bash
+  curl -fsSL https://raw.githubusercontent.com/clouddrove/smurf/master/install/install.sh | bash
+  ```
 - Integrate in GitHub Actions
   ```yaml
     - name: Setup Smurf
-      uses: clouddrove/smurf@v0.0.4
+      uses: clouddrove/smurf@v1.1.2
   ```
+
+## Quickstart 🏁
+
+```bash
+# Scaffold a smurf.yaml with both sdkr and selm sections (0600, refuses to overwrite)
+smurf init
+
+# Build the Docker image described in smurf.yaml
+smurf sdkr build
+
+# Build, push, and (if selm.deployHelm is true) install/upgrade the Helm release, all from smurf.yaml
+smurf deploy
+```
 
 ## Features 🚀
 
 ### 🐳 Docker Command Wrapper (`sdkr`)
 Streamline Docker image workflows:
-- `build`, `scan`, `tag`, `publish`, `push`
-- `provision` → runs (`build` ➝ `scan` ➝ `publish`)
+- `build`, `scan`, `tag`, `push`, `remove`, `init`
+- `provision-acr`/`provision-ecr`/`provision-gcp`/`provision-ghcr`/`provision-hub` → each runs (`build` ➝ `push`), prompting `Proceed with push? [y/N]` on a TTY unless `--yes` is passed
 - [Docker with Smurf – Usage Guide](docs/sdkr/README.md)
 
 ---
 
 ### ⚓ Helm Command Wrapper (`selm`)
 Simplify Helm operations:
-- `create`, `install`, `lint`, `list`, `status`, `template`, `upgrade`, `uninstall`
+- `create`, `install`, `lint`, `list`, `status`, `template`, `upgrade`, `uninstall`, `init`, `debug`, `plugin`
 - `provision` → runs (`install` ➝ `upgrade` ➝ `lint` ➝ `template`)
 - [Helm with Smurf – Usage Guide](docs/selm/README.md)
 
@@ -64,22 +81,24 @@ Simplify Helm operations:
 
 ### 🏗️ Terraform Command Wrapper (`stf`)
 Easily manage Terraform workflows:
-- `init`, `plan`, `apply`, `output`, `drift`, `validate`, `destroy`, `format`
-- `provision` → runs (`init` ➝ `validate` ➝ `apply`)
+- `init`, `plan`, `apply`, `output`, `drift`, `validate`, `destroy`, `fmt`, `show`, `import`, `refresh`, `graph`, `state-list`, `state-rm`, `state-push`, `state-pull`
+- `provision` → runs (`init` ➝ `plan` ➝ `apply` ➝ `output`); applying requires `--auto-approve` (default `false`)
 - [Terraform with Smurf – Usage Guide](docs/stf/README.md)
 
 ---
 
 ### 🚀 `smurf deploy` command
-Streamline read credential from `smurf.yaml` file Docker image build, push on given repo and easily deploy using `smurf selm`
-- `deploy` → runs (`build` ➝ `push` ➝ `deploy`)
+Reads `smurf.yaml`, builds the Docker image, pushes it to whichever registry is enabled, and (if `selm.deployHelm` is true) installs or upgrades the Helm release.
+- `deploy` → runs (`build` ➝ `push` ➝ Helm install/upgrade), controlled by `--timeout` (seconds, default `600`)
 
 ---
 
 ## 🧰 Credential Fallback from `smurf.yaml`
 
 Smurf supports **automatic credential fallback**.  
-If required credentials (like username or token) are not provided via CLI or environment variables, Smurf will read them directly from your `smurf.yaml` file.
+If required credentials (like username or token) are not provided via CLI or environment variables, Smurf will read them directly from your `smurf.yaml` file. Values also support `${ENV_VAR}` interpolation.
+
+See the [full `smurf.yaml` field reference](docs/sm/docs/configuration.md) for every supported key.
 
 ### Example
 ```yaml
@@ -129,7 +148,7 @@ If you're considering contributing to our project, here are a few quick guidelin
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
 
 ## Feedback
 Spot a bug or have thoughts to share with us? Let's squash it together! Log it in our [issue tracker](https://github.com/clouddrove/smurf/issues), feel free to drop us an email at [hello@clouddrove.com](mailto:hello@clouddrove.com).

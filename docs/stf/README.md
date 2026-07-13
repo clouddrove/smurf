@@ -8,10 +8,10 @@ Use `smurf stf <command>` to run Terraform commands. Supported commands include:
 - **Detect Drift in Terraform State:** `smurf stf drift`
 - **Provision Terraform Environment:** `smurf stf provision`
 
-The `provision` command for Terraform performs `init`, `validate`, and `apply`.
+The `provision` command for Terraform performs `init`, `plan`, `apply`, and `output`. Applying requires `--auto-approve` (default `false`); without it, `provision` stops after `plan` without touching infrastructure.
 
 ### Using Smurf STF in GitHub Action
-### This GitHub Action Initialize Terraform and Validate Terraform changes.
+### This GitHub Action installs Smurf, then Terraform init and validate run as regular steps.
 
 ```yaml
 name: Smurf STF Workflow
@@ -28,19 +28,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      - name: Setup Smurf
+        uses: clouddrove/smurf@v1.1.2
+
       - name: Smurf stf init
-        uses: clouddrove/smurf@v1.0.0
-        with:
-          path: "tf"
-          tool: stf
-          command: init
+        working-directory: tf
+        run: smurf stf init
 
       - name: Smurf stf validate
-        uses: clouddrove/smurf@v1.0.0
-        with:
-          path: "tf"
-          tool: stf
-          command: validate
+        working-directory: tf
+        run: smurf stf validate
 ```
 
 ### All available commands in Smurf STF
@@ -50,9 +47,17 @@ jobs:
 | `apply`    | Apply the changes required to reach the desired state of Terraform Infrastructure |
 | `destroy` | Destroy the Terraform Infrastructure |
 | `drift`    | Detect drift between state and infrastructure  for Terraform  |
-| `format`   | Format the Terraform Infrastructure              |
+| `fmt`   | Format the Terraform Infrastructure              |
+| `graph` | Generate a visual graph of Terraform resources |
+| `import` | Import existing infrastructure into Terraform state |
 | `init` | Initialize Terraform             |
 | `output` | Generate output for the current state of Terraform Infrastructure  |
 | `plan` | Generate and show an execution plan for Terraform          |
-| `provision` | Its the combination of init, plan, apply, output for Terraform |
+| `provision` | Combination of init, plan, apply, and output for Terraform (apply requires `--auto-approve`) |
+| `refresh` | Update the state file of your infrastructure |
+| `show` | Show Terraform state or saved plan details |
+| `state-list` | List resources in the Terraform state |
+| `state-pull` | Pull and display the current remote state |
+| `state-push` | Push local state to remote backend |
+| `state-rm` | Remove resources from the Terraform state |
 | `validate` | Validate  Terraform changes |
