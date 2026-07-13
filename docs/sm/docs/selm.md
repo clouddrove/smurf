@@ -35,7 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up smurf
-        uses: clouddrove/smurf@v1.1.2
+        uses: clouddrove/smurf@v1.1.5
         with:
           version: latest
 
@@ -73,7 +73,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up smurf
-        uses: clouddrove/smurf@v1.1.2
+        uses: clouddrove/smurf@v1.1.5
         with:
           version: latest
 

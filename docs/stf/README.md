@@ -29,7 +29,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Setup Smurf
-        uses: clouddrove/smurf@v1.1.2
+        uses: clouddrove/smurf@v1.1.5
 
       - name: Smurf stf init
         working-directory: tf
