@@ -36,6 +36,10 @@
 Smurf is a Go CLI that wraps Docker, Helm, and Terraform behind one consistent interface, using each tool's native Go SDK instead of shelling out. One binary, one config file, unified commands: build and push images to any major registry, install and upgrade Helm releases, plan and apply Terraform, or chain the whole pipeline with a single <code>smurf deploy</code>. Less context switching, fewer one-off scripts, the same commands locally and in CI.
 </p>
 
+<p align="center">
+  <img alt="smurf building and pushing an image to ECR" src="docs/sm/docs/gif/smurf-demo.gif" width="800" />
+</p>
+
 ## Installation ⚙️
 
 ### Homebrew (macOS and Linux)
