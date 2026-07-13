@@ -15,8 +15,9 @@ func CreateYamlFile(fileName, content string) error {
 		return fmt.Errorf("⚠️  %s already exists. Delete or rename it before creating a new one", fileName)
 	}
 
-	// Write YAML content
-	if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+	// Write YAML content. smurf.yaml can hold credentials, so keep it readable
+	// only by the owner.
+	if err := os.WriteFile(filePath, []byte(content), 0600); err != nil {
 		return fmt.Errorf("❌ failed to create %s: %v", fileName, err)
 	}
 

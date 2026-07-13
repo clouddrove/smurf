@@ -120,7 +120,7 @@ func StatePush(dir string, force, backup, lock bool, lockTimeout string, useAI b
 	// Create backup if requested
 	if backup && remoteErr == nil && len(remoteStateData) > 0 {
 		backupPath := filepath.Join(dir, fmt.Sprintf("terraform.tfstate.backup.%d", time.Now().Unix()))
-		if err := os.WriteFile(backupPath, remoteStateData, 0644); err != nil {
+		if err := os.WriteFile(backupPath, remoteStateData, 0600); err != nil {
 			Warn("Failed to create backup: %v", err)
 			if !force {
 				Error("Aborting push due to backup failure (use --force to override)")

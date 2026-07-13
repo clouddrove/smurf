@@ -148,7 +148,7 @@ func (cf *CustomFormatter) FormatWithDetails(ctx context.Context, dir string, re
 
 			// Apply formatting if we haven't timed out yet
 			if !timeoutReached {
-				os.WriteFile(file, outputBuffer.Bytes(), 0644)
+				os.WriteFile(file, outputBuffer.Bytes(), 0600)
 			}
 		}
 	}
