@@ -30,7 +30,7 @@ func initDockerClient(timeout time.Duration) (*client.Client, context.Context, c
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		cancel()
-		return nil, nil, nil, fmt.Errorf("failed to initialize Docker client: %v", err)
+		return nil, nil, nil, fmt.Errorf("failed to initialize Docker client: %w", err)
 	}
 	return cli, ctx, cancel, nil
 }
@@ -43,25 +43,18 @@ func prepareAuth(username, password, server string) (string, error) {
 	}
 	encodedJSON, err := json.Marshal(authConfig)
 	if err != nil {
-		return "", fmt.Errorf("failed to encode auth: %v", err)
+		return "", fmt.Errorf("failed to encode auth: %w", err)
 	}
 	return base64.URLEncoding.EncodeToString(encodedJSON), nil
 }
 
-// Core push logic shared between GHCR and other registries
-func pushImage(cli *client.Client, ctx context.Context, imageName, authStr string) error {
-	fmt.Printf("Pushing image: %s\n", imageName)
-	fmt.Println("─────────────────────────────────────────────────────────────")
-
-	pushResp, err := cli.ImagePush(ctx, imageName, image.PushOptions{RegistryAuth: authStr})
-	if err != nil {
-		return fmt.Errorf("failed to push image: %v", err)
-	}
-	defer pushResp.Close()
-
-	decoder := json.NewDecoder(pushResp)
-	layerStatus := make(map[string][]string)
-	var layerOrder []string
+// decodePushStream reads the newline-delimited JSON stream produced by the
+// Docker push API. It aborts on the first error message carried in the
+// stream and on any stream decode failure other than a clean EOF, since both
+// cases mean the push cannot be trusted to have completed successfully.
+func decodePushStream(r io.Reader) (layerOrder []string, layerStatus map[string][]string, err error) {
+	decoder := json.NewDecoder(r)
+	layerStatus = make(map[string][]string)
 
 	for {
 		var msg jsonMessage
@@ -69,10 +62,10 @@ func pushImage(cli *client.Client, ctx context.Context, imageName, authStr strin
 			if err == io.EOF {
 				break
 			}
-			break
+			return layerOrder, layerStatus, fmt.Errorf("decoding push response: %w", err)
 		}
 		if msg.Error != "" {
-			return fmt.Errorf("push error: %s", msg.Error)
+			return layerOrder, layerStatus, fmt.Errorf("push error: %s", msg.Error)
 		}
 
 		if msg.ID != "" {
@@ -89,6 +82,25 @@ func pushImage(cli *client.Client, ctx context.Context, imageName, authStr strin
 		if msg.ID == "" && strings.Contains(msg.Status, "Digest:") {
 			fmt.Printf("📦 %s\n", msg.Status)
 		}
+	}
+
+	return layerOrder, layerStatus, nil
+}
+
+// Core push logic shared between GHCR and other registries
+func pushImage(cli *client.Client, ctx context.Context, imageName, authStr string) error {
+	fmt.Printf("Pushing image: %s\n", imageName)
+	fmt.Println("─────────────────────────────────────────────────────────────")
+
+	pushResp, err := cli.ImagePush(ctx, imageName, image.PushOptions{RegistryAuth: authStr})
+	if err != nil {
+		return fmt.Errorf("failed to push image: %w", err)
+	}
+	defer pushResp.Close()
+
+	layerOrder, layerStatus, err := decodePushStream(pushResp)
+	if err != nil {
+		return err
 	}
 
 	displayLayerProgress(layerOrder, layerStatus)
