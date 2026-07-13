@@ -39,7 +39,7 @@ var importCmd = &cobra.Command{
     smurf stf import --dir=/path/to/terraform/files aws_instance.web i-1234567890abcdef0
 
     # Import with variables
-    smurf stf import -var="region=us-west-2" aws_instance.web i-1234567890abcdef0
+    smurf stf import --var="region=us-west-2" aws_instance.web i-1234567890abcdef0
 
     # Import with variable file
     smurf stf import --var-file=vars.tfvars aws_instance.web i-1234567890abcdef0
