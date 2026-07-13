@@ -70,7 +70,10 @@ runs:
         echo "Downloading from: $URL"
         
         # Download and extract
-        curl -sSLo smurf.tar.gz "$URL"
+        if ! curl -fsSLo smurf.tar.gz "$URL"; then
+          echo "❌ Failed to download smurf from $URL"
+          exit 1
+        fi
         tar -xzf smurf.tar.gz
         chmod +x smurf
         sudo mv smurf /usr/local/bin/
