@@ -3,40 +3,69 @@ package terraform
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"sort"
 	"strings"
 
 	"github.com/clouddrove/smurf/internal/ai"
+	"github.com/clouddrove/smurf/internal/utils"
 	"github.com/hashicorp/terraform-exec/tfexec"
 	tfjson "github.com/hashicorp/terraform-json"
+	"github.com/pterm/pterm"
 )
 
 // StateList lists all Terraform resources currently tracked in the state file.
-func StateList(dir string, useAI bool) error {
+//
+// format selects the output shape: "table" (default) keeps the existing
+// human-facing lines; "json" prints the resource addresses as a single JSON
+// array to stdout and suppresses every other stdout write (progress
+// messages, AI explanations), so pipelines consuming stdout only ever see
+// that array.
+func StateList(dir, format string, useAI bool) error {
+	isTable := format == "" || format == "table"
+
+	if !isTable {
+		// GetTerraform prints via pterm on failure (e.g. "terraform binary
+		// not found"); route that to stderr so stdout stays JSON-only. Safe
+		// as a one-way switch here: each smurf invocation is a short-lived
+		// process handling exactly one command.
+		pterm.SetDefaultOutput(os.Stderr)
+	}
+
 	tf, err := GetTerraform(dir)
 	if err != nil {
-		Error("Failed to initialize Terraform: %v", err)
-		ai.AIExplainError(useAI, err.Error())
+		if isTable {
+			Error("Failed to initialize Terraform: %v", err)
+			ai.AIExplainError(useAI, err.Error())
+		}
 		return err
 	}
 
 	state, err := tf.Show(context.Background())
 	if err != nil {
-		Error("Unable to read Terraform state: %v", err)
-		ai.AIExplainError(useAI, err.Error())
+		if isTable {
+			Error("Unable to read Terraform state: %v", err)
+			ai.AIExplainError(useAI, err.Error())
+		}
 		return fmt.Errorf("failed to read state: %v", err)
 	}
 
+	var resources []string
+	if state != nil && state.Values != nil && state.Values.RootModule != nil {
+		resources = getAllResources(state.Values.RootModule)
+		sort.Strings(resources)
+	}
+
+	if !isTable {
+		return utils.PrintJSON(resourceAddressesForJSON(resources))
+	}
+
 	// No resources found
-	if state == nil || state.Values == nil || state.Values.RootModule == nil {
+	if len(resources) == 0 {
 		Warn("No resources found in the current Terraform state.")
 		return nil
 	}
-
-	// Collect all resource addresses
-	resources := getAllResources(state.Values.RootModule)
-	sort.Strings(resources)
 
 	Info("Resources found in Terraform state:")
 	for _, addr := range resources {
@@ -45,6 +74,15 @@ func StateList(dir string, useAI bool) error {
 
 	Success("Total %d resources listed.", len(resources))
 	return nil
+}
+
+// resourceAddressesForJSON returns resources as a non-nil slice so the JSON
+// array is always "[]" rather than "null" when the state has no resources.
+func resourceAddressesForJSON(resources []string) []string {
+	if resources == nil {
+		return []string{}
+	}
+	return resources
 }
 
 // StateResourceAddresses returns the addresses of resources currently

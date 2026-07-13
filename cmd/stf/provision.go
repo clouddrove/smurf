@@ -33,7 +33,7 @@ var provisionCmd = &cobra.Command{
 			return err
 		}
 
-		if err := terraform.Output(provisionDir, useAI); err != nil {
+		if err := terraform.Output(provisionDir, "table", useAI); err != nil {
 			return err
 		}
 

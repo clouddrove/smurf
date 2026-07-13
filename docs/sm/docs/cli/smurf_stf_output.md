@@ -12,15 +12,17 @@ smurf stf output [flags]
 
 	smurf stf output
 	smurf stf output --dir <terraform-directory>
+	smurf stf output -o json
 	
 ```
 
 ### Options
 
 ```
-      --ai           To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.
-      --dir string   Specify the Terraform directory (default ".")
-  -h, --help         help for output
+      --ai              To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.
+      --dir string      Specify the Terraform directory (default ".")
+  -h, --help            help for output
+  -o, --output string   output format (table|json) (default "table")
 ```
 
 ### SEE ALSO
