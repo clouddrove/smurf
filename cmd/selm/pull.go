@@ -55,6 +55,11 @@ func init() {
 	pullCmd.Flags().StringVar(&configs.UntarDir, "untardir", ".", "If untar is specified, this flag specifies the name of the directory into which the chart is expanded")
 	pullCmd.Flags().BoolVar(&configs.Verify, "verify", false, "Verify the package against its signature")
 	pullCmd.Flags().StringVar(&configs.Keyring, "keyring", defaultKeyring(), "Location of public keys used for verification")
+	// The real default expands $HOME at registration time, which is
+	// machine-specific. Override only the displayed default so help text and
+	// generated docs stay portable; the runtime value is still the expanded
+	// path (Helm APIs receive it directly, with no shell expansion).
+	pullCmd.Flags().Lookup("keyring").DefValue = "~/.gnupg/pubring.gpg"
 	pullCmd.Flags().StringVar(&configs.RepoURL, "repo", "", "Chart repository URL where to locate the requested chart")
 	pullCmd.Flags().StringVar(&configs.Username, "username", "", "Chart repository username")
 	pullCmd.Flags().StringVar(&configs.Password, "password", "", "Chart repository password")

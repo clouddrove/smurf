@@ -44,7 +44,7 @@ smurf selm pull [CHART] [flags]
   -h, --help                       help for pull
       --insecure-skip-tls-verify   Skip tls certificate checks for the chart download
       --key-file string            Identify HTTPS client using this SSL key file
-      --keyring string             Location of public keys used for verification (default "/Users/anmol/.gnupg/pubring.gpg")
+      --keyring string             Location of public keys used for verification (default "~/.gnupg/pubring.gpg")
       --pass-credentials           Pass credentials to all domains
       --password string            Chart repository password
       --plain-http                 Use HTTP instead of HTTPS for chart download
