@@ -27,6 +27,16 @@ new image repository and tag.
 Use --timeout to control how long the push and Helm operations are allowed to run.`,
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// configs.Timeout is a shared global also bound by selm's install,
+		// rollback, and upgrade flags. Each of those flag registrations
+		// writes its own default into configs.Timeout at init() time (last
+		// one registered wins), so deploy cannot bind --timeout directly to
+		// configs.Timeout without its default being clobbered by another
+		// package's init() order. Instead deploy owns its own local flag var
+		// and assigns it into configs.Timeout here, at RunE time, so the
+		// value seen downstream is always the one deploy intended.
+		configs.Timeout = deployTimeout
+
 		cfg, err := configs.LoadConfig(configs.FileName)
 		if err != nil {
 			return err
@@ -72,8 +82,14 @@ Use --timeout to control how long the push and Helm operations are allowed to ru
 `,
 }
 
+// deployTimeout backs the deploy command's own --timeout flag. It is
+// deliberately not bound to configs.Timeout directly (see the comment in
+// deployCmd's RunE) to avoid collisions with the selm install/rollback/upgrade
+// commands that bind the same shared global to their own --timeout flags.
+var deployTimeout int
+
 func init() {
-	deployCmd.Flags().IntVar(&configs.Timeout, "timeout", 600, "Timeout in seconds for push and Helm operations")
+	deployCmd.Flags().IntVar(&deployTimeout, "timeout", 600, "Timeout in seconds for push and Helm operations")
 	RootCmd.AddCommand(deployCmd)
 }
 
@@ -161,11 +177,14 @@ func handleDockerHubPush(cfg *configs.Config) (string, string, error) {
 		repo, tag = parts[0], parts[1]
 	}
 
-	if os.Getenv("DOCKER_USERNAME") == "" || os.Getenv("DOCKER_PASSWORD") == "" {
-		envVars := map[string]string{
-			"DOCKER_USERNAME": cfg.Sdkr.DockerUsername,
-			"DOCKER_PASSWORD": cfg.Sdkr.DockerPassword,
-		}
+	envVars := map[string]string{}
+	if os.Getenv("DOCKER_USERNAME") == "" && cfg.Sdkr.DockerUsername != "" {
+		envVars["DOCKER_USERNAME"] = cfg.Sdkr.DockerUsername
+	}
+	if os.Getenv("DOCKER_PASSWORD") == "" && cfg.Sdkr.DockerPassword != "" {
+		envVars["DOCKER_PASSWORD"] = cfg.Sdkr.DockerPassword
+	}
+	if len(envVars) > 0 {
 		if err := configs.ExportEnvironmentVariables(envVars); err != nil {
 			return "", "", err
 		}
@@ -205,12 +224,15 @@ func handleGHCRPush(cfg *configs.Config) (string, string, error) {
 		repo, tag = parts[0], parts[1]
 	}
 
-	if os.Getenv("GITHUB_USERNAME") == "" || os.Getenv("GITHUB_TOKEN") == "" {
-		envVars := map[string]string{
-			"GITHUB_USERNAME": cfg.Sdkr.GithubUsername,
-			"GITHUB_TOKEN":    cfg.Sdkr.GithubToken,
-		}
-		if err := configs.ExportEnvironmentVariables(envVars); err != nil {
+	ghcrEnvVars := map[string]string{}
+	if os.Getenv("GITHUB_USERNAME") == "" && cfg.Sdkr.GithubUsername != "" {
+		ghcrEnvVars["GITHUB_USERNAME"] = cfg.Sdkr.GithubUsername
+	}
+	if os.Getenv("GITHUB_TOKEN") == "" && cfg.Sdkr.GithubToken != "" {
+		ghcrEnvVars["GITHUB_TOKEN"] = cfg.Sdkr.GithubToken
+	}
+	if len(ghcrEnvVars) > 0 {
+		if err := configs.ExportEnvironmentVariables(ghcrEnvVars); err != nil {
 			return "", "", err
 		}
 	}
