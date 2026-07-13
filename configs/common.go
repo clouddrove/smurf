@@ -19,6 +19,34 @@ func ParseImage(image string) (string, string, error) {
 	return image, "latest", nil
 }
 
+// StripAcrRegistryHost removes an optional ACR hostname from a repository path.
+// For example, "myregistry.azurecr.io/my-app" becomes "my-app".
+func StripAcrRegistryHost(repository string) string {
+	if !strings.Contains(repository, "/") {
+		return repository
+	}
+	parts := strings.SplitN(repository, "/", 2)
+	if strings.HasSuffix(parts[0], ".azurecr.io") {
+		return parts[1]
+	}
+	return repository
+}
+
+// NormalizeAcrLocalImage converts an image reference to the local Docker image name.
+// Full ACR references such as "registry.azurecr.io/my-app:v1" are normalized to "my-app:v1".
+func NormalizeAcrLocalImage(imageRef string) (localImage, repository, tag string, err error) {
+	repository, tag, err = ParseImage(imageRef)
+	if err != nil {
+		return "", "", "", err
+	}
+	if tag == "" {
+		tag = "latest"
+	}
+	repository = StripAcrRegistryHost(repository)
+	localImage = fmt.Sprintf("%s:%s", repository, tag)
+	return localImage, repository, tag, nil
+}
+
 // ParseEcrImageRef parses an ECR image reference into its account ID, region, repository, and tag components.
 // It returns accountID, region, repository, tag, error
 func ParseEcrImageRef(imageRef string) (string, string, string, string, error) {
@@ -54,6 +82,74 @@ func ParseEcrImageRef(imageRef string) (string, string, string, string, error) {
 
 	pterm.Info.Printfln("Successfuly parse ECR image referance...")
 	return accountID, region, repository, tag, nil
+}
+
+// ParseBuildArgs converts CLI --build-arg values into a key/value map.
+// Each flag value can be a single key=value pair or comma-separated pairs:
+// --build-arg NODE_ENV=production,API_URL=https://example.com
+// Repeated flags are also supported and later values override earlier ones.
+func ParseBuildArgs(args []string) (map[string]string, error) {
+	result := make(map[string]string)
+	for _, raw := range args {
+		for _, entry := range splitBuildArgEntries(raw) {
+			parts := strings.SplitN(entry, "=", 2)
+			if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" {
+				return nil, fmt.Errorf("invalid build-arg %q: expected key=value", entry)
+			}
+			result[strings.TrimSpace(parts[0])] = parts[1]
+		}
+	}
+	return result, nil
+}
+
+func splitBuildArgEntries(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	if !strings.Contains(raw, ",") {
+		return []string{raw}
+	}
+
+	var entries []string
+	start := 0
+	for i := 0; i < len(raw); i++ {
+		if raw[i] != ',' {
+			continue
+		}
+
+		next := strings.TrimSpace(raw[i+1:])
+		eq := strings.Index(next, "=")
+		if eq <= 0 {
+			continue
+		}
+		if !isBuildArgKey(strings.TrimSpace(next[:eq])) {
+			continue
+		}
+
+		entries = append(entries, strings.TrimSpace(raw[start:i]))
+		start = i + 1
+	}
+
+	entries = append(entries, strings.TrimSpace(raw[start:]))
+	return entries
+}
+
+func isBuildArgKey(key string) bool {
+	if key == "" {
+		return false
+	}
+	for _, r := range key {
+		switch {
+		case r >= 'a' && r <= 'z':
+		case r >= 'A' && r <= 'Z':
+		case r >= '0' && r <= '9':
+		case r == '_', r == '-':
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // SplitKeyValue splits a string into a key and value at the first occurrence of the

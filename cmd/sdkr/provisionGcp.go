@@ -187,7 +187,7 @@ func NewBuildConfig() *BuildConfig {
 }
 
 // PrepareBuildOptions prepares docker build options from configuration
-func (bc *BuildConfig) PrepareBuildOptions() docker.BuildOptions {
+func (bc *BuildConfig) PrepareBuildOptions() (docker.BuildOptions, error) {
 	// Set Dockerfile path
 	dockerfilePath := bc.DockerfilePath
 	if dockerfilePath == "" {
@@ -196,13 +196,9 @@ func (bc *BuildConfig) PrepareBuildOptions() docker.BuildOptions {
 		dockerfilePath = filepath.Join(bc.ContextDir, dockerfilePath)
 	}
 
-	// Parse build args
-	buildArgsMap := make(map[string]string)
-	for _, arg := range bc.BuildArgs {
-		parts := strings.SplitN(arg, "=", 2)
-		if len(parts) == 2 {
-			buildArgsMap[parts[0]] = parts[1]
-		}
+	buildArgsMap, err := configs.ParseBuildArgs(bc.BuildArgs)
+	if err != nil {
+		return docker.BuildOptions{}, fmt.Errorf("invalid build-arg: %w", err)
 	}
 
 	return docker.BuildOptions{
@@ -213,7 +209,7 @@ func (bc *BuildConfig) PrepareBuildOptions() docker.BuildOptions {
 		Target:         bc.Target,
 		Platform:       bc.Platform,
 		Timeout:        time.Duration(bc.Timeout) * time.Second,
-	}
+	}, nil
 }
 
 // loadConfiguration loads configuration from file or environment
@@ -325,7 +321,10 @@ Supports:
 		buildConfig.Platform = configs.Platform
 		buildConfig.Timeout = configs.BuildTimeout
 
-		buildOpts := buildConfig.PrepareBuildOptions()
+		buildOpts, err := buildConfig.PrepareBuildOptions()
+		if err != nil {
+			return err
+		}
 
 		// Build Docker image
 		pterm.Info.Println("Starting Docker build...")
@@ -388,7 +387,7 @@ Supports:
 
   # With additional options
   smurf sdkr provision-gcp myapp:v1.0 --project-id my-project --file Dockerfile --no-cache \
-    --build-arg key1=value1 --build-arg key2=value2 --target my-target \
+    --build-arg key1=value1,key2=value2 --target my-target \
     --delete --platform linux/amd64
 `,
 }
@@ -401,7 +400,7 @@ func init() {
 	// Build configuration flags
 	provisionGcpCmd.Flags().StringVarP(&configs.DockerfilePath, "file", "f", "", "Name of the Dockerfile relative to the context directory (default: 'Dockerfile')")
 	provisionGcpCmd.Flags().BoolVarP(&configs.NoCache, "no-cache", "c", false, "Do not use cache when building the image")
-	provisionGcpCmd.Flags().StringArrayVarP(&configs.BuildArgs, "build-arg", "a", []string{}, "Set build-time variables (e.g. --build-arg key=value)")
+	provisionGcpCmd.Flags().StringArrayVarP(&configs.BuildArgs, "build-arg", "a", []string{}, "Set build-time variables (key=value). Repeat the flag or pass comma-separated pairs")
 	provisionGcpCmd.Flags().StringVarP(&configs.Target, "target", "t", "", "Set the target build stage to build")
 	provisionGcpCmd.Flags().StringVarP(&configs.Platform, "platform", "p", "", "Set the platform for the image (e.g., linux/amd64)")
 	provisionGcpCmd.Flags().StringVar(&configs.ContextDir, "context", "", "Build context directory (default: current directory)")

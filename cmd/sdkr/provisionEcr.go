@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/clouddrove/smurf/configs"
@@ -64,12 +63,9 @@ var provisionEcrCmd = &cobra.Command{
 			ecrImageTag,
 		)
 
-		buildArgsMap := make(map[string]string)
-		for _, arg := range configs.BuildArgs {
-			parts := strings.SplitN(arg, "=", 2)
-			if len(parts) == 2 {
-				buildArgsMap[parts[0]] = parts[1]
-			}
+		buildArgsMap, err := configs.ParseBuildArgs(configs.BuildArgs)
+		if err != nil {
+			return fmt.Errorf("invalid build-arg: %w", err)
 		}
 
 		if configs.ContextDir == "" {
@@ -131,8 +127,7 @@ var provisionEcrCmd = &cobra.Command{
   #   123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo:python
   smurf sdkr provision-ecr 123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo:python \
       --no-cache \
-      --build-arg key1=value1 \
-      --build-arg key2=value2 \
+      --build-arg key1=value1,key2=value2 \
       --target my-target \
       --platform linux/amd64 \
       --yes \
@@ -143,7 +138,7 @@ var provisionEcrCmd = &cobra.Command{
 func init() {
 	provisionEcrCmd.Flags().StringVarP(&configs.DockerfilePath, "file", "f", "", "Dockerfile path relative to context directory (default: 'Dockerfile')")
 	provisionEcrCmd.Flags().BoolVarP(&configs.NoCache, "no-cache", "c", false, "Do not use cache when building the image")
-	provisionEcrCmd.Flags().StringArrayVarP(&configs.BuildArgs, "build-arg", "a", []string{}, "Set build-time variables")
+	provisionEcrCmd.Flags().StringArrayVarP(&configs.BuildArgs, "build-arg", "a", []string{}, "Set build-time variables (key=value). Repeat the flag or pass comma-separated pairs")
 	provisionEcrCmd.Flags().StringVarP(&configs.Target, "target", "t", "", "Set the target build stage to build")
 	provisionEcrCmd.Flags().StringVarP(&configs.Platform, "platform", "p", "", "Platform for the image")
 

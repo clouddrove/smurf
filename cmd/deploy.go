@@ -113,11 +113,9 @@ func prepareDockerBuild() (docker.BuildOptions, error) {
 		dockerfilePath = filepath.Join(contextDir, "Dockerfile")
 	}
 
-	buildArgs := make(map[string]string)
-	for _, arg := range configs.BuildArgs {
-		if parts := strings.SplitN(arg, "=", 2); len(parts) == 2 {
-			buildArgs[parts[0]] = parts[1]
-		}
+	buildArgs, err := configs.ParseBuildArgs(configs.BuildArgs)
+	if err != nil {
+		return docker.BuildOptions{}, fmt.Errorf("invalid build-arg: %w", err)
 	}
 
 	return docker.BuildOptions{
