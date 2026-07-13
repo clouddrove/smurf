@@ -33,6 +33,7 @@ nav:
   - Working with Docker using Smurf: sdkr.md
   - Working with Helm using Smurf: selm.md
   - Working with Terraform using Smurf: stf.md
+  - smurf.yaml Configuration Reference: configuration.md
   - Advanced: advanced.md
 
 plugins:
