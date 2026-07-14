@@ -55,7 +55,10 @@ func ListReleaseNames(namespace string, timeout time.Duration) ([]string, error)
 
 	go func() {
 		cfg := new(action.Configuration)
-		if err := cfg.Init(settings.RESTClientGetter(), namespace, os.Getenv("HELM_DRIVER"), func(string, ...interface{}) {}); err != nil {
+		noopLog := func(string, ...interface{}) {
+			// Intentionally empty: completion output must stay silent.
+		}
+		if err := cfg.Init(settings.RESTClientGetter(), namespace, os.Getenv("HELM_DRIVER"), noopLog); err != nil {
 			done <- result{nil, err}
 			return
 		}
@@ -77,10 +80,12 @@ func ListReleaseNames(namespace string, timeout time.Duration) ([]string, error)
 		done <- result{names, nil}
 	}()
 
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
 	select {
 	case res := <-done:
 		return res.names, res.err
-	case <-time.After(timeout):
+	case <-timer.C:
 		return nil, fmt.Errorf("timed out after %s listing helm releases", timeout)
 	}
 }
