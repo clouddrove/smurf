@@ -45,38 +45,35 @@ var pushAcrCmd = &cobra.Command{
 			}
 		}
 
-		repoName, tag, parseErr := configs.ParseImage(imageRef)
+		localImage, repository, tag, parseErr := configs.NormalizeAcrLocalImage(imageRef)
 		if parseErr != nil {
 			pterm.Error.Printfln("invalid image format: %v", parseErr)
 			return fmt.Errorf("invalid image format: %v", parseErr)
 		}
-		if repoName == "" {
+		if repository == "" {
 			return errors.New("invalid image reference")
 		}
-		if tag == "" {
-			tag = "latest"
-		}
 
-		if configs.SubscriptionID == "" || configs.ResourceGroup == "" || configs.RegistryName == "" || repoName == "" {
+		if configs.SubscriptionID == "" || configs.ResourceGroup == "" || configs.RegistryName == "" {
 			pterm.Error.Println("Required flags are missing. Please provide the required flags.")
 			return errors.New("missing required ACR parameters")
 		}
 
-		acrImage := fmt.Sprintf("%s.azurecr.io/%s:%s", configs.RegistryName, repoName, tag)
+		acrImage := fmt.Sprintf("%s.azurecr.io/%s:%s", configs.RegistryName, repository, tag)
 
 		pterm.Info.Println("Pushing image to Azure Container Registry...")
-		if err := docker.PushImageToACR(configs.SubscriptionID, configs.ResourceGroup, configs.RegistryName, repoName, useAI); err != nil {
+		if err := docker.PushImageToACR(configs.SubscriptionID, configs.ResourceGroup, configs.RegistryName, localImage, useAI); err != nil {
 			pterm.Error.Println("Failed to push image:", err)
 			return err
 		}
 		pterm.Success.Println("Successfully pushed image to ACR:", acrImage)
 
 		if configs.DeleteAfterPush {
-			pterm.Info.Printf("Deleting local image %s...\n", repoName)
-			if err := docker.RemoveImage(repoName, useAI); err != nil {
+			pterm.Info.Printf("Deleting local image %s...\n", localImage)
+			if err := docker.RemoveImage(localImage, useAI); err != nil {
 				return err
 			}
-			pterm.Success.Println("Successfully deleted local image:", repoName)
+			pterm.Success.Println("Successfully deleted local image:", localImage)
 		}
 
 		return nil

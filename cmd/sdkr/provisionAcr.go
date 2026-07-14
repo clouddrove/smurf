@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/clouddrove/smurf/configs"
@@ -57,12 +56,9 @@ var provisionAcrCmd = &cobra.Command{
 
 		fullAcrImage := fmt.Sprintf("%s.azurecr.io/%s", configs.RegistryName, imageRef)
 
-		buildArgsMap := make(map[string]string)
-		for _, arg := range configs.BuildArgs {
-			parts := strings.SplitN(arg, "=", 2)
-			if len(parts) == 2 {
-				buildArgsMap[parts[0]] = parts[1]
-			}
+		buildArgsMap, err := sdkrBuildArgs()
+		if err != nil {
+			return err
 		}
 
 		if configs.ContextDir == "" {
@@ -91,14 +87,10 @@ var provisionAcrCmd = &cobra.Command{
 		}
 
 		pterm.Info.Println("Starting ACR build...")
-		localImageName, localTag, parseErr := configs.ParseImage(imageRef)
+		localImage, localImageName, localTag, parseErr := configs.NormalizeAcrLocalImage(imageRef)
 		if parseErr != nil {
 			pterm.Error.Println("Image Parse Err:", parseErr)
 			return parseErr
-		}
-
-		if localTag == "" {
-			localTag = "latest"
 		}
 
 		if err := docker.Build(localImageName, localTag, buildOpts, useAI); err != nil {
@@ -120,7 +112,7 @@ var provisionAcrCmd = &cobra.Command{
 			configs.SubscriptionID,
 			configs.ResourceGroup,
 			configs.RegistryName,
-			localImageName,
+			localImage,
 			useAI,
 		); err != nil {
 			pterm.Error.Println("Push to ACR failed:", err)
@@ -129,12 +121,12 @@ var provisionAcrCmd = &cobra.Command{
 		pterm.Success.Println("Push to ACR completed successfully.")
 
 		if configs.DeleteAfterPush {
-			pterm.Info.Printf("Deleting local image %s...\n", fullAcrImage)
-			if err := docker.RemoveImage(fullAcrImage, useAI); err != nil {
+			pterm.Info.Printf("Deleting local image %s...\n", localImage)
+			if err := docker.RemoveImage(localImage, useAI); err != nil {
 				pterm.Error.Println("Failed to delete local image:", err)
 				return fmt.Errorf("failed to delete local image: %v", err)
 			}
-			pterm.Success.Println("Successfully deleted local image:", fullAcrImage)
+			pterm.Success.Println("Successfully deleted local image:", localImage)
 		}
 
 		pterm.Success.Println("ACR provisioning completed successfully.")
@@ -153,7 +145,7 @@ func init() {
 
 	provisionAcrCmd.Flags().StringVarP(&configs.DockerfilePath, "file", "f", "", "path to Dockerfile relative to context directory")
 	provisionAcrCmd.Flags().BoolVarP(&configs.NoCache, "no-cache", "c", false, "Do not use cache when building the image")
-	provisionAcrCmd.Flags().StringArrayVarP(&configs.BuildArgs, "build-arg", "a", []string{}, "Set build-time variables")
+	provisionAcrCmd.Flags().StringArrayVarP(&configs.BuildArgs, "build-arg", "a", []string{}, "Set build-time variables (key=value). Repeat the flag or pass comma-separated pairs")
 	provisionAcrCmd.Flags().StringVarP(&configs.Target, "target", "t", "", "Set the target build stage to build")
 	provisionAcrCmd.Flags().StringVarP(&configs.Platform, "platform", "p", "", "Platform for the image")
 	provisionAcrCmd.Flags().StringVar(&configs.ContextDir, "context", "", "Build context directory (default: current directory)")

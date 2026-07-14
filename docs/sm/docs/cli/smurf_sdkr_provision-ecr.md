@@ -14,8 +14,7 @@ smurf sdkr provision-ecr [IMAGE_NAME[:TAG]] [flags]
   #   123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo:python
   smurf sdkr provision-ecr 123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo:python \
       --no-cache \
-      --build-arg key1=value1 \
-      --build-arg key2=value2 \
+      --build-arg key1=value1,key2=value2 \
       --target my-target \
       --platform linux/amd64 \
       --yes \
@@ -27,7 +26,7 @@ smurf sdkr provision-ecr [IMAGE_NAME[:TAG]] [flags]
 
 ```
       --ai                      To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.
-  -a, --build-arg stringArray   Set build-time variables
+  -a, --build-arg stringArray   Set build-time variables (key=value). Repeat the flag or pass comma-separated pairs
       --context string          Build context directory (default: current directory)
   -d, --delete                  Delete the local image after pushing
   -f, --file string             Dockerfile path relative to context directory (default: 'Dockerfile')

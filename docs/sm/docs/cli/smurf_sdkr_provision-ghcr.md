@@ -46,7 +46,7 @@ smurf sdkr provision-ghcr [IMAGE_NAME[:TAG]] [flags]
 
 ```
       --ai                      To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.
-      --build-arg stringArray   Build-time variables (e.g. --build-arg key=value)
+      --build-arg stringArray   Set build-time variables (key=value). Repeat the flag or pass comma-separated pairs
       --context string          Build context (default: current directory)
   -d, --delete                  Delete local image after push
   -f, --file string             Path to Dockerfile (default: Dockerfile)

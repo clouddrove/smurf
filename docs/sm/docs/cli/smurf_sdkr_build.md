@@ -11,7 +11,7 @@ smurf sdkr build [IMAGE[:TAG]] [flags]
 ```
 
 smurf sdkr build my-image:v1
-smurf sdkr build my-image:v1 --file Dockerfile --context ./build-context --no-cache --build-arg key1=value1 --build-arg key2=value2 --target my-target --platform linux/amd64 --timeout 400
+smurf sdkr build my-image:v1 --file Dockerfile --context ./build-context --no-cache --build-arg key1=value1,key2=value2 --target my-target --platform linux/amd64 --timeout 400
 smurf sdkr build
 # In the last example, it will read "image:v1" from config and use the parsed image name and tag
 
@@ -21,7 +21,7 @@ smurf sdkr build
 
 ```
       --ai                      To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.
-      --build-arg stringArray   Set build-time variables
+      --build-arg stringArray   Set build-time variables (key=value). Repeat the flag or pass comma-separated pairs
       --buildkit                Enable BuildKit for advanced Dockerfile features
       --context string          Build context directory (default: current directory)
   -f, --file string             Path to Dockerfile relative to context directory
