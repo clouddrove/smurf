@@ -39,7 +39,7 @@ smurf sdkr provision-gcp [IMAGE_NAME[:TAG]] [flags]
 
   # With additional options
   smurf sdkr provision-gcp myapp:v1.0 --project-id my-project --file Dockerfile --no-cache \
-    --build-arg key1=value1 --build-arg key2=value2 --target my-target \
+    --build-arg key1=value1,key2=value2 --target my-target \
     --delete --platform linux/amd64
 
 ```
@@ -48,7 +48,7 @@ smurf sdkr provision-gcp [IMAGE_NAME[:TAG]] [flags]
 
 ```
       --ai                      To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.
-  -a, --build-arg stringArray   Set build-time variables (e.g. --build-arg key=value)
+  -a, --build-arg stringArray   Set build-time variables (key=value). Repeat the flag or pass comma-separated pairs
       --context string          Build context directory (default: current directory)
   -d, --delete                  Delete the local image after pushing
   -f, --file string             Name of the Dockerfile relative to the context directory (default: 'Dockerfile')

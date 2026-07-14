@@ -19,7 +19,7 @@ smurf sdkr provision-hub [IMAGE_NAME[:TAG]] [flags]
 
   # Provide "myuser/myimage:latest" as an argument
   smurf sdkr provision-hub myuser/myimage:latest --context . --file Dockerfile --no-cache \
-    --build-arg key1=value1 --build-arg key2=value2 --target my-target --platform linux/amd64 \
+    --build-arg key1=value1,key2=value2 --target my-target --platform linux/amd64 \
     --yes --delete
 
   # If you omit the argument, it will read from config and rely on "image_name" from there
@@ -31,7 +31,7 @@ smurf sdkr provision-hub [IMAGE_NAME[:TAG]] [flags]
 
 ```
       --ai                      To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.
-      --build-arg stringArray   Set build-time variables (e.g. --build-arg key=value)
+      --build-arg stringArray   Set build-time variables (key=value). Repeat the flag or pass comma-separated pairs
       --context string          Build context directory (default: current directory)
   -d, --delete                  Delete the local image after pushing
   -f, --file string             Dockerfile path relative to the context directory (default: 'Dockerfile')
