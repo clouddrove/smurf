@@ -7,7 +7,7 @@ body:
     attributes:
       value: |
         Thanks for taking the time to report a bug. Please fill in as much detail as you can, it makes reproduction much faster.
-        For security vulnerabilities, do not open an issue here, see [SECURITY.md](https://github.com/clouddrove/smurf/blob/main/SECURITY.md) instead.
+        For security vulnerabilities, do not open an issue here, see [SECURITY.md](https://github.com/clouddrove/smurf/blob/master/SECURITY.md) instead.
 
   - type: input
     id: version
