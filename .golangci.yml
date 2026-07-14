@@ -1,0 +1,8 @@
+# golangci-lint v2 config. The v2 default set already runs errcheck, govet,
+# staticcheck, ineffassign, and unused; add gosec for security findings.
+# The lint workflow runs only on PRs with only-new-issues, so legacy findings
+# in existing files do not block — only newly introduced issues do.
+version: "2"
+linters:
+  enable:
+    - gosec
