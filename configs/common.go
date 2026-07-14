@@ -47,6 +47,25 @@ func NormalizeAcrLocalImage(imageRef string) (localImage, repository, tag string
 	return localImage, repository, tag, nil
 }
 
+// AcrImageReferences returns the local Docker source and remote ACR target for tagging.
+func AcrImageReferences(imageName, loginServer string) (localSource, remoteImage string, err error) {
+	localSource, repository, tag, err := NormalizeAcrLocalImage(imageName)
+	if err != nil {
+		return "", "", err
+	}
+	remoteImage = fmt.Sprintf("%s/%s:%s", loginServer, repository, tag)
+	return localSource, remoteImage, nil
+}
+
+// ParseCLIBuildArgs parses SDKR --build-arg flags and returns a user-facing error on failure.
+func ParseCLIBuildArgs(args []string) (map[string]string, error) {
+	buildArgs, err := ParseBuildArgs(args)
+	if err != nil {
+		return nil, fmt.Errorf("invalid build-arg: %w", err)
+	}
+	return buildArgs, nil
+}
+
 // ParseEcrImageRef parses an ECR image reference into its account ID, region, repository, and tag components.
 // It returns accountID, region, repository, tag, error
 func ParseEcrImageRef(imageRef string) (string, string, string, string, error) {

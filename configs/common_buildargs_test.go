@@ -71,3 +71,46 @@ func TestParseBuildArgs(t *testing.T) {
 		})
 	}
 }
+
+func TestAcrImageReferences(t *testing.T) {
+	t.Parallel()
+
+	localSource, remoteImage, err := AcrImageReferences("react-test:latest", "testacr1234.azurecr.io")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if localSource != "react-test:latest" {
+		t.Fatalf("local source: got %q, want react-test:latest", localSource)
+	}
+	if remoteImage != "testacr1234.azurecr.io/react-test:latest" {
+		t.Fatalf("remote image: got %q, want testacr1234.azurecr.io/react-test:latest", remoteImage)
+	}
+
+	localSource, remoteImage, err = AcrImageReferences("testacr1234.azurecr.io/react-test:latest", "testacr1234.azurecr.io")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if localSource != "react-test:latest" {
+		t.Fatalf("normalized local source: got %q, want react-test:latest", localSource)
+	}
+	if remoteImage != "testacr1234.azurecr.io/react-test:latest" {
+		t.Fatalf("remote image: got %q", remoteImage)
+	}
+}
+
+func TestParseCLIBuildArgs(t *testing.T) {
+	t.Parallel()
+
+	got, err := ParseCLIBuildArgs([]string{"NODE_ENV=production,API_URL=https://example.com"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got["NODE_ENV"] != "production" || got["API_URL"] != "https://example.com" {
+		t.Fatalf("unexpected map: %v", got)
+	}
+
+	_, err = ParseCLIBuildArgs([]string{"invalid"})
+	if err == nil {
+		t.Fatal("expected invalid build-arg error")
+	}
+}

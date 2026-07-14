@@ -77,9 +77,9 @@ var provisionHubCmd = &cobra.Command{
 
 		fullImageName := fmt.Sprintf("%s:%s", localImageName, localTag)
 
-		buildArgsMap, err := configs.ParseBuildArgs(configs.BuildArgs)
+		buildArgsMap, err := sdkrBuildArgs()
 		if err != nil {
-			return fmt.Errorf("invalid build-arg: %w", err)
+			return err
 		}
 
 		if configs.ContextDir == "" {

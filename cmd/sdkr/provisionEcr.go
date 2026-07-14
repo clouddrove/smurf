@@ -63,9 +63,9 @@ var provisionEcrCmd = &cobra.Command{
 			ecrImageTag,
 		)
 
-		buildArgsMap, err := configs.ParseBuildArgs(configs.BuildArgs)
+		buildArgsMap, err := sdkrBuildArgs()
 		if err != nil {
-			return fmt.Errorf("invalid build-arg: %w", err)
+			return err
 		}
 
 		if configs.ContextDir == "" {

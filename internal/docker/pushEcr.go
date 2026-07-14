@@ -13,6 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ecr"
+	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/ai"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/registry"
@@ -166,7 +167,7 @@ func PushImageToECR(imageName, region, repositoryName string, useAI bool) error 
 	authStr := base64.URLEncoding.EncodeToString(encodedJSON)
 
 	// Tag image
-	_, tag := parseImageNameAndTag(imageName)
+	_, tag, _ := configs.ParseImage(imageName)
 	ecrImage := fmt.Sprintf("%s/%s:%s", ecrURL, repositoryName, tag)
 	if err := cli.ImageTag(ctx, imageName, ecrImage); err != nil {
 		logger.logError("Failed to tag image", err)
@@ -223,12 +224,4 @@ func PushImageToECR(imageName, region, repositoryName string, useAI bool) error 
 	}
 
 	return nil
-}
-
-func parseImageNameAndTag(imageName string) (string, string) {
-	parts := strings.Split(imageName, ":")
-	if len(parts) == 2 {
-		return parts[0], parts[1]
-	}
-	return imageName, "latest"
 }

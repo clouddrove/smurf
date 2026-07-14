@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerregistry/armcontainerregistry"
+	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/ai"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/registry"
@@ -78,7 +78,12 @@ func PushImageToACR(subscriptionID, resourceGroupName, registryName, imageName s
 	spinner.Success("Docker client created\n")
 
 	spinner, _ = pterm.DefaultSpinner.Start("Tagging the image...")
-	localSource, taggedImage := acrImageReferences(imageName, loginServer)
+	localSource, taggedImage, err := configs.AcrImageReferences(imageName, loginServer)
+	if err != nil {
+		spinner.Fail("Failed to prepare image references\n")
+		ai.AIExplainError(useAI, err.Error())
+		return fmt.Errorf("failed to prepare image references : %v", err)
+	}
 	err = dockerClient.ImageTag(ctx, localSource, taggedImage)
 	if err != nil {
 		spinner.Fail("Failed to tag the image\n")
@@ -136,23 +141,4 @@ func PushImageToACR(subscriptionID, resourceGroupName, registryName, imageName s
 	pterm.Success.Printfln("Image pushed to ACR: %s\n", link)
 	pterm.Success.Printfln("Successfully pushed image '%s' to ACR '%s'\n", taggedImage, registryName)
 	return nil
-}
-
-func acrImageReferences(imageName, loginServer string) (localSource, taggedImage string) {
-	repository, tag := parseImageNameAndTag(imageName)
-	repository = stripAcrRegistryHost(repository)
-	localSource = fmt.Sprintf("%s:%s", repository, tag)
-	taggedImage = fmt.Sprintf("%s/%s:%s", loginServer, repository, tag)
-	return localSource, taggedImage
-}
-
-func stripAcrRegistryHost(repository string) string {
-	if !strings.Contains(repository, "/") {
-		return repository
-	}
-	parts := strings.SplitN(repository, "/", 2)
-	if strings.HasSuffix(parts[0], ".azurecr.io") {
-		return parts[1]
-	}
-	return repository
 }

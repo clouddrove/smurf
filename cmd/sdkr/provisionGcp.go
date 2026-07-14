@@ -196,9 +196,9 @@ func (bc *BuildConfig) PrepareBuildOptions() (docker.BuildOptions, error) {
 		dockerfilePath = filepath.Join(bc.ContextDir, dockerfilePath)
 	}
 
-	buildArgsMap, err := configs.ParseBuildArgs(bc.BuildArgs)
+	buildArgsMap, err := buildArgsFrom(bc.BuildArgs)
 	if err != nil {
-		return docker.BuildOptions{}, fmt.Errorf("invalid build-arg: %w", err)
+		return docker.BuildOptions{}, err
 	}
 
 	return docker.BuildOptions{

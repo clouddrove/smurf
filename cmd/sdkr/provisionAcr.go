@@ -56,9 +56,9 @@ var provisionAcrCmd = &cobra.Command{
 
 		fullAcrImage := fmt.Sprintf("%s.azurecr.io/%s", configs.RegistryName, imageRef)
 
-		buildArgsMap, err := configs.ParseBuildArgs(configs.BuildArgs)
+		buildArgsMap, err := sdkrBuildArgs()
 		if err != nil {
-			return fmt.Errorf("invalid build-arg: %w", err)
+			return err
 		}
 
 		if configs.ContextDir == "" {
@@ -87,14 +87,10 @@ var provisionAcrCmd = &cobra.Command{
 		}
 
 		pterm.Info.Println("Starting ACR build...")
-		localImageName, localTag, parseErr := configs.ParseImage(imageRef)
+		localImage, localImageName, localTag, parseErr := configs.NormalizeAcrLocalImage(imageRef)
 		if parseErr != nil {
 			pterm.Error.Println("Image Parse Err:", parseErr)
 			return parseErr
-		}
-
-		if localTag == "" {
-			localTag = "latest"
 		}
 
 		if err := docker.Build(localImageName, localTag, buildOpts, useAI); err != nil {
@@ -111,8 +107,6 @@ var provisionAcrCmd = &cobra.Command{
 			return err
 		}
 
-		localImage := fmt.Sprintf("%s:%s", localImageName, localTag)
-
 		pterm.Info.Printf("Pushing image %s to ACR...\n", pushImage)
 		if err := docker.PushImageToACR(
 			configs.SubscriptionID,
@@ -127,12 +121,12 @@ var provisionAcrCmd = &cobra.Command{
 		pterm.Success.Println("Push to ACR completed successfully.")
 
 		if configs.DeleteAfterPush {
-			pterm.Info.Printf("Deleting local image %s...\n", fullAcrImage)
-			if err := docker.RemoveImage(fullAcrImage, useAI); err != nil {
+			pterm.Info.Printf("Deleting local image %s...\n", localImage)
+			if err := docker.RemoveImage(localImage, useAI); err != nil {
 				pterm.Error.Println("Failed to delete local image:", err)
 				return fmt.Errorf("failed to delete local image: %v", err)
 			}
-			pterm.Success.Println("Successfully deleted local image:", fullAcrImage)
+			pterm.Success.Println("Successfully deleted local image:", localImage)
 		}
 
 		pterm.Success.Println("ACR provisioning completed successfully.")
