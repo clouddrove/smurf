@@ -22,7 +22,7 @@ PACKAGE=$(DIST)/$(basename $(notdir $(PROGRAM)))-$(shell go env GOOS)-$(shell go
 LDFLAGS=-X '$(APP_PACKAGE).version=$(VERSION)' -X '$(APP_PACKAGE).commit=$(COMMIT)' -X '$(APP_PACKAGE).date=$(DATE)'
 
 
-.PHONY: $(PROGRAM) all compile install image test test-integration vet
+.PHONY: $(PROGRAM) all compile install image test test-integration vet release-snapshot docs man
 
 all: $(PROGRAM)
 
@@ -59,6 +59,26 @@ test-integration:
 
 vet:
 	go vet ./...
+
+# Regenerate the CLI reference under docs/sm/docs/cli from the live command
+# tree, so it can never drift from the code. Depends on compile (not
+# $(PROGRAM)) so this always rebuilds the binary before generating docs.
+docs: compile
+	rm -f docs/sm/docs/cli/*.md
+	./$(PROGRAM) docs --dir docs/sm/docs/cli --format markdown
+
+# Generate man pages into dist/man (dist/ is gitignored, these are build
+# artifacts, not committed).
+man: compile
+	mkdir -p $(DIST)/man
+	./$(PROGRAM) docs --dir $(DIST)/man --format man
+
+# Build every release target locally without publishing anything, using the
+# same .goreleaser.yml the release workflow runs on tag push. Requires
+# goreleaser (https://goreleaser.com/install/) on PATH.
+release-snapshot:
+	@command -v goreleaser >/dev/null 2>&1 || { echo "goreleaser not found on PATH; install it: https://goreleaser.com/install/"; exit 1; }
+	goreleaser release --snapshot --clean --skip=publish
 
 changelog: CHANGELOG.md
 CHANGELOG.md: .chglog/config.yml

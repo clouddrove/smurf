@@ -1,0 +1,111 @@
+# GoReleaser configuration for smurf.
+#
+# Replaces the hand rolled build matrix that used to live in
+# .github/workflows/release.yml. Every external contract the old pipeline
+# produced is preserved on purpose:
+#   - archive names: smurf-v<version>-<os>-<arch>.tar.gz (linux, darwin)
+#     and smurf-v<version>-<os>-<arch>.zip (windows)
+#   - aggregate checksum file: checksums.txt
+#   - ldflags: github.com/clouddrove/smurf/cmd.{version,commit,date}
+#   - target matrix: linux/amd64, linux/arm64, darwin/amd64, darwin/arm64,
+#     windows/amd64, windows/arm64
+#   - windows binary inside the zip is smurf.exe, unix binary is smurf
+#
+# Homebrew formula, install/install.sh, and CI consumers all rely on the
+# archive naming above, so treat it as a breaking change if you touch it.
+#
+# SBOM generation was left out for this pass: goreleaser's sbom block needs
+# syft preinstalled on the runner and adds a second signing/verification
+# surface with no consumer asking for it yet. Revisit if a requirement shows
+# up instead of adding it speculatively.
+version: 2
+
+project_name: smurf
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: smurf
+    main: .
+    binary: smurf
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/clouddrove/smurf/cmd.version=v{{ .Version }}
+      - -X github.com/clouddrove/smurf/cmd.commit={{ .ShortCommit }}
+      - -X github.com/clouddrove/smurf/cmd.date={{ .Date }}
+
+archives:
+  - id: smurf
+    ids:
+      - smurf
+    name_template: '{{ .ProjectName }}-v{{ .Version }}-{{ .Os }}-{{ .Arch }}'
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    # Keep the archive contents identical to the old pipeline: just the
+    # binary, no LICENSE/README/CHANGELOG bundled in.
+    files:
+      - none*
+
+checksum:
+  name_template: 'checksums.txt'
+
+changelog:
+  use: github
+  sort: asc
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: Bug fixes
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: Others
+      order: 999
+  filters:
+    exclude:
+      - '^Merge pull request'
+      - '^Merge branch'
+
+release:
+  github:
+    owner: clouddrove
+    name: smurf
+  prerelease: auto
+
+# Auto-bumps Formula/smurf.rb in github.com/clouddrove/homebrew-tap on every
+# non-prerelease tag. Requires a TAP_GITHUB_TOKEN secret in the release
+# workflow: a PAT (classic or fine-grained) with repo write access to
+# clouddrove/homebrew-tap, since the default GITHUB_TOKEN only has write
+# access to the repo the workflow runs in.
+brews:
+  - name: smurf
+    repository:
+      owner: clouddrove
+      name: homebrew-tap
+      token: '{{ .Env.TAP_GITHUB_TOKEN }}'
+    directory: Formula
+    commit_author:
+      name: clouddrove-bot
+      email: bot@clouddrove.com
+    commit_msg_template: 'chore(formula): update smurf to {{ .Tag }}'
+    homepage: 'https://github.com/clouddrove/smurf'
+    description: 'CLI that wraps Docker, Helm, and Terraform behind a single interface'
+    license: 'Apache-2.0'
+    skip_upload: auto

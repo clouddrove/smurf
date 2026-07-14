@@ -1,0 +1,100 @@
+name: Bug report
+description: Report a problem with smurf
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Please fill in as much detail as you can, it makes reproduction much faster.
+        For security vulnerabilities, do not open an issue here, see [SECURITY.md](https://github.com/clouddrove/smurf/blob/master/SECURITY.md) instead.
+
+  - type: input
+    id: version
+    attributes:
+      label: smurf version
+      description: Output of `smurf version`
+      placeholder: "v1.2.3"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install-method
+    attributes:
+      label: Install method
+      options:
+        - brew
+        - install script
+        - docker
+        - go install
+        - GitHub Action
+        - built from source
+    validations:
+      required: true
+
+  - type: dropdown
+    id: command-group
+    attributes:
+      label: Command group
+      description: Which subcommand group does this affect?
+      options:
+        - sdkr (Docker)
+        - selm (Helm)
+        - stf (Terraform)
+        - deploy
+        - other
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug, including the exact command you ran and its output.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro-steps
+    attributes:
+      label: Reproduction steps
+      description: Steps to reproduce the behavior, as minimal as possible.
+      placeholder: |
+        1. Run `smurf ...`
+        2. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: smurf-yaml
+    attributes:
+      label: Relevant smurf.yaml snippet
+      description: >
+        Paste only the relevant section. Redact credentials, tokens, and registry
+        secrets before posting, smurf.yaml can contain registry credentials as a fallback.
+      render: yaml
+    validations:
+      required: false
+
+  - type: input
+    id: os-arch
+    attributes:
+      label: OS / architecture
+      placeholder: "e.g. macOS 14 / arm64, Ubuntu 22.04 / amd64"
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Logs, screenshots, or anything else that would help.
+    validations:
+      required: false

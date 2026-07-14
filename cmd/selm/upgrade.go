@@ -216,5 +216,9 @@ func init() {
 	upgradeCmd.Flags().BoolVar(&wait, "wait", false, "Wait until all Pods, PVCs, Services, and minimum number of Pods of a Deployment are ready before marking success")
 	upgradeCmd.Flags().IntVar(&historyMax, "history-max", 10, "Limit the maximum number of revisions saved per release")
 	upgradeCmd.Flags().BoolVar(&useAI, "ai", false, "To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.")
+
+	upgradeCmd.ValidArgsFunction = completeReleaseNames
+	_ = upgradeCmd.RegisterFlagCompletionFunc("namespace", completeNamespaces)
+
 	selmCmd.AddCommand(upgradeCmd)
 }

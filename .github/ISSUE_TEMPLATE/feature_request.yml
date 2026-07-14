@@ -1,0 +1,47 @@
+name: Feature request
+description: Suggest an idea or enhancement for smurf
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting an improvement to smurf. The more context you give, the easier it is to evaluate.
+
+  - type: dropdown
+    id: command-group
+    attributes:
+      label: Command group
+      description: Which part of smurf does this relate to?
+      options:
+        - sdkr (Docker)
+        - selm (Helm)
+        - stf (Terraform)
+        - deploy
+        - other / cross-cutting
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: Describe the use case or limitation you've run into.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed solution
+      description: What would you like smurf to do instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any workarounds you're using today, or other approaches you considered.
+    validations:
+      required: false

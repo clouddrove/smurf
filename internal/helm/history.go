@@ -12,11 +12,29 @@ import (
 	"helm.sh/helm/v3/pkg/release"
 )
 
-// HelmHistory shows the revision history of a Helm release using pterm.Table
-func HelmHistory(releaseName, namespace string, max int, useAI bool) error {
+// HelmHistory shows the revision history of a Helm release using pterm.Table.
+//
+// format selects the output shape: "table" (default) renders the existing
+// human-facing table; "json"/"yaml" print the revision list as a single
+// machine-readable document to stdout and suppress every other stdout write,
+// so pipelines consuming stdout only ever see that document.
+func HelmHistory(releaseName, namespace string, max int, format string, useAI bool) error {
+	isTable := format == "" || format == "table"
+
+	if !isTable {
+		// Helm and shared helpers can print via pterm unconditionally;
+		// redirect pterm's default writer to stderr for the duration of the
+		// call so nothing lands inside the JSON/YAML document on stdout,
+		// and restore it on return.
+		pterm.SetDefaultOutput(os.Stderr)
+		defer pterm.SetDefaultOutput(os.Stdout)
+	}
+
 	actionConfig := new(action.Configuration)
 	if err := actionConfig.Init(settings.RESTClientGetter(), namespace, os.Getenv("HELM_DRIVER"), debugLog); err != nil {
-		ai.AIExplainError(useAI, err.Error())
+		if isTable {
+			ai.AIExplainError(useAI, err.Error())
+		}
 		return fmt.Errorf("failed to initialize Helm action configuration: %v", err)
 	}
 
@@ -25,8 +43,20 @@ func HelmHistory(releaseName, namespace string, max int, useAI bool) error {
 
 	releases, err := client.Run(releaseName)
 	if err != nil {
-		ai.AIExplainError(useAI, err.Error())
+		if isTable {
+			ai.AIExplainError(useAI, err.Error())
+		}
 		return fmt.Errorf("failed to get release history: %v", err)
+	}
+
+	releases = sortReleasesByRevision(releases)
+
+	if !isTable {
+		elements := historyElements(releases)
+		if format == "yaml" {
+			return printYAML(elements)
+		}
+		return printJSON(elements)
 	}
 
 	if len(releases) == 0 {
@@ -34,9 +64,29 @@ func HelmHistory(releaseName, namespace string, max int, useAI bool) error {
 		return nil
 	}
 
-	releases = sortReleasesByRevision(releases)
 	printHistoryTable(releases)
 	return nil
+}
+
+// historyElements converts release revisions into plain maps for JSON/YAML
+// output, always returning a non-nil (possibly empty) slice so the JSON
+// document is "[]" rather than "null" when there is no history.
+func historyElements(releases []*release.Release) []map[string]interface{} {
+	elements := make([]map[string]interface{}, 0, len(releases))
+	for _, r := range releases {
+		if r == nil {
+			continue
+		}
+		elements = append(elements, map[string]interface{}{
+			"revision":    safeInt(r.Version),
+			"updated":     safeTime(r.Info),
+			"status":      safeStatus(r.Info),
+			"chart":       safeChartName(r.Chart),
+			"app_version": safeAppVersion(r.Chart),
+			"description": safeDescription(r.Info),
+		})
+	}
+	return elements
 }
 
 func sortReleasesByRevision(releases []*release.Release) []*release.Release {

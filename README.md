@@ -36,6 +36,10 @@
 Smurf is a Go CLI that wraps Docker, Helm, and Terraform behind one consistent interface, using each tool's native Go SDK instead of shelling out. One binary, one config file, unified commands: build and push images to any major registry, install and upgrade Helm releases, plan and apply Terraform, or chain the whole pipeline with a single <code>smurf deploy</code>. Less context switching, fewer one-off scripts, the same commands locally and in CI.
 </p>
 
+<p align="center">
+  <img alt="smurf building and pushing an image to ECR" src="docs/sm/docs/gif/smurf-demo.gif" width="800" />
+</p>
+
 ## Installation ⚙️
 
 ### Homebrew (macOS and Linux)
@@ -85,6 +89,20 @@ smurf sdkr build
 # Build, push, and (if selm.deployHelm is true) install/upgrade the Helm release, all from smurf.yaml
 smurf deploy
 ```
+
+## Shell completion 🐚
+
+`smurf completion <bash|zsh|fish|powershell>` generates a completion script for your shell (`smurf completion --help` for the full list and per-shell install instructions). Where it makes sense, completion is dynamic: Helm release-name arguments (`selm upgrade/uninstall/status/history/rollback`), `--namespace`/`-n` flags, and `stf state-rm` resource addresses complete against your current cluster/state instead of just showing static hints. If the cluster or backend isn't reachable, these simply produce no suggestions rather than erroring.
+
+```bash
+# zsh, current session
+source <(smurf completion zsh)
+
+# bash, current session
+source <(smurf completion bash)
+```
+
+See the [installation guide](docs/sm/docs/installation.md#shell-completion) for persisting completion across shell sessions on bash/zsh/fish/PowerShell.
 
 ## Features 🚀
 

@@ -34,6 +34,7 @@ nav:
   - Working with Helm using Smurf: selm.md
   - Working with Terraform using Smurf: stf.md
   - smurf.yaml Configuration Reference: configuration.md
+  - CLI Reference: cli/smurf.md
   - Advanced: advanced.md
 
 plugins:

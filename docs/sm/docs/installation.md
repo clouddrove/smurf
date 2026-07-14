@@ -76,6 +76,54 @@ brew tap clouddrove/homebrew-tap
 brew install smurf
 ```
 
+## Shell completion
+
+`smurf` ships built-in shell completion via Cobra (`smurf completion --help` lists the supported shells). Some subcommands also complete dynamically against your current context (Helm release names, Kubernetes namespaces, Terraform state addresses), degrading to no suggestions rather than erroring if a cluster or backend isn't reachable.
+
+**bash** (requires the `bash-completion` package):
+
+```bash
+# Current session
+source <(smurf completion bash)
+
+# Every new session (Linux)
+smurf completion bash > /etc/bash_completion.d/smurf
+
+# Every new session (macOS)
+smurf completion bash > $(brew --prefix)/etc/bash_completion.d/smurf
+```
+
+**zsh**:
+
+```bash
+# Current session
+source <(smurf completion zsh)
+
+# Every new session (Linux)
+smurf completion zsh > "${fpath[1]}/_smurf"
+
+# Every new session (macOS)
+smurf completion zsh > $(brew --prefix)/share/zsh/site-functions/_smurf
+```
+
+**fish**:
+
+```bash
+# Current session
+smurf completion fish | source
+
+# Every new session
+smurf completion fish > ~/.config/fish/completions/smurf.fish
+```
+
+**PowerShell**:
+
+```powershell
+smurf completion powershell | Out-String | Invoke-Expression
+```
+
+Start a new shell session for a persisted install to take effect.
+
 ## Troubleshooting
 
 - **"go: command not found"** → Ensure Go is installed and accessible via `PATH`.

@@ -82,5 +82,8 @@ smurf selm provision my-release ./mychart -n custom-namespace
 func init() {
 	provisionCmd.Flags().StringVarP(&configs.Namespace, "namespace", "n", "", "Specify the namespace to provision the Helm chart")
 	provisionCmd.Flags().BoolVar(&useAI, "ai", false, "To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.")
+
+	_ = provisionCmd.RegisterFlagCompletionFunc("namespace", completeNamespaces)
+
 	selmCmd.AddCommand(provisionCmd)
 }

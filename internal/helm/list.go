@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/clouddrove/smurf/internal/ai"
 	"github.com/pterm/pterm"
@@ -39,6 +40,56 @@ func ListReleases(namespace, format string, useAI bool) ([]*release.Release, err
 	return releases, nil
 }
 
+// ListReleaseNames returns just the names of Helm releases in the given
+// namespace (all namespaces if empty), for use in shell completion. Unlike
+// ListReleases it never prints anything and never blocks longer than
+// timeout: the Helm/Kubernetes call runs in the background and, if it has
+// not finished by the deadline, a timeout error is returned immediately so a
+// slow or unreachable cluster can't hang shell completion.
+func ListReleaseNames(namespace string, timeout time.Duration) ([]string, error) {
+	type result struct {
+		names []string
+		err   error
+	}
+	done := make(chan result, 1)
+
+	go func() {
+		cfg := new(action.Configuration)
+		noopLog := func(string, ...interface{}) {
+			// Intentionally empty: completion output must stay silent.
+		}
+		if err := cfg.Init(settings.RESTClientGetter(), namespace, os.Getenv("HELM_DRIVER"), noopLog); err != nil {
+			done <- result{nil, err}
+			return
+		}
+
+		client := action.NewList(cfg)
+		client.AllNamespaces = namespace == ""
+		client.StateMask = action.ListAll
+
+		releases, err := client.Run()
+		if err != nil {
+			done <- result{nil, err}
+			return
+		}
+
+		names := make([]string, 0, len(releases))
+		for _, r := range releases {
+			names = append(names, r.Name)
+		}
+		done <- result{names, nil}
+	}()
+
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	select {
+	case res := <-done:
+		return res.names, res.err
+	case <-timer.C:
+		return nil, fmt.Errorf("timed out after %s listing helm releases", timeout)
+	}
+}
+
 func printOutput(releases []*release.Release, format, namespace string) error {
 	if len(releases) == 0 {
 		printNoReleasesFound(namespace)
@@ -47,9 +98,9 @@ func printOutput(releases []*release.Release, format, namespace string) error {
 
 	switch format {
 	case "json":
-		return printJSON(releases)
+		return printJSON(convertToElements(releases))
 	case "yaml":
-		return printYAML(releases)
+		return printYAML(convertToElements(releases))
 	default:
 		printTable(releases)
 	}
@@ -65,9 +116,10 @@ func printNoReleasesFound(namespace string) {
 	}
 }
 
-// List with JSON output
-func printJSON(releases []*release.Release) error {
-	data, err := json.MarshalIndent(convertToElements(releases), "", "  ")
+// printJSON marshals v as indented JSON and prints it alone, so it doubles
+// as the machine-readable output helper for list, status, and history.
+func printJSON(v interface{}) error {
+	data, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		return fmt.Errorf("json marshal error: %w", err)
 	}
@@ -75,9 +127,9 @@ func printJSON(releases []*release.Release) error {
 	return nil
 }
 
-// List with YAML output
-func printYAML(releases []*release.Release) error {
-	data, err := yaml.Marshal(convertToElements(releases))
+// printYAML marshals v as YAML and prints it alone, mirroring printJSON.
+func printYAML(v interface{}) error {
+	data, err := yaml.Marshal(v)
 	if err != nil {
 		return fmt.Errorf("yaml marshal error: %w", err)
 	}
