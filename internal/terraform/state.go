@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"sort"
-	"strings"
 
 	"github.com/clouddrove/smurf/internal/ai"
 	"github.com/clouddrove/smurf/internal/utils"
@@ -139,8 +138,10 @@ func getAllResources(module *tfjson.StateModule) []string {
 
 	var addresses []string
 	for _, resource := range module.Resources {
-		// Skip data sources, only show managed resources
-		if !strings.HasPrefix(resource.Type, "data.") {
+		// Skip data sources, only show managed resources. Mode is the
+		// authoritative marker: a data source's Type has no "data." prefix
+		// (only its Address does).
+		if resource.Mode != tfjson.DataResourceMode {
 			addresses = append(addresses, resource.Address)
 		}
 	}

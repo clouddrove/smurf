@@ -14,13 +14,15 @@ import (
 func TestGetAllResources(t *testing.T) {
 	root := &tfjson.StateModule{
 		Resources: []*tfjson.StateResource{
-			{Address: "aws_s3_bucket.this", Type: "aws_s3_bucket"},
-			{Address: "data.aws_caller_identity.current", Type: "data.aws_caller_identity"},
+			{Address: "aws_s3_bucket.this", Type: "aws_s3_bucket", Mode: tfjson.ManagedResourceMode},
+			// In real state a data source's Type carries no "data." prefix;
+			// only Address and Mode identify it.
+			{Address: "data.aws_caller_identity.current", Type: "aws_caller_identity", Mode: tfjson.DataResourceMode},
 		},
 		ChildModules: []*tfjson.StateModule{
 			{
 				Resources: []*tfjson.StateResource{
-					{Address: "module.child.aws_iam_role.this", Type: "aws_iam_role"},
+					{Address: "module.child.aws_iam_role.this", Type: "aws_iam_role", Mode: tfjson.ManagedResourceMode},
 				},
 			},
 		},
