@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/clouddrove/smurf/internal/ai"
 	"github.com/clouddrove/smurf/internal/utils"
@@ -108,7 +110,11 @@ func StateResourceAddresses(ctx context.Context, dir string) ([]string, error) {
 
 	workingDir := "."
 	if dir != "" {
-		workingDir = dir
+		cleanDir := filepath.Clean(dir)
+		if cleanDir == ".." || strings.HasPrefix(cleanDir, ".."+string(os.PathSeparator)) {
+			return nil, fmt.Errorf("invalid terraform directory %q", dir)
+		}
+		workingDir = cleanDir
 	}
 
 	tf, err := tfexec.NewTerraform(workingDir, terraformBinary)

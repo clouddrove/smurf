@@ -7,6 +7,7 @@ import (
 	"os/exec"
 
 	"github.com/clouddrove/smurf/internal/ai"
+	"github.com/distribution/reference"
 	"github.com/pterm/pterm"
 )
 
@@ -20,6 +21,10 @@ import (
 func Trivy(dockerImage, format string, useAI bool) error {
 	isTable := format == "" || format == "table"
 
+	if _, err := reference.ParseNormalizedNamed(dockerImage); err != nil {
+		return fmt.Errorf("invalid image reference %q: %w", dockerImage, err)
+	}
+
 	ctx := context.Background()
 	trivyFormat := "table"
 	if !isTable {
@@ -27,7 +32,7 @@ func Trivy(dockerImage, format string, useAI bool) error {
 	}
 	args := []string{"image", dockerImage, "--format", trivyFormat}
 
-	cmd := exec.CommandContext(ctx, "trivy", args...)
+	cmd := exec.CommandContext(ctx, "trivy", args...) //nolint:gosec // image ref validated above; args are not shell-expanded
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
