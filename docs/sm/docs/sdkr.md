@@ -3,15 +3,18 @@
 Use `smurf sdkr <command>` to run smurf sdkr commands. Supported commands include:
 
 - **`build`**: Builds a Docker image with the specified **name** and **tag**.  
+- **`init`**: Creates a default `smurf.yaml` file with sdkr configuration.
 - **`provision-acr`**: Builds and pushes a Docker image to **Azure Container Registry (ACR)**.  
 - **`provision-ecr`**: Builds and pushes a Docker image to **AWS Elastic Container Registry (ECR)**.  
-- **`provision-gcr`**: Builds and pushes a Docker image to **Google Container Registry (GCR)**.  
-- **`provision-hub`**: Builds, scans, and pushes a Docker image to **Docker Hub** for enhanced security.
-- **`provision-ghcr`**: Builds, scans, and pushes a Docker image to **GitHub Container Registry**
+- **`provision-gcp`**: Builds and pushes a Docker image to **Google Container Registry or Artifact Registry**.  
+- **`provision-hub`**: Builds and pushes a Docker image to **Docker Hub**.
+- **`provision-ghcr`**: Builds and pushes a Docker image to **GitHub Container Registry**.
 - **`push`**: Pushes Docker images to **ACR, ECR, GCR,** or **Docker Hub** in one simple command.  
 - **`remove`**: Deletes a Docker image from your **local system** to free up space.  
 - **`scan`**: Analyzes a Docker image for known **security vulnerabilities** before deployment.  
 - **`tag`**: Tags a Docker image for easy **identification** and **repository management**.   
+
+Each `provision-*` command prompts `Proceed with push? [y/N]` before pushing when run on a TTY; pass `--yes` to skip the prompt (for example in CI).
 
 ## Using Smurf Docker in local environment
 Suppose you want to build and push a docker image to AWS Elastic Container Registry (ECR).To do this run the command: 
@@ -43,7 +46,7 @@ jobs:
 
     steps:
       - name: Set up smurf
-        uses: clouddrove/smurf@master
+        uses: clouddrove/smurf@v1.1.5
         with:
           version: latest
 
@@ -77,7 +80,7 @@ jobs:
 
     steps:
       - name: Set up smurf
-        uses: clouddrove/smurf@master
+        uses: clouddrove/smurf@v1.1.5
         with:
           version: latest
 

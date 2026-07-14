@@ -1,10 +1,14 @@
 # Stage 1: Build Go application
-FROM golang:1.26-alpine as builder
+FROM golang:1.26-alpine AS builder
+
+ARG VERSION=dev
+ARG COMMIT=none
+ARG DATE=unknown
 
 RUN apk add --no-cache git
 WORKDIR /app
 COPY . .
-RUN go build -o smurf main.go
+RUN go build -ldflags "-X 'github.com/clouddrove/smurf/cmd.version=${VERSION}' -X 'github.com/clouddrove/smurf/cmd.commit=${COMMIT}' -X 'github.com/clouddrove/smurf/cmd.date=${DATE}'" -o smurf main.go
 
 # Stage 2: Create minimal runtime image
 FROM alpine:3.18

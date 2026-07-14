@@ -1,15 +1,20 @@
 package helm
 
 import (
+	"sync"
+
 	"helm.sh/helm/v3/pkg/cli"
 	"k8s.io/client-go/kubernetes"
 )
 
 // settings holds the path to the kubeconfig file.
-// kubeClientset is the Kubernetes clientset.
+// kubeClientset is the lazily initialized Kubernetes clientset, guarded by
+// kubeClientOnce (see getKubeClient in common.go).
 var (
-	settings      = cli.New()
-	kubeClientset *kubernetes.Clientset
+	settings       = cli.New()
+	kubeClientset  *kubernetes.Clientset
+	kubeClientOnce sync.Once
+	kubeClientErr  error
 )
 
 // Resource represents a Kubernetes resource.

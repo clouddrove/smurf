@@ -67,7 +67,7 @@ jobs:
         mkdir -p "bin/${{ matrix.GOOS }}-${{ matrix.GOARCH }}"
         
         # CORRECTED BUILD COMMAND - using current directory (.)
-        GOOS=${{ matrix.GOOS }} GOARCH=${{ matrix.GOARCH }} go build -a \
+        GOOS=${{ matrix.GOOS }} GOARCH=${{ matrix.GOARCH }} go build \
           -ldflags "\
             -X '${{env.APP_PACKAGE}}.version=${{steps.buildinfo.outputs.version}}' \
             -X '${{env.APP_PACKAGE}}.commit=${{steps.buildinfo.outputs.commit}}' \
@@ -186,36 +186,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Download Linux Binary for Docker
-        uses: actions/download-artifact@v8
-        with:
-          name: artifacts-linux-amd64
-          path: downloaded-artifacts
-
-      - name: Extract Binary for Docker
-        run: |
-          mkdir -p docker-bin
-          cd downloaded-artifacts
-          
-          # Extract the binary from the archive
-          for file in *.tar.gz; do
-            if [ -f "$file" ]; then
-              tar -xzf "$file" -C ../docker-bin/
-              echo "Extracted binary from: $file"
-              break
-            fi
-          done
-          
-          echo "Binary ready for Docker:"
-          ls -la ../docker-bin/
-
       - name: Build Docker Image
         run: |
-          # Use the extracted binary
-          cp docker-bin/${{ env.BINARY_NAME }} /usr/local/bin/ || true
-          chmod +x /usr/local/bin/${{ env.BINARY_NAME }}
-          
-          make image IMAGE=ghcr.io/${{env.REPO}}:${{ github.ref_name }}
+          make image IMAGE=ghcr.io/${{env.REPO}}:${{ github.ref_name }} VERSION=${{ github.ref_name }}
 
       - name: Tag latest
         run: docker tag ghcr.io/${{env.REPO}}:${{ github.ref_name }} ghcr.io/${{env.REPO}}:latest

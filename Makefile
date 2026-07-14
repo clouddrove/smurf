@@ -12,13 +12,17 @@ PROGRAM=$(BINDIR)/$(BASENAME)$(EXE)
 LAST_RELEASE=
 
 REPO=$(shell go list | head -n 1)
+APP_PACKAGE=$(REPO)/cmd
 IMAGE=$(BASENAME)
 VERSION ?= $(shell git describe --tags --always --dirty)
+COMMIT ?= $(shell git rev-parse --short HEAD)
+DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 DOCKER=docker
 PACKAGE=$(DIST)/$(basename $(notdir $(PROGRAM)))-$(shell go env GOOS)-$(shell go env GOARCH).zip
+LDFLAGS=-X '$(APP_PACKAGE).version=$(VERSION)' -X '$(APP_PACKAGE).commit=$(COMMIT)' -X '$(APP_PACKAGE).date=$(DATE)'
 
 
-.PHONY: $(PROGRAM)
+.PHONY: $(PROGRAM) all compile install image test test-integration vet
 
 all: $(PROGRAM)
 
@@ -26,7 +30,7 @@ compile: $(PROGRAM)
 
 $(PROGRAM): $(BINDIR)
 	mkdir -p $(dir $@)
-	go build -ldflags="-X '$(REPO)/program.Version=${VERSION}'" -o $(PROGRAM)
+	go build -ldflags="$(LDFLAGS)" -o $(PROGRAM)
 
 package: $(PACKAGE)
 
@@ -42,13 +46,16 @@ $(PACKAGE): $(PROGRAM)
 	tar -czf $@ -C $(dir $<) $(notdir $<)
 
 install:
-	go install -ldflags="-X '$(REPO)/program.Version=${VERSION}'"
+	go install -ldflags="$(LDFLAGS)"
 
 image:
-	$(DOCKER) build -f Dockerfile --build-arg PROGRAM=$(BASENAME) --build-arg VERSION=$(VERSION) --build-arg BASENAME=$(BASENAME) -t $(IMAGE) .
+	$(DOCKER) build -f Dockerfile --build-arg PROGRAM=$(BASENAME) --build-arg VERSION=$(VERSION) --build-arg COMMIT=$(COMMIT) --build-arg DATE=$(DATE) --build-arg BASENAME=$(BASENAME) -t $(IMAGE) .
 
 test:
-	go test -v ./...
+	go test ./...
+
+test-integration:
+	go test -tags=integration -v ./test/...
 
 vet:
 	go vet ./...

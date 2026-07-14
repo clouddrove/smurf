@@ -44,7 +44,7 @@ var stateRmCmd = &cobra.Command{
     smurf stf state-rm --dir=path/to/terraform/code aws_instance.example
 
     # Remove without creating a backup
-    smurf stf state-rm --no-backup aws_instance.example
+    smurf stf state-rm --backup=false aws_instance.example
     `,
 }
 

@@ -1,8 +1,6 @@
 package stf
 
 import (
-	"os"
-
 	"github.com/clouddrove/smurf/internal/terraform"
 	"github.com/spf13/cobra"
 )
@@ -17,11 +15,7 @@ var validateCmd = &cobra.Command{
 	Short:        "Validate Terraform changes",
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		err := terraform.Validate(validateDir, useAI)
-		if err != nil {
-			os.Exit(1)
-		}
-		return nil
+		return terraform.Validate(validateDir, useAI)
 	},
 	Example: `
  smurf stf validate
@@ -30,7 +24,7 @@ var validateCmd = &cobra.Command{
 }
 
 func init() {
-	validateCmd.Flags().StringVar(&validateDir, "dir", "", "Directory containing Terraform files (default is current directory)")
+	validateCmd.Flags().StringVar(&validateDir, "dir", ".", "Directory containing Terraform files (default is current directory)")
 	validateCmd.Flags().BoolVar(&useAI, "ai", false, "To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.")
 	stfCmd.AddCommand(validateCmd)
 }

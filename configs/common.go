@@ -56,18 +56,16 @@ func ParseEcrImageRef(imageRef string) (string, string, string, string, error) {
 	return accountID, region, repository, tag, nil
 }
 
-// SplitKeyValue splits a string into two parts at the first occurrence of the "=" character.
+// SplitKeyValue splits a string into a key and value at the first occurrence of the
+// "=" character. The second return value reports whether an "=" was found; when it
+// is false, key holds the original string and value is empty.
 // used in selm package to split key value pairs
-func SplitKeyValue(arg string) []string {
-	parts := make([]string, 2)
-	for i, part := range []rune(arg) {
-		if part == '=' {
-			parts[0] = string([]rune(arg)[:i])
-			parts[1] = string([]rune(arg)[i+1:])
-			break
-		}
+func SplitKeyValue(arg string) (key, value string, ok bool) {
+	parts := strings.SplitN(arg, "=", 2)
+	if len(parts) != 2 {
+		return arg, "", false
 	}
-	return parts
+	return parts[0], parts[1], true
 }
 
 // ParseGhcrImageRef parses a GHCR image reference into its components

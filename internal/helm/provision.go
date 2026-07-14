@@ -14,7 +14,7 @@ import (
 // already exists in the cluster and chooses either to install or upgrade. In parallel, it also runs
 // linting and template rendering for the chart. If any step fails, a consolidated error is returned.
 // Otherwise, a success message is printed.
-func HelmProvision(releaseName, chartPath, namespace string) error {
+func HelmProvision(releaseName, chartPath, namespace string, useAI bool) error {
 	actionConfig := new(action.Configuration)
 	if err := actionConfig.Init(settings.RESTClientGetter(), namespace, os.Getenv("HELM_DRIVER"), debugLog); err != nil {
 		pterm.Error.Printfln("Failed to initialize Helm action configuration: %v \n", err)
@@ -34,11 +34,11 @@ func HelmProvision(releaseName, chartPath, namespace string) error {
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		lintErr = HelmLint(chartPath, nil, false)
+		lintErr = HelmLint(chartPath, nil, useAI)
 	}()
 	go func() {
 		defer wg.Done()
-		templateErr = HelmTemplate(releaseName, chartPath, namespace, "", []string{}, false)
+		templateErr = HelmTemplate(releaseName, chartPath, namespace, "", []string{}, useAI)
 	}()
 
 	// Perform install/upgrade after lint/template
@@ -62,7 +62,7 @@ func HelmProvision(releaseName, chartPath, namespace string) error {
 			"",            // version
 			true,
 			5,
-			false,
+			useAI,
 			false,
 		)
 
@@ -86,7 +86,7 @@ func HelmProvision(releaseName, chartPath, namespace string) error {
 			"",            // version
 			true,
 			5,
-			false,
+			useAI,
 			false,
 		)
 	} else {
@@ -104,7 +104,7 @@ func HelmProvision(releaseName, chartPath, namespace string) error {
 			"",
 			"",
 			true,
-			false,
+			useAI,
 		)
 	}
 	wg.Wait()

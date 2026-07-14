@@ -1,7 +1,6 @@
 package stf
 
 import (
-	"os"
 	"time"
 
 	"github.com/clouddrove/smurf/internal/terraform"
@@ -17,11 +16,7 @@ var formatCmd = &cobra.Command{
 	Short:        "Format the Terraform Infrastructure",
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		err := terraform.Format(recursive, timeout)
-		if err != nil {
-			os.Exit(1)
-		}
-		return nil
+		return terraform.Format(recursive, timeout)
 	},
 	Example: `
 	smurf stf fmt

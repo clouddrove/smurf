@@ -1,7 +1,6 @@
 package sdkr
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"os"
@@ -48,12 +47,21 @@ var provisionEcrCmd = &cobra.Command{
 			localTag = "latest"
 		}
 
+		accountID, ecrRegionName, ecrRepositoryName, ecrImageTag, parseErr := configs.ParseEcrImageRef(imageRef)
+		if parseErr != nil {
+			return parseErr
+		}
+
+		if accountID == "" || ecrRegionName == "" || ecrRepositoryName == "" || ecrImageTag == "" {
+			return errors.New("invalid image reference: missing account ID, region, or repository name")
+		}
+
 		fullEcrImage := fmt.Sprintf(
 			"%s.dkr.ecr.%s.amazonaws.com/%s:%s",
-			localImageName,
-			configs.Region,
-			configs.Repository,
-			localTag,
+			accountID,
+			ecrRegionName,
+			ecrRepositoryName,
+			ecrImageTag,
 		)
 
 		buildArgsMap := make(map[string]string)
@@ -97,25 +105,12 @@ var provisionEcrCmd = &cobra.Command{
 			pushImage = fullEcrImage
 		}
 
-		if !configs.ConfirmAfterPush {
-			pterm.Info.Println("Press Enter to continue...")
-			buf := bufio.NewReader(os.Stdin)
-			_, _ = buf.ReadBytes('\n')
+		if err := confirmPush(); err != nil {
+			return err
 		}
 
-		accountID, ecrRegionName, ecrRepositoryName, ecrImageTag, parseErr := configs.ParseEcrImageRef(imageRef)
-		if parseErr != nil {
-			return parseErr
-		}
-
-		if accountID == "" || ecrRegionName == "" || ecrRepositoryName == "" || ecrImageTag == "" {
-			return errors.New("invalid image reference: missing account ID, region, or repository name")
-		}
-		ecrImage := fmt.Sprintf("%s.dkr.ecr.%s.amazonaws.com/%s:%s",
-			accountID, ecrRegionName, ecrRepositoryName, ecrImageTag,
-		)
 		pterm.Info.Printf("Pushing image %s to ECR...\n", pushImage)
-		if err := docker.PushImageToECR(ecrImage, ecrRegionName, ecrRepositoryName, useAI); err != nil {
+		if err := docker.PushImageToECR(fullEcrImage, ecrRegionName, ecrRepositoryName, useAI); err != nil {
 			return err
 		}
 		pterm.Success.Println("Push to ECR completed successfully.")
@@ -140,7 +135,6 @@ var provisionEcrCmd = &cobra.Command{
       --build-arg key2=value2 \
       --target my-target \
       --platform linux/amd64 \
-      --output scan.sarif \
       --yes \
       --delete
 `,
@@ -150,13 +144,11 @@ func init() {
 	provisionEcrCmd.Flags().StringVarP(&configs.DockerfilePath, "file", "f", "", "Dockerfile path relative to context directory (default: 'Dockerfile')")
 	provisionEcrCmd.Flags().BoolVarP(&configs.NoCache, "no-cache", "c", false, "Do not use cache when building the image")
 	provisionEcrCmd.Flags().StringArrayVarP(&configs.BuildArgs, "build-arg", "a", []string{}, "Set build-time variables")
-	provisionEcrCmd.Flags().StringVarP(&configs.Target, "target", "T", "", "Set the target build stage to build")
+	provisionEcrCmd.Flags().StringVarP(&configs.Target, "target", "t", "", "Set the target build stage to build")
 	provisionEcrCmd.Flags().StringVarP(&configs.Platform, "platform", "p", "", "Platform for the image")
 
 	provisionEcrCmd.Flags().StringVar(&configs.ContextDir, "context", "", "Build context directory (default: current directory)")
 	provisionEcrCmd.Flags().IntVar(&configs.BuildTimeout, "timeout", 1500, "Build timeout")
-
-	provisionEcrCmd.Flags().StringVarP(&configs.SarifFile, "output", "o", "", "Output file for SARIF report")
 
 	provisionEcrCmd.Flags().BoolVarP(&configs.ConfirmAfterPush, "yes", "y", false, "Push the image to ECR without confirmation")
 	provisionEcrCmd.Flags().BoolVarP(&configs.DeleteAfterPush, "delete", "d", false, "Delete the local image after pushing")

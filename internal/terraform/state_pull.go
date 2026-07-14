@@ -201,7 +201,7 @@ func StatePullToFile(dir, outputFile string, useAI bool) error {
 		return fmt.Errorf("failed to format JSON: %v", err)
 	}
 
-	err = os.WriteFile(outputFile, prettyJSON.Bytes(), 0644)
+	err = os.WriteFile(outputFile, prettyJSON.Bytes(), 0600)
 	if err != nil {
 		return fmt.Errorf("failed to write state file: %v", err)
 	}

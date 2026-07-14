@@ -2,7 +2,6 @@ package selm
 
 import (
 	"errors"
-	"os"
 	"path/filepath"
 
 	"github.com/clouddrove/smurf/configs"
@@ -47,7 +46,7 @@ var templateCmd = &cobra.Command{
 
 			if releaseName == "" || chartPath == "" {
 				pterm.Error.Printfln("RELEASE and CHART must be provided either as arguments or in the config")
-				return errors.New(pterm.Error.Sprintfln("RELEASE and CHART must be provided either as arguments or in the config"))
+				return errors.New("RELEASE and CHART must be provided either as arguments or in the config")
 			}
 
 			if configs.Namespace == "" && data.Selm.Namespace != "" {
@@ -61,7 +60,7 @@ var templateCmd = &cobra.Command{
 
 		err := helm.HelmTemplate(releaseName, chartPath, configs.Namespace, repoURL, configs.File, useAI)
 		if err != nil {
-			os.Exit(1)
+			return err
 		}
 		return nil
 	},

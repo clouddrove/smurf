@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/clouddrove/smurf/internal/ai"
@@ -103,7 +104,7 @@ func Build(imageName, tag string, opts BuildOptions, useAI bool) error {
 	if err != nil {
 		tracker.completeStep(false, fmt.Sprintf("Docker client init failed: %v", err))
 		ai.AIExplainError(useAI, err.Error())
-		return fmt.Errorf("%v", err.Error())
+		return fmt.Errorf("%w", err)
 	}
 	defer cli.Close()
 
@@ -123,7 +124,7 @@ func Build(imageName, tag string, opts BuildOptions, useAI bool) error {
 	if err != nil {
 		tracker.completeStep(false, fmt.Sprintf("Context creation failed: %v", err))
 		ai.AIExplainError(useAI, err.Error())
-		return fmt.Errorf("%v", err.Error())
+		return fmt.Errorf("%w", err)
 	}
 	defer buildCtx.Close()
 
@@ -138,7 +139,7 @@ func Build(imageName, tag string, opts BuildOptions, useAI bool) error {
 			if err != nil {
 				tracker.completeStep(false, fmt.Sprintf("Failed to recreate build context: %v", err))
 				ai.AIExplainError(useAI, err.Error())
-				return fmt.Errorf("%v", err.Error())
+				return fmt.Errorf("%w", err)
 			}
 			defer buildCtx.Close()
 		}
@@ -150,7 +151,7 @@ func Build(imageName, tag string, opts BuildOptions, useAI bool) error {
 	if err != nil {
 		tracker.completeStep(false, fmt.Sprintf("Invalid Dockerfile path: %v", err))
 		ai.AIExplainError(useAI, err.Error())
-		return fmt.Errorf("%v", err.Error())
+		return fmt.Errorf("%w", err)
 	}
 
 	buildArgsPtr := make(map[string]*string)
@@ -165,8 +166,8 @@ func Build(imageName, tag string, opts BuildOptions, useAI bool) error {
 		if len(parts) != 2 {
 			errMsg := fmt.Sprintf("invalid platform format. Expected os/arch, got: %s", opts.Platform)
 			tracker.completeStep(false, errMsg)
-			ai.AIExplainError(useAI, err.Error())
-			return fmt.Errorf("%v", errMsg)
+			ai.AIExplainError(useAI, errMsg)
+			return fmt.Errorf("%s", errMsg)
 		}
 	}
 
@@ -220,11 +221,15 @@ func Build(imageName, tag string, opts BuildOptions, useAI bool) error {
 		if err := cmd.Start(); err != nil {
 			tracker.completeStep(false, fmt.Sprintf("Failed to start build: %v", err))
 			ai.AIExplainError(useAI, err.Error())
-			return fmt.Errorf("%v", err.Error())
+			return fmt.Errorf("%w", err)
 		}
 
 		// Stream output with error coloring
+		var outputWG sync.WaitGroup
+		outputWG.Add(2)
+
 		go func() {
+			defer outputWG.Done()
 			scanner := bufio.NewScanner(stdoutPipe)
 			for scanner.Scan() {
 				line := scanner.Text()
@@ -239,16 +244,19 @@ func Build(imageName, tag string, opts BuildOptions, useAI bool) error {
 		}()
 
 		go func() {
+			defer outputWG.Done()
 			scanner := bufio.NewScanner(stderrPipe)
 			for scanner.Scan() {
 				fmt.Printf("%s\n", red(scanner.Text()))
 			}
 		}()
 
+		outputWG.Wait()
+
 		if err := cmd.Wait(); err != nil {
 			tracker.completeStep(false, fmt.Sprintf("BuildKit build failed: %v", err))
 			ai.AIExplainError(useAI, err.Error())
-			return fmt.Errorf("%v", err.Error())
+			return fmt.Errorf("%w", err)
 		}
 
 		tracker.completeStep(true, "Docker build completed successfully")
@@ -257,7 +265,7 @@ func Build(imageName, tag string, opts BuildOptions, useAI bool) error {
 		if err != nil {
 			tracker.completeStep(false, fmt.Sprintf("Build failed: %v", err))
 			ai.AIExplainError(useAI, err.Error())
-			return fmt.Errorf("%v", err)
+			return fmt.Errorf("%w", err)
 		}
 		defer resp.Body.Close()
 
@@ -270,13 +278,13 @@ func Build(imageName, tag string, opts BuildOptions, useAI bool) error {
 				}
 				tracker.completeStep(false, fmt.Sprintf("Build error: %v", err))
 				ai.AIExplainError(useAI, err.Error())
-				return fmt.Errorf("%v", err)
+				return fmt.Errorf("%w", err)
 			}
 			if msg.Error != nil {
 				tracker.completeStep(false, fmt.Sprintf("Build error: %v", msg.Error))
 				errMsg := fmt.Sprint(msg.Error)
 				ai.AIExplainError(useAI, errMsg)
-				return fmt.Errorf("%v", msg.Error)
+				return fmt.Errorf("%w", msg.Error)
 			}
 			if msg.Stream != "" {
 				if strings.Contains(strings.ToLower(msg.Stream), "error") {
@@ -295,7 +303,7 @@ func Build(imageName, tag string, opts BuildOptions, useAI bool) error {
 	if err != nil {
 		tracker.completeStep(false, fmt.Sprintf("Failed to inspect image: %v", err))
 		ai.AIExplainError(useAI, err.Error())
-		return fmt.Errorf("%v", err.Error())
+		return fmt.Errorf("%w", err)
 	}
 
 	// tracker.completeStep(true, "Image inspection complete")
@@ -308,10 +316,7 @@ func createTarball(srcDir string, excludePatterns []string) (io.ReadCloser, erro
 	tw := tar.NewWriter(pw)
 
 	go func() {
-		defer pw.Close()
-		defer tw.Close()
-
-		filepath.Walk(srcDir, func(file string, fi os.FileInfo, err error) error {
+		walkErr := filepath.Walk(srcDir, func(file string, fi os.FileInfo, err error) error {
 			if err != nil {
 				return err
 			}
@@ -358,6 +363,18 @@ func createTarball(srcDir string, excludePatterns []string) (io.ReadCloser, erro
 
 			return nil
 		})
+
+		if walkErr != nil {
+			pw.CloseWithError(fmt.Errorf("failed to build tarball from %s: %w", srcDir, walkErr))
+			return
+		}
+
+		if err := tw.Close(); err != nil {
+			pw.CloseWithError(fmt.Errorf("failed to finalize tarball: %w", err))
+			return
+		}
+
+		pw.Close()
 	}()
 
 	return pr, nil

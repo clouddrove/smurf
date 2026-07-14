@@ -86,12 +86,16 @@ func (l *ColorfulLogger) logWarning(message string) {
 }
 
 func (l *ColorfulLogger) logLayerPushed(layerID string) {
+	shortID := layerID
+	if len(shortID) > 12 {
+		shortID = shortID[:12]
+	}
 	fmt.Printf("%s[%s] %s %s%s pushed%s\n",
 		colorYellow,
 		time.Since(l.startTime).Round(time.Millisecond),
 		"⬆",
 		colorCyan,
-		layerID[:12]+"...",
+		shortID+"...",
 		colorReset)
 }
 
@@ -192,7 +196,7 @@ func (a *AuthProvider) getGcloudAccessToken() (string, error) {
 	// Find gcloud binary securely
 	gcloudPath, err := a.findGcloudBinary()
 	if err != nil {
-		return "", fmt.Errorf("gcloud binary not found: %v", err)
+		return "", fmt.Errorf("gcloud binary not found: %w", err)
 	}
 
 	// Use absolute path and explicit arguments
@@ -203,7 +207,7 @@ func (a *AuthProvider) getGcloudAccessToken() (string, error) {
 
 	output, err := cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("gcloud auth failed: %v", err)
+		return "", fmt.Errorf("gcloud auth failed: %w", err)
 	}
 	return strings.TrimSpace(string(output)), nil
 }
@@ -253,7 +257,7 @@ func (a *AuthProvider) findGcloudWindows() (string, error) {
 
 	output, err := cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("gcloud not found via where.exe: %v", err)
+		return "", fmt.Errorf("gcloud not found via where.exe: %w", err)
 	}
 
 	path := strings.TrimSpace(string(output))
@@ -291,7 +295,7 @@ func (a *AuthProvider) findGcloudUnix() (string, error) {
 
 	output, err := cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("gcloud not found via which: %v", err)
+		return "", fmt.Errorf("gcloud not found via which: %w", err)
 	}
 
 	path := strings.TrimSpace(string(output))
@@ -544,7 +548,7 @@ func PushImageToGCR(projectID, imageNameWithTag string, useAI bool) error {
 	dockerClient, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		ai.AIExplainError(useAI, err.Error())
-		return fmt.Errorf("%sdocker client creation failed%s: %v", colorRed, colorReset, err)
+		return fmt.Errorf("%sdocker client creation failed%s: %w", colorRed, colorReset, err)
 	}
 
 	// Use the image reference exactly as provided - DO NOT MODIFY IT
@@ -558,13 +562,13 @@ func PushImageToGCR(projectID, imageNameWithTag string, useAI bool) error {
 	authConfig, err := authProvider.getAuthConfig(serverAddress)
 	if err != nil {
 		ai.AIExplainError(useAI, err.Error())
-		return fmt.Errorf("%sauthentication failed%s: %v", colorRed, colorReset, err)
+		return fmt.Errorf("%sauthentication failed%s: %w", colorRed, colorReset, err)
 	}
 
 	encodedAuth, err := encodeAuthToBase64(authConfig)
 	if err != nil {
 		ai.AIExplainError(useAI, err.Error())
-		return fmt.Errorf("%sauth encoding failed%s: %v", colorRed, colorReset, err)
+		return fmt.Errorf("%sauth encoding failed%s: %w", colorRed, colorReset, err)
 	}
 
 	return pushImageGCP(ctx, dockerClient, targetImage, encodedAuth, logger)
@@ -575,7 +579,7 @@ func pushImageGCP(ctx context.Context, dockerClient *client.Client, imageName, e
 		RegistryAuth: encodedAuth,
 	})
 	if err != nil {
-		return fmt.Errorf("%spush failed%s: %v", colorRed, colorReset, err)
+		return fmt.Errorf("%spush failed%s: %w", colorRed, colorReset, err)
 	}
 	defer pushResponse.Close()
 
@@ -587,10 +591,10 @@ func pushImageGCP(ctx context.Context, dockerClient *client.Client, imageName, e
 			if err == io.EOF {
 				break
 			}
-			return fmt.Errorf("%spush response failed%s: %v", colorRed, colorReset, err)
+			return fmt.Errorf("%spush response failed%s: %w", colorRed, colorReset, err)
 		}
 		if event.Error != nil {
-			return fmt.Errorf("%spush failed%s: %v", colorRed, colorReset, event.Error)
+			return fmt.Errorf("%spush failed%s: %w", colorRed, colorReset, event.Error)
 		}
 
 		if event.Status == "Pushed" && event.ID != "" {

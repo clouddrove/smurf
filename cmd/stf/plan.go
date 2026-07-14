@@ -26,10 +26,10 @@ var planCmd = &cobra.Command{
     smurf stf plan
 
     # Specify variables
-    smurf stf plan -var="region=us-west-2"
+    smurf stf plan --var="region=us-west-2"
 
     # Specify multiple variables
-    smurf stf plan -var="region=us-west-2" -var="instance_type=t2.micro"
+    smurf stf plan --var="region=us-west-2" --var="instance_type=t2.micro"
 
     # Specify a custom directory
     smurf stf plan --dir=/path/to/terraform/files
@@ -47,7 +47,7 @@ var planCmd = &cobra.Command{
 
     # Use custom state file
     smurf stf plan --state=/path/to/terraform.tfstate
-    smurf stf plan -state=prod.tfstate
+    smurf stf plan --state=prod.tfstate
 
     # Combine with other flags
     smurf stf plan --target=aws_instance.web --destroy --var="instance_type=t2.micro" --refresh=false --state=prod.tfstate

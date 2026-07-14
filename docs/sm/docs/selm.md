@@ -1,6 +1,6 @@
 # Helm using Smurf 🐳
 
-Use `smurf selm <command>` to run smurf sdkr commands. Supported commands include:
+Use `smurf selm <command>` to run smurf selm commands. Supported commands include:
 
 - **`create`**: Create a new Helm chart in the specified directory.  
 - **`install`**: Install a Helm chart into a Kubernetes cluster.  
@@ -16,7 +16,8 @@ Use `smurf selm <command>` to run smurf sdkr commands. Supported commands includ
 - **`history`**: Prints historical revisions for a given release.
 - **`pull`**: Downloads a chart from a repository
 - **`init`**: Create `smurf.yaml` configuration file
-- **`plugin`**: Manage plugins, which are add-on tools that extend Helm's core functionality.
+- **`plugin`**: Manage plugins (`install`, `list`, `uninstall`), which are add-on tools that extend Helm's core functionality.
+- **`debug`**: Debug Helm repository configuration.
 
 ## Using Smurf Helm in local environment
 To upgrade a helm chart using smurf run the command-
@@ -34,7 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up smurf
-        uses: clouddrove/smurf@master
+        uses: clouddrove/smurf@v1.1.5
         with:
           version: latest
 
@@ -60,7 +61,7 @@ This creates the `smurf.yaml` configuration file for Helm.
 ```yaml
 selm:
   releaseName: "Release Name"
-  namespace: "Name Space"
+  namespace: "default"
   chartName: "Chart Name"
   revision: 0
 ```
@@ -72,7 +73,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up smurf
-        uses: clouddrove/smurf@master
+        uses: clouddrove/smurf@v1.1.5
         with:
           version: latest
 

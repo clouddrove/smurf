@@ -12,7 +12,6 @@ var (
 	SubscriptionID   string
 	ResourceGroup    string
 	RegistryName     string
-	SarifFile        string
 	ConfirmAfterPush bool
 	DeleteAfterPush  bool
 	ProjectID        string

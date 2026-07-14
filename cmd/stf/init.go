@@ -1,8 +1,6 @@
 package stf
 
 import (
-	"os"
-
 	"github.com/clouddrove/smurf/configs"
 	"github.com/clouddrove/smurf/internal/terraform"
 	"github.com/spf13/cobra"
@@ -30,7 +28,7 @@ var initCmd = &cobra.Command{
 				- Initialize backend configuration
 				- Download and install modules
 				- Set up workspace configuration`,
-	SilenceErrors: true,
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		opts := configs.InitOptions{
 			Dir:           initDir,
@@ -44,11 +42,7 @@ var initCmd = &cobra.Command{
 			Get:           initGet,
 			FromModule:    initFromModule,
 		}
-		err := terraform.InitWithOptions(opts)
-		if err != nil {
-			os.Exit(1)
-		}
-		return nil
+		return terraform.InitWithOptions(opts)
 	},
 	Example: `
  # Basic initialization
@@ -80,7 +74,7 @@ var initCmd = &cobra.Command{
 func init() {
 	// Basic flags
 	initCmd.Flags().BoolVar(&initUpgrade, "upgrade", false, "Upgrade installed modules and plugins")
-	initCmd.Flags().StringVar(&initDir, "dir", "", "Directory containing Terraform files (default is current directory)")
+	initCmd.Flags().StringVar(&initDir, "dir", ".", "Directory containing Terraform files (default is current directory)")
 	initCmd.Flags().BoolVar(&useAI, "ai", false, "Enable AI help mode (requires OPENAI_API_KEY)")
 
 	// Backend configuration flags

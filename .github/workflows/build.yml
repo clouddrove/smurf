@@ -81,4 +81,11 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version: ${{env.GO_VERSION}}
-      - run: go fmt ./...
+      - name: Check gofmt
+        run: |
+          UNFORMATTED=$(gofmt -l .)
+          if [ -n "$UNFORMATTED" ]; then
+            echo "The following files are not gofmt formatted:"
+            echo "$UNFORMATTED"
+            exit 1
+          fi

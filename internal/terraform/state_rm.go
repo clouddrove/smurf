@@ -134,7 +134,7 @@ func createStateBackup(dir string) error {
 	}
 
 	// Write to backup file
-	err = os.WriteFile(backupPath, input, 0644)
+	err = os.WriteFile(backupPath, input, 0600)
 	if err != nil {
 		return fmt.Errorf("failed to create backup: %v", err)
 	}

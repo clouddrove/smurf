@@ -34,22 +34,26 @@
 
 Smurf is a command-line interface (CLI) application built using Golang leveraging technology specific SDKs, designed to simplify and automate commands for essential tools like Docker, Helm and Terraform. It provides intuitive, unified commands to execute Helm package manager, Terraform plans and Docker container management, and other DevOps tasks seamlessly from one interface. Whether you need to spin up environments, manage containers, or apply infrastructure as code, this CLI streamlines multi-tool operations, boosting productivity and reducing context-switching.
 
-Smurf isn’t just another CLI tool—it’s your DevOps powerhouse. Managing Helm, Docker and Terraform and other essential tools separately is a hassle. Constant context-switching slows you down, and remembering multiple CLI syntaxes is frustrating. Smurf simplifies this by providing a unified, intuitive interface to streamline your workflows.
-With Smurf, you can spin up environments, manage containers, and apply infrastructure as code—all from a single command-line tool. It boosts productivity, reduces errors, and helps you focus on delivering solutions rather than troubleshooting commands. If efficiency and automation matter to you, Smurf is the tool you’ve been waiting for.
+Smurf isn't just another CLI tool, it's your DevOps powerhouse. Managing Helm, Docker and Terraform and other essential tools separately is a hassle. Constant context-switching slows you down, and remembering multiple CLI syntaxes is frustrating. Smurf simplifies this by providing a unified, intuitive interface to streamline your workflows.
+With Smurf, you can spin up environments, manage containers, and apply infrastructure as code, all from a single command-line tool. It boosts productivity, reduces errors, and helps you focus on delivering solutions rather than troubleshooting commands. If efficiency and automation matter to you, Smurf is the tool you've been waiting for.
 
 ## What can you do with Smurf
 
 Docker Commands in Smurf 🐳
 
 - **`build`**: Builds a Docker image with the specified **name** and **tag**.  
+- **`init`**: Creates a default `smurf.yaml` file with sdkr configuration.
 - **`provision-acr`**: Builds and pushes a Docker image to **Azure Container Registry (ACR)**.  
-- **`provision-ec`**: Builds and pushes a Docker image to **AWS Elastic Container Registry (ECR)**.  
-- **`provision-gcr`**: Builds and pushes a Docker image to **Google Container Registry (GCR)**.  
-- **`provision-hub`**: Builds, scans, and pushes a Docker image to **Docker Hub** for enhanced security.  
+- **`provision-ecr`**: Builds and pushes a Docker image to **AWS Elastic Container Registry (ECR)**.  
+- **`provision-gcp`**: Builds and pushes a Docker image to **Google Container Registry or Artifact Registry**.  
+- **`provision-hub`**: Builds and pushes a Docker image to **Docker Hub**.  
+- **`provision-ghcr`**: Builds and pushes a Docker image to **GitHub Container Registry**.
 - **`push`**: Pushes Docker images to **ACR, ECR, GCR,** or **Docker Hub** in one simple command.  
 - **`remove`**: Deletes a Docker image from your **local system** to free up space.  
 - **`scan`**: Analyzes a Docker image for known **security vulnerabilities** before deployment.  
 - **`tag`**: Tags a Docker image for easy **identification** and **repository management**.   
+
+Each `provision-*` command prompts `Proceed with push? [y/N]` before pushing when run on a TTY; pass `--yes` to skip the prompt.
 
 Helm Commands in Smurf ⎈
 
@@ -67,25 +71,31 @@ Helm Commands in Smurf ⎈
 - **`history`**: Prints historical revisions for a given release.
 - **`pull`**: Downloads a chart from a repository
 - **`init`**: Create `smurf.yaml` configuration file
-- **`plugin`**: Manage plugins, which are add-on tools that extend Helm's core functionality.
+- **`plugin`**: Manage plugins (`install`, `list`, `uninstall`), which are add-on tools that extend Helm's core functionality.
+- **`debug`**: Debug Helm repository configuration.
 
 Terraform Commands in Smurf ⚙️
 
 - **`apply`**: Apply the changes required to reach the desired state of Terraform Infrastructure.  
 - **`destroy`**: Destroy the Terraform Infrastructure.  
 - **`drift`**: Detect drift between state and infrastructure for Terraform.  
-- **`format`**: Format the Terraform Infrastructure.  
+- **`fmt`**: Format the Terraform Infrastructure.  
 - **`graph`**: Generate a visual graph of Terraform resources.  
+- **`import`**: Import existing infrastructure into Terraform state.
 - **`init`**: Initialize Terraform.  
 - **`output`**: Generate output for the current state of Terraform Infrastructure.  
 - **`plan`**: Generate and show an execution plan for Terraform.  
-- **`provision`**: Combination of `init`, `plan`, `apply`, and `output` for Terraform.  
+- **`provision`**: Combination of `init`, `plan`, `apply`, and `output` for Terraform. Applying requires `--auto-approve` (default `false`).
 - **`refresh`**: Update the state file of your infrastructure.  
+- **`show`**: Show Terraform state or saved plan details.
 - **`state-list`**: List resources in the Terraform state.  
+- **`state-pull`**: Pull and display the current remote state.
+- **`state-push`**: Push local state to remote backend.
+- **`state-rm`**: Remove resources from the Terraform state.
 
 Other Helping Commands in Smurf 🤝
 - **`init`**: Create `smurf.yaml` configuration file 
-- **`deploy`**: Build and push the Docker image, update the container details in the Helm chart’s values file, and install or upgrade the release — all in a single command.
+- **`deploy`**: Build and push the Docker image, update the container details in the Helm chart's values file, and install or upgrade the release, all in a single command (`--timeout`, seconds, default `600`).
 
 ## Contributors ✨ 
 
@@ -107,7 +117,7 @@ If you're considering contributing to our project, here are a few quick guidelin
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
 
 ## Feedback
 Spot a bug or have thoughts to share with us? Let's squash it together! Log it in our [issue tracker](https://github.com/clouddrove/smurf/issues), feel free to drop us an email at [hello@clouddrove.com](mailto:hello@clouddrove.com).

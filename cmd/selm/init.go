@@ -8,7 +8,7 @@ import (
 // defaultYamlContent defines the default structure for smurf.yaml (selm section)
 var defaultYamlContent = `selm:
   releaseName: "Release Name"
-  namespace: "Name Space"
+  namespace: "default"
   chartName: "Chart Name"
   revision: 0
 `

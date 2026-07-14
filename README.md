@@ -8,8 +8,8 @@
     <a href="https://goreportcard.com/report/github.com/clouddrove/smurf">
         <img alt="Go Report Status" src="https://goreportcard.com/badge/github.com/clouddrove/smurf">
     </a>
-    <a href="https://github.com/clouddrove/smurf/">
-        <img alt="Build Status" src="https://img.shields.io/badge/test-passing-green">
+    <a href="https://github.com/clouddrove/smurf/actions/workflows/build.yml">
+        <img alt="Build Status" src="https://github.com/clouddrove/smurf/actions/workflows/build.yml/badge.svg">
     </a>
     <a href="https://www.launchpass.com/devops-talks">
         <img alt="Slack Chat" src="https://img.shields.io/badge/join%20slack-blue">
@@ -33,30 +33,72 @@
 </p>
 
 <p align="center">
-Smurf is a command-line interface (CLI) application built using Golang leveraging technology specific SDKs, designed to simplify and automate commands for essential tools like Terraform and Docker. It provides intuitive, unified commands to execute Terraform plans, Docker container management, and other DevOps tasks seamlessly from one interface. Whether you need to spin up environments, manage containers, or apply infrastructure as code, this CLI streamlines multi-tool operations, boosting productivity and reducing context-switching.
+Smurf is a Go CLI that wraps Docker, Helm, and Terraform behind one consistent interface, using each tool's native Go SDK instead of shelling out. One binary, one config file, unified commands: build and push images to any major registry, install and upgrade Helm releases, plan and apply Terraform, or chain the whole pipeline with a single <code>smurf deploy</code>. Less context switching, fewer one-off scripts, the same commands locally and in CI.
 </p>
 
 ## Installation ⚙️
-- [Smurf tool CLI Installation Guide](docs/sm/docs/installation.md)
-- Integrate in GitHub Actions
-  ```yaml
+
+### Homebrew (macOS and Linux)
+```bash
+brew tap clouddrove/homebrew-tap
+brew install smurf
+```
+
+### Install script (Linux and macOS)
+Downloads the release archive for your OS/arch and verifies it against `checksums.txt`:
+```bash
+curl -fsSL https://raw.githubusercontent.com/clouddrove/smurf/master/install/install.sh | bash
+```
+
+### Docker
+The image bundles smurf together with docker-cli, aws-cli, gcloud, terraform, and trivy:
+```bash
+docker run --rm ghcr.io/clouddrove/smurf:latest version
+```
+
+### Go
+```bash
+go install github.com/clouddrove/smurf@latest
+```
+
+### Manual download
+Grab the archive for your platform from the [releases page](https://github.com/clouddrove/smurf/releases), verify it against `checksums.txt`, and put the binary on your `PATH`.
+
+### GitHub Actions
+```yaml
     - name: Setup Smurf
-      uses: clouddrove/smurf@v0.0.4
-  ```
+      uses: clouddrove/smurf@v1.1.5
+```
+
+### From source
+See the [installation guide](docs/sm/docs/installation.md) for building from source and platform notes.
+
+## Quickstart 🏁
+
+```bash
+# Scaffold a smurf.yaml with both sdkr and selm sections (0600, refuses to overwrite)
+smurf init
+
+# Build the Docker image described in smurf.yaml
+smurf sdkr build
+
+# Build, push, and (if selm.deployHelm is true) install/upgrade the Helm release, all from smurf.yaml
+smurf deploy
+```
 
 ## Features 🚀
 
 ### 🐳 Docker Command Wrapper (`sdkr`)
 Streamline Docker image workflows:
-- `build`, `scan`, `tag`, `publish`, `push`
-- `provision` → runs (`build` ➝ `scan` ➝ `publish`)
+- `build`, `scan`, `tag`, `push`, `remove`, `init`
+- `provision-acr`/`provision-ecr`/`provision-gcp`/`provision-ghcr`/`provision-hub` → each runs (`build` ➝ `push`), prompting `Proceed with push? [y/N]` on a TTY unless `--yes` is passed
 - [Docker with Smurf – Usage Guide](docs/sdkr/README.md)
 
 ---
 
 ### ⚓ Helm Command Wrapper (`selm`)
 Simplify Helm operations:
-- `create`, `install`, `lint`, `list`, `status`, `template`, `upgrade`, `uninstall`
+- `create`, `install`, `lint`, `list`, `status`, `template`, `upgrade`, `uninstall`, `init`, `debug`, `plugin`
 - `provision` → runs (`install` ➝ `upgrade` ➝ `lint` ➝ `template`)
 - [Helm with Smurf – Usage Guide](docs/selm/README.md)
 
@@ -64,22 +106,24 @@ Simplify Helm operations:
 
 ### 🏗️ Terraform Command Wrapper (`stf`)
 Easily manage Terraform workflows:
-- `init`, `plan`, `apply`, `output`, `drift`, `validate`, `destroy`, `format`
-- `provision` → runs (`init` ➝ `validate` ➝ `apply`)
+- `init`, `plan`, `apply`, `output`, `drift`, `validate`, `destroy`, `fmt`, `show`, `import`, `refresh`, `graph`, `state-list`, `state-rm`, `state-push`, `state-pull`
+- `provision` → runs (`init` ➝ `plan` ➝ `apply` ➝ `output`); applying requires `--auto-approve` (default `false`)
 - [Terraform with Smurf – Usage Guide](docs/stf/README.md)
 
 ---
 
 ### 🚀 `smurf deploy` command
-Streamline read credential from `smurf.yaml` file Docker image build, push on given repo and easily deploy using `smurf selm`
-- `deploy` → runs (`build` ➝ `push` ➝ `deploy`)
+Reads `smurf.yaml`, builds the Docker image, pushes it to whichever registry is enabled, and (if `selm.deployHelm` is true) installs or upgrades the Helm release.
+- `deploy` → runs (`build` ➝ `push` ➝ Helm install/upgrade), controlled by `--timeout` (seconds, default `600`)
 
 ---
 
 ## 🧰 Credential Fallback from `smurf.yaml`
 
 Smurf supports **automatic credential fallback**.  
-If required credentials (like username or token) are not provided via CLI or environment variables, Smurf will read them directly from your `smurf.yaml` file.
+If required credentials (like username or token) are not provided via CLI or environment variables, Smurf will read them directly from your `smurf.yaml` file. Values also support `${ENV_VAR}` interpolation.
+
+See the [full `smurf.yaml` field reference](docs/sm/docs/configuration.md) for every supported key.
 
 ### Example
 ```yaml
@@ -119,17 +163,11 @@ Big thanks to our contributors for elevating our project with their dedication a
 <br>
 <br> 
 
-If you're considering contributing to our project, here are a few quick guidelines that we have been following (Got a suggestion? We are all ears!):
-
-- **Fork the Repository:** Create a new branch for your feature or bug fix.
-- **Coding Standards:** You know the drill.
-- **Clear Commit Messages:** Write clear and concise commit messages to facilitate understanding.
-- **Thorough Testing:** Test your changes thoroughly before submitting a pull request.
-- **Documentation Updates:** Include relevant documentation updates if your changes impact it.
+Want to contribute? Read [CONTRIBUTING.md](CONTRIBUTING.md) for the development setup, project layout, and pull request conventions, and [SECURITY.md](SECURITY.md) for how to report vulnerabilities privately.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
 
 ## Feedback
 Spot a bug or have thoughts to share with us? Let's squash it together! Log it in our [issue tracker](https://github.com/clouddrove/smurf/issues), feel free to drop us an email at [hello@clouddrove.com](mailto:hello@clouddrove.com).

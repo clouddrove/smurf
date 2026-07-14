@@ -29,7 +29,7 @@ func PushImageToACR(subscriptionID, resourceGroupName, registryName, imageName s
 	if err != nil {
 		spinner.Fail("Failed to authenticate with Azure\n")
 		ai.AIExplainError(useAI, err.Error())
-		return fmt.Errorf("failed to authenticate with Azure : %v", err)
+		return fmt.Errorf("failed to authenticate with Azure : %w", err)
 	}
 	spinner.Success("Authenticated with Azure\n")
 
@@ -38,7 +38,7 @@ func PushImageToACR(subscriptionID, resourceGroupName, registryName, imageName s
 	if err != nil {
 		spinner.Fail("Failed to create registry client\n")
 		ai.AIExplainError(useAI, err.Error())
-		return fmt.Errorf("failed to create registry client : %v", err)
+		return fmt.Errorf("failed to create registry client : %w", err)
 	}
 	spinner.Success("Registry client created\n")
 
@@ -47,7 +47,7 @@ func PushImageToACR(subscriptionID, resourceGroupName, registryName, imageName s
 	if err != nil {
 		spinner.Fail("Failed to retrieve registry details\n")
 		ai.AIExplainError(useAI, err.Error())
-		return fmt.Errorf("failed to retrieve registry details : %v", err)
+		return fmt.Errorf("failed to retrieve registry details : %w", err)
 	}
 	loginServer := *registryResp.Properties.LoginServer
 	spinner.Success("Registry details retrieved\n")
@@ -57,7 +57,7 @@ func PushImageToACR(subscriptionID, resourceGroupName, registryName, imageName s
 	if err != nil {
 		spinner.Fail("Failed to retrieve registry credentials\n")
 		ai.AIExplainError(useAI, err.Error())
-		return fmt.Errorf("failed to retrieve registry credentials : %v", err)
+		return fmt.Errorf("failed to retrieve registry credentials : %w", err)
 	}
 	if credentialsResp.Username == nil || len(credentialsResp.Passwords) == 0 || credentialsResp.Passwords[0].Value == nil {
 		spinner.Fail("Registry credentials are not available\n")
@@ -72,7 +72,7 @@ func PushImageToACR(subscriptionID, resourceGroupName, registryName, imageName s
 	if err != nil {
 		spinner.Fail("Failed to create Docker client\n")
 		ai.AIExplainError(useAI, err.Error())
-		return fmt.Errorf("failed to create Docker client : %v", err)
+		return fmt.Errorf("failed to create Docker client : %w", err)
 	}
 	spinner.Success("Docker client created\n")
 
@@ -82,7 +82,7 @@ func PushImageToACR(subscriptionID, resourceGroupName, registryName, imageName s
 	if err != nil {
 		spinner.Fail("Failed to tag the image\n")
 		ai.AIExplainError(useAI, err.Error())
-		return fmt.Errorf("failed to tag the image : %v", err)
+		return fmt.Errorf("failed to tag the image : %w", err)
 	}
 	spinner.Success("Image tagged\n")
 
@@ -96,7 +96,7 @@ func PushImageToACR(subscriptionID, resourceGroupName, registryName, imageName s
 	if err != nil {
 		spinner.Fail("Failed to encode authentication credentials\n")
 		ai.AIExplainError(useAI, err.Error())
-		return fmt.Errorf("failed to encode authentication credentials : %v", err)
+		return fmt.Errorf("failed to encode authentication credentials : %w", err)
 	}
 
 	pushOptions := image.PushOptions{
@@ -107,7 +107,7 @@ func PushImageToACR(subscriptionID, resourceGroupName, registryName, imageName s
 	if err != nil {
 		spinner.Fail("Failed to push the image\n")
 		ai.AIExplainError(useAI, err.Error())
-		return fmt.Errorf("failed to push the image : %v", err)
+		return fmt.Errorf("failed to push the image : %w", err)
 	}
 	defer pushResponse.Close()
 
@@ -120,11 +120,11 @@ func PushImageToACR(subscriptionID, resourceGroupName, registryName, imageName s
 			}
 			spinner.Fail("Failed to read push response\n")
 			ai.AIExplainError(useAI, err.Error())
-			return fmt.Errorf("failed to read push response : %v", err)
+			return fmt.Errorf("failed to read push response : %w", err)
 		}
 		if event.Error != nil {
 			spinner.Fail("Failed to push the image\n")
-			return fmt.Errorf("failed to push the image : %v", event.Error)
+			return fmt.Errorf("failed to push the image : %w", event.Error)
 		}
 		if event.Status != "" {
 			spinner.UpdateText(event.Status)

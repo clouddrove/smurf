@@ -1,8 +1,6 @@
 package stf
 
 import (
-	"os"
-
 	"github.com/clouddrove/smurf/internal/terraform"
 	"github.com/spf13/cobra"
 )
@@ -15,11 +13,7 @@ var driftCmd = &cobra.Command{
 	Short:        "Detect drift between state and infrastructure for Terraform",
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		err := terraform.DetectDrift(driftDir, useAI)
-		if err != nil {
-			os.Exit(1)
-		}
-		return nil
+		return terraform.DetectDrift(driftDir, useAI)
 	},
 	Example: `
 	smurf stf drift

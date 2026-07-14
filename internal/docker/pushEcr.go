@@ -48,12 +48,16 @@ func (l *ECRLogger) logSuccess(message string) {
 }
 
 func (l *ECRLogger) logLayerPushed(layerID string) {
+	shortID := layerID
+	if len(shortID) > 12 {
+		shortID = shortID[:12]
+	}
 	fmt.Printf("%s[%s] %s %s%s pushed%s\n",
 		colorYellow,
 		time.Since(l.startTime).Round(time.Millisecond),
 		"⬆",
 		colorCyan,
-		layerID[:12]+"...",
+		shortID+"...",
 		colorReset)
 }
 
@@ -81,7 +85,7 @@ func PushImageToECR(imageName, region, repositoryName string, useAI bool) error 
 	if err != nil {
 		logger.logError("Failed to create AWS session", err)
 		ai.AIExplainError(useAI, err.Error())
-		return fmt.Errorf("failed to create AWS session: %v", err)
+		return fmt.Errorf("failed to create AWS session: %w", err)
 	}
 
 	ecrClient := ecr.New(sess)
@@ -101,13 +105,13 @@ func PushImageToECR(imageName, region, repositoryName string, useAI bool) error 
 			if err != nil {
 				logger.logError("Failed to create ECR repository", err)
 				ai.AIExplainError(useAI, err.Error())
-				return fmt.Errorf("failed to create ECR repository: %v", err)
+				return fmt.Errorf("failed to create ECR repository: %w", err)
 			}
 			logger.logSuccess(fmt.Sprintf("Created ECR repository: %s%s%s", colorCyan, repositoryName, colorReset))
 		} else {
 			logger.logError("Failed to describe ECR repositories", err)
 			ai.AIExplainError(useAI, err.Error())
-			return fmt.Errorf("failed to describe ECR repositories: %v", err)
+			return fmt.Errorf("failed to describe ECR repositories: %w", err)
 		}
 	}
 
@@ -116,7 +120,7 @@ func PushImageToECR(imageName, region, repositoryName string, useAI bool) error 
 	if err != nil {
 		logger.logError("Failed to get ECR authorization token", err)
 		ai.AIExplainError(useAI, err.Error())
-		return fmt.Errorf("failed to get ECR authorization token: %v", err)
+		return fmt.Errorf("failed to get ECR authorization token: %w", err)
 	}
 	if len(authTokenOutput.AuthorizationData) == 0 {
 		logger.logError("No authorization data received from ECR", nil)
@@ -128,7 +132,7 @@ func PushImageToECR(imageName, region, repositoryName string, useAI bool) error 
 	if err != nil {
 		logger.logError("Failed to decode authorization token", err)
 		ai.AIExplainError(useAI, err.Error())
-		return fmt.Errorf("failed to decode authorization token: %v", err)
+		return fmt.Errorf("failed to decode authorization token: %w", err)
 	}
 
 	credentials := strings.SplitN(string(authToken), ":", 2)
@@ -144,7 +148,7 @@ func PushImageToECR(imageName, region, repositoryName string, useAI bool) error 
 	if err != nil {
 		logger.logError("Failed to create Docker client", err)
 		ai.AIExplainError(useAI, err.Error())
-		return fmt.Errorf("failed to create Docker client: %v", err)
+		return fmt.Errorf("failed to create Docker client: %w", err)
 	}
 
 	// Docker auth
@@ -157,7 +161,7 @@ func PushImageToECR(imageName, region, repositoryName string, useAI bool) error 
 	if err != nil {
 		logger.logError("Failed to encode auth config", err)
 		ai.AIExplainError(useAI, err.Error())
-		return fmt.Errorf("failed to encode auth config: %v", err)
+		return fmt.Errorf("failed to encode auth config: %w", err)
 	}
 	authStr := base64.URLEncoding.EncodeToString(encodedJSON)
 
@@ -167,7 +171,7 @@ func PushImageToECR(imageName, region, repositoryName string, useAI bool) error 
 	if err := cli.ImageTag(ctx, imageName, ecrImage); err != nil {
 		logger.logError("Failed to tag image", err)
 		ai.AIExplainError(useAI, err.Error())
-		return fmt.Errorf("failed to tag image: %v", err)
+		return fmt.Errorf("failed to tag image: %w", err)
 	}
 	logger.logSuccess(fmt.Sprintf("Tagged image: %s%s%s", colorCyan, ecrImage, colorReset))
 
@@ -178,7 +182,7 @@ func PushImageToECR(imageName, region, repositoryName string, useAI bool) error 
 	if err != nil {
 		logger.logError("Failed to push image to ECR", err)
 		ai.AIExplainError(useAI, err.Error())
-		return fmt.Errorf("failed to push image to ECR: %v", err)
+		return fmt.Errorf("failed to push image to ECR: %w", err)
 	}
 	defer pushResponse.Close()
 
@@ -194,7 +198,7 @@ func PushImageToECR(imageName, region, repositoryName string, useAI bool) error 
 			}
 			logger.logError("Error decoding JSON message from push", err)
 			ai.AIExplainError(useAI, err.Error())
-			return fmt.Errorf("error decoding JSON message from push: %v", err)
+			return fmt.Errorf("error decoding JSON message from push: %w", err)
 		}
 
 		if errorDetail, ok := message["errorDetail"].(map[string]interface{}); ok {

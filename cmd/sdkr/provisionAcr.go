@@ -1,7 +1,6 @@
 package sdkr
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"os"
@@ -112,10 +111,8 @@ var provisionAcrCmd = &cobra.Command{
 			pushImage = fullAcrImage
 		}
 
-		if !configs.ConfirmAfterPush {
-			pterm.Info.Println("Press Enter to continue...")
-			buf := bufio.NewReader(os.Stdin)
-			_, _ = buf.ReadBytes('\n')
+		if err := confirmPush(); err != nil {
+			return err
 		}
 
 		pterm.Info.Printf("Pushing image %s to ACR...\n", pushImage)
@@ -145,7 +142,7 @@ var provisionAcrCmd = &cobra.Command{
 	},
 	Example: `
   smurf sdkr provision-acr myimage:v1 -s <SUBSCRIPTION_ID> -r <RESOURCE_GROUP> -g <REGISTRY_NAME>
-  smurf sdkr provision-acr -f Dockerfile -c -a key1=value1 -a key2=value2 -t my-target -p linux/amd64 -o report.sarif  -y -d
+  smurf sdkr provision-acr -f Dockerfile -c -a key1=value1 -a key2=value2 -t my-target -p linux/amd64 -y -d
 `,
 }
 
@@ -161,8 +158,6 @@ func init() {
 	provisionAcrCmd.Flags().StringVarP(&configs.Platform, "platform", "p", "", "Platform for the image")
 	provisionAcrCmd.Flags().StringVar(&configs.ContextDir, "context", "", "Build context directory (default: current directory)")
 	provisionAcrCmd.Flags().IntVar(&configs.BuildTimeout, "timeout", 1500, "Build timeout")
-
-	provisionAcrCmd.Flags().StringVarP(&configs.SarifFile, "output", "o", "", "Output file for SARIF report")
 
 	provisionAcrCmd.Flags().BoolVarP(&configs.ConfirmAfterPush, "yes", "y", false, "Push the image to ACR without confirmation")
 	provisionAcrCmd.Flags().BoolVarP(&configs.DeleteAfterPush, "delete", "d", false, "Delete the local image after pushing")

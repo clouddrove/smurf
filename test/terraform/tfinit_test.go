@@ -1,3 +1,5 @@
+//go:build integration
+
 package terraform_test
 
 import (
