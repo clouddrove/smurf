@@ -19,14 +19,14 @@ func Plan(vars []string, varFiles []string,
 	dir string, destroy bool,
 	targets []string, refresh bool,
 	state string, out string,
-	useAI bool) error {
+	useAI bool) (bool, error) {
 
 	Step("Initializing Terraform client...")
 	tf, err := GetTerraform(dir)
 	if err != nil {
 		Error("Failed to initialize Terraform client: %v", err)
 		ai.AIExplainError(useAI, err.Error())
-		return err
+		return false, err
 	}
 
 	var outputBuffer bytes.Buffer
@@ -56,7 +56,7 @@ func Plan(vars []string, varFiles []string,
 		if outDir != "" && outDir != "." {
 			if _, err := os.Stat(outDir); os.IsNotExist(err) {
 				Error("Output directory does not exist: %s", outDir)
-				return fmt.Errorf("output directory does not exist: %s", outDir)
+				return false, fmt.Errorf("output directory does not exist: %s", outDir)
 			}
 		}
 
@@ -85,7 +85,7 @@ func Plan(vars []string, varFiles []string,
 			if _, err := os.Stat(vf); os.IsNotExist(err) {
 				Error("Variable file not found: %s", vf)
 				ai.AIExplainError(useAI, fmt.Sprintf("Variable file not found: %s", vf))
-				return fmt.Errorf("variable file not found: %s", vf)
+				return false, fmt.Errorf("variable file not found: %s", vf)
 			}
 			Info("Using var-file: %s", vf)
 			planOptions = append(planOptions, tfexec.VarFile(vf))
@@ -118,7 +118,7 @@ func Plan(vars []string, varFiles []string,
 	hasChanges, err := tf.Plan(context.Background(), planOptions...)
 	if err != nil {
 		ai.AIExplainError(useAI, err.Error())
-		return err
+		return false, err
 	}
 
 	// Add success message based on whether there are changes
@@ -139,5 +139,5 @@ func Plan(vars []string, varFiles []string,
 		Success("Terraform plan executed successfully. Review the changes above before applying.")
 	}
 
-	return nil
+	return hasChanges, nil
 }
