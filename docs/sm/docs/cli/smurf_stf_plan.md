@@ -39,6 +39,9 @@ smurf stf plan [flags]
     # Combine with other flags
     smurf stf plan --target=aws_instance.web --destroy --var="instance_type=t2.micro" --refresh=false --state=prod.tfstate
     smurf stf plan --out=prod.plan --var-file=vars.tfvars
+
+    # CI/CD detailed exit codes (0 = no changes, 1 = error, 2 = changes pending)
+    smurf stf plan --detailed-exitcode --out=tfplan --var-file=vars.tfvars
     
 ```
 
@@ -47,6 +50,7 @@ smurf stf plan [flags]
 ```
       --ai                     To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.
       --destroy                Generate a destroy plan
+      --detailed-exitcode      Return exit code 2 when changes are pending (0 = no changes, 1 = error)
       --dir string             Specify the directory containing Terraform files (default ".")
   -h, --help                   help for plan
       --out string             Path to save the generated execution plan

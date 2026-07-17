@@ -25,7 +25,7 @@ var provisionCmd = &cobra.Command{
 			return err
 		}
 
-		if err := terraform.Plan(varNameValue, varFile, provisionDir, planDestroy, planTarget, planRefresh, planState, planOut, useAI); err != nil {
+		if _, err := terraform.Plan(varNameValue, varFile, provisionDir, planDestroy, planTarget, planRefresh, planState, planOut, useAI); err != nil {
 			return err
 		}
 

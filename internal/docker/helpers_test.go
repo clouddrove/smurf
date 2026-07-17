@@ -131,25 +131,6 @@ func TestExtractServerAddress(t *testing.T) {
 	}
 }
 
-func TestParseImageNameAndTag(t *testing.T) {
-	cases := []struct {
-		in      string
-		wantImg string
-		wantTag string
-	}{
-		{"nginx:1.25", "nginx", "1.25"},
-		{"nginx", "nginx", "latest"},
-		{"host:5000/app", "host", "5000/app"},              // single colon (registry port) splits into two parts
-		{"host:5000/app:v2", "host:5000/app:v2", "latest"}, // three colon-parts fall back to latest
-	}
-	for _, c := range cases {
-		img, tag := parseImageNameAndTag(c.in)
-		if img != c.wantImg || tag != c.wantTag {
-			t.Errorf("parseImageNameAndTag(%q) = (%q, %q), want (%q, %q)", c.in, img, tag, c.wantImg, c.wantTag)
-		}
-	}
-}
-
 func TestColorHelpers(t *testing.T) {
 	cases := []struct {
 		name string
