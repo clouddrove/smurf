@@ -3,6 +3,7 @@ package terraform
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -11,6 +12,23 @@ import (
 	"github.com/hashicorp/terraform-exec/tfexec"
 	tfjson "github.com/hashicorp/terraform-json"
 )
+
+// ErrOperationCancelled is returned when a user declines an interactive
+// approval prompt. Returning it (instead of nil) lets the error propagate to
+// RootCmd.Execute, so the CLI exits non-zero and scripts or CI can tell that
+// the operation was not carried out.
+var ErrOperationCancelled = errors.New("operation cancelled by user")
+
+// confirmApproval reports whether an operation may proceed. It returns nil when
+// approved (either pre-approved via --auto-approve or the user typed "yes"), and
+// ErrOperationCancelled when the user declined. ask is only invoked when the
+// operation was not pre-approved.
+func confirmApproval(approve bool, ask func() bool) error {
+	if approve || ask() {
+		return nil
+	}
+	return ErrOperationCancelled
+}
 
 func Apply(approve bool, vars []string,
 	varFiles []string, lock bool,
@@ -56,11 +74,9 @@ func Apply(approve bool, vars []string,
 	}
 
 	// Approval
-	if !approve {
-		if !askForApproval() {
-			Warn("Operation cancelled by user.")
-			return nil
-		}
+	if err := confirmApproval(approve, askForApproval); err != nil {
+		Warn("Operation cancelled by user.")
+		return err
 	}
 
 	// Apply
