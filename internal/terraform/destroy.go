@@ -87,16 +87,16 @@ func Destroy(approve bool, lock bool,
 	customWriter.Write([]byte(planDetail))
 
 	// Ask for confirmation if not auto-approved
-	if !approve {
+	ask := func() bool {
 		var confirmation string
 		fmt.Print("\nDo you want to destroy these resources? Only 'yes' will be accepted to approve.\nEnter a value: ")
 		fmt.Scanln(&confirmation)
 		fmt.Println()
-
-		if confirmation != "yes" {
-			Warn("Destroy operation aborted by user.")
-			return nil
-		}
+		return confirmation == "yes"
+	}
+	if err := confirmApproval(approve, ask); err != nil {
+		Warn("Destroy operation aborted by user.")
+		return err
 	}
 
 	tf.SetStdout(os.Stdout)
