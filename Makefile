@@ -93,7 +93,6 @@ hooks: .git/hooks/pre-commit
 	pre-commit install
 	pre-commit install --hook-type commit-msg
 
-
 info::
 	@echo BASENAME=$(BASENAME)
 	@echo PROGRAM=$(PROGRAM)
