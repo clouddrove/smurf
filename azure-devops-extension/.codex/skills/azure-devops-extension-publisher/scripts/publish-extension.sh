@@ -101,8 +101,8 @@ NODE
 export NPM_CONFIG_CACHE="${NPM_CONFIG_CACHE:-$ROOT_DIR/.npm-cache}"
 
 echo "Preparing Smurf Azure DevOps extension $NEXT_VERSION"
-npm --prefix "$TASK_DIR" install --package-lock-only
-npm --prefix "$TASK_DIR" ci
+npm --prefix "$TASK_DIR" install --package-lock-only --ignore-scripts
+npm --prefix "$TASK_DIR" ci --ignore-scripts
 
 jq empty vss-extension.json "$TASK_DIR/task.json" "$TASK_DIR/package.json" "$TASK_DIR/package-lock.json"
 node --check "$TASK_DIR/index.js"

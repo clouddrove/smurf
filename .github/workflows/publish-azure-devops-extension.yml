@@ -40,13 +40,13 @@ jobs:
           fi
 
       - name: Install tfx
-        run: npm install -g tfx-cli
+        run: npm install -g tfx-cli@0.23.4 --ignore-scripts
 
       - name: Validate and package extension
         shell: bash
         run: |
-          npm --prefix Smurf install --package-lock-only
-          npm --prefix Smurf ci
+          npm --prefix Smurf install --package-lock-only --ignore-scripts
+          npm --prefix Smurf ci --ignore-scripts
           jq empty vss-extension.json Smurf/task.json Smurf/package.json Smurf/package-lock.json
           node --check Smurf/index.js
           npm --prefix Smurf audit
@@ -54,10 +54,12 @@ jobs:
 
       - name: Publish extension
         shell: bash
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
           args=()
-          if [ -n "${{ inputs.version }}" ]; then
-            args+=(--version "${{ inputs.version }}")
+          if [ -n "$INPUT_VERSION" ]; then
+            args+=(--version "$INPUT_VERSION")
           fi
           .codex/skills/azure-devops-extension-publisher/scripts/publish-extension.sh "${args[@]}"
 

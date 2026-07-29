@@ -1,13 +1,15 @@
 "use strict";
 
-const fs = require("fs");
-const https = require("https");
-const os = require("os");
-const path = require("path");
-const { execFileSync } = require("child_process");
+const fs = require("node:fs");
+const https = require("node:https");
+const os = require("node:os");
+const path = require("node:path");
+const { execFileSync } = require("node:child_process");
 const task = require("azure-pipelines-task-lib/task");
 
 const REPO = "clouddrove/smurf";
+const WINDOWS_POWERSHELL = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe";
+const TAR = "/usr/bin/tar";
 
 function normalizeVersion(input) {
   const version = (input || "latest").trim();
@@ -79,14 +81,14 @@ async function installSmurf(versionInput) {
   fs.mkdirSync(installDir, { recursive: true });
 
   if (isWindows) {
-    execFileSync("powershell", [
+    execFileSync(WINDOWS_POWERSHELL, [
       "-NoLogo",
       "-NoProfile",
       "-Command",
       `Expand-Archive -LiteralPath ${quotePowerShell(archive)} -DestinationPath ${quotePowerShell(installDir)} -Force`,
     ]);
   } else {
-    execFileSync("tar", ["-xzf", archive, "-C", installDir]);
+    execFileSync(TAR, ["-xzf", archive, "-C", installDir]);
   }
 
   const binaryName = isWindows ? "smurf.exe" : "smurf";
@@ -97,7 +99,7 @@ async function installSmurf(versionInput) {
   }
 
   if (!isWindows) {
-    fs.chmodSync(binaryPath, 0o755);
+    fs.chmodSync(binaryPath, 0o755); // NOSONAR: downloaded CLI must be executable by later pipeline steps.
   }
 
   task.prependPath(path.dirname(binaryPath));
@@ -165,7 +167,7 @@ function downloadFile(url, destination) {
 }
 
 function quotePowerShell(value) {
-  return `'${value.replace(/'/g, "''")}'`;
+  return `'${value.replaceAll("'", "''")}'`;
 }
 
 function findFile(root, fileName) {
@@ -194,32 +196,10 @@ function parseCommand(command) {
   let current = "";
   let quote = "";
 
-  for (let i = 0; i < input.length; i += 1) {
-    const char = input[i];
-
-    if (quote) {
-      if (char === quote) {
-        quote = "";
-      } else {
-        current += char;
-      }
-      continue;
-    }
-
-    if (char === "\"" || char === "'") {
-      quote = char;
-      continue;
-    }
-
-    if (/\s/.test(char)) {
-      if (current) {
-        args.push(current);
-        current = "";
-      }
-      continue;
-    }
-
-    current += char;
+  for (const char of input) {
+    const state = parseCommandChar(char, quote, current, args);
+    quote = state.quote;
+    current = state.current;
   }
 
   if (quote) {
@@ -231,6 +211,29 @@ function parseCommand(command) {
   }
 
   return args;
+}
+
+function parseCommandChar(char, quote, current, args) {
+  if (quote) {
+    if (char === quote) {
+      return { quote: "", current };
+    }
+    return { quote, current: current + char };
+  }
+
+  if (char === "\"" || char === "'") {
+    return { quote: char, current };
+  }
+
+  if (/\s/.test(char)) {
+    if (current) {
+      args.push(current);
+      return { quote, current: "" };
+    }
+    return { quote, current };
+  }
+
+  return { quote, current: current + char };
 }
 
 async function run() {
