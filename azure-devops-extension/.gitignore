@@ -1,0 +1,4 @@
+.npm-cache/
+*.vsix
+Smurf/.taskkey
+Smurf/node_modules/

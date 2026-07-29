@@ -74,6 +74,17 @@ Grab the archive for your platform from the [releases page](https://github.com/c
       uses: clouddrove/smurf@v1.1.5
 ```
 
+### Azure DevOps
+The Azure DevOps Marketplace task scaffold lives in [azure-devops-extension](azure-devops-extension/README.md).
+
+```yaml
+steps:
+  - task: Smurf@1
+    inputs:
+      version: latest
+      command: stf plan
+```
+
 ### From source
 See the [installation guide](docs/sm/docs/installation.md) for building from source and platform notes.
 
