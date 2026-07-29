@@ -1,9 +1,6 @@
 name: Publish Azure DevOps Extension
 
 on:
-  push:
-    branches:
-      - feat/smurf-azure-extension
   workflow_dispatch:
     inputs:
       version:
@@ -35,7 +32,6 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Validate secret
-        if: ${{ github.event_name == 'workflow_dispatch' }}
         shell: bash
         run: |
           if [ -z "$AZURE_DEVOPS_MARKETPLACE_PAT" ]; then
@@ -47,7 +43,6 @@ jobs:
         run: npm install -g tfx-cli
 
       - name: Validate and package extension
-        if: ${{ github.event_name == 'push' }}
         shell: bash
         run: |
           npm --prefix Smurf install --package-lock-only
@@ -58,7 +53,6 @@ jobs:
           tfx extension create --manifest-globs vss-extension.json
 
       - name: Publish extension
-        if: ${{ github.event_name == 'workflow_dispatch' }}
         shell: bash
         run: |
           args=()
@@ -81,7 +75,7 @@ jobs:
           path: ${{ steps.vsix.outputs.path }}
 
       - name: Commit version bump
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.commit_version }}
+        if: ${{ inputs.commit_version }}
         shell: bash
         working-directory: .
         run: |
