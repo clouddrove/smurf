@@ -35,3 +35,9 @@ docs/.venv
 dist/
 # Local dev binary produced by make at repo root
 /smurf
+
+# Azure DevOps task dependencies and packages
+azure-devops-extension/*/node_modules/
+azure-devops-extension/*/.taskkey
+azure-devops-extension/.npm-cache/
+azure-devops-extension/*.vsix

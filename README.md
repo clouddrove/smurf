@@ -74,6 +74,31 @@ Grab the archive for your platform from the [releases page](https://github.com/c
       uses: clouddrove/smurf@v1.1.5
 ```
 
+### Azure DevOps
+Smurf is available as an [Azure DevOps Marketplace extension](https://marketplace.visualstudio.com/items?itemName=clouddrove.smurf-azure-pipelines). Extension source and release notes live in [azure-devops-extension](azure-devops-extension/README.md).
+
+```yaml
+steps:
+  - task: Smurf@1
+    displayName: Setup Smurf
+    inputs:
+      version: latest
+      command: ""
+
+  - script: smurf stf plan
+    displayName: Terraform plan
+```
+
+You can also run a single Smurf command directly through the task:
+
+```yaml
+steps:
+  - task: Smurf@1
+    inputs:
+      version: latest
+      command: stf plan
+```
+
 ### From source
 See the [installation guide](docs/sm/docs/installation.md) for building from source and platform notes.
 

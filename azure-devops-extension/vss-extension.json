@@ -1,0 +1,50 @@
+{
+  "manifestVersion": 1,
+  "id": "smurf-azure-pipelines",
+  "name": "Smurf Azure Pipelines",
+  "version": "1.0.0",
+  "publisher": "clouddrove",
+  "public": true,
+  "targets": [
+    {
+      "id": "Microsoft.VisualStudio.Services"
+    }
+  ],
+  "description": "Install and run the Smurf CLI from Azure Pipelines.",
+  "categories": [
+    "Azure Pipelines"
+  ],
+  "icons": {
+    "default": "smurf-clouddrove-icon-128x128.png"
+  },
+  "content": {
+    "details": {
+      "path": "overview.md"
+    }
+  },
+  "files": [
+    {
+      "path": "overview.md",
+      "addressable": true
+    },
+    {
+      "path": "smurf-clouddrove-icon-128x128.png",
+      "addressable": true
+    },
+    {
+      "path": "Smurf"
+    }
+  ],
+  "contributions": [
+    {
+      "id": "smurf-task",
+      "type": "ms.vss-distributed-task.task",
+      "targets": [
+        "ms.vss-distributed-task.tasks"
+      ],
+      "properties": {
+        "name": "Smurf"
+      }
+    }
+  ]
+}

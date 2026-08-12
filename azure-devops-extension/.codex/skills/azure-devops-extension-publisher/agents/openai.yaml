@@ -1,0 +1,6 @@
+interface:
+  display_name: "Azure Extension Publisher"
+  short_description: "Publish the Smurf Azure DevOps extension"
+  default_prompt: "Use $azure-devops-extension-publisher to publish the Smurf Azure DevOps extension with my Marketplace PAT."
+policy:
+  allow_implicit_invocation: true

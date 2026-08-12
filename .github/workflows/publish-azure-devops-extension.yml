@@ -1,0 +1,94 @@
+name: Publish Azure DevOps Extension
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Extension version to publish, for example 1.0.2. Leave blank to bump patch."
+        required: false
+        type: string
+      commit_version:
+        description: "Commit the version bump back to this branch."
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    name: Validate or Publish
+    runs-on: ubuntu-latest
+    env:
+      AZURE_DEVOPS_MARKETPLACE_PAT: ${{ secrets.AZURE_DEVOPS_MARKETPLACE_PAT }}
+
+    defaults:
+      run:
+        working-directory: azure-devops-extension
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate secret
+        shell: bash
+        run: |
+          if [ -z "$AZURE_DEVOPS_MARKETPLACE_PAT" ]; then
+            echo "AZURE_DEVOPS_MARKETPLACE_PAT secret is required."
+            exit 1
+          fi
+
+      - name: Install tfx
+        run: npm install -g tfx-cli@0.23.4 --ignore-scripts
+
+      - name: Validate and package extension
+        shell: bash
+        run: |
+          npm --prefix Smurf install --package-lock-only --ignore-scripts
+          npm --prefix Smurf ci --ignore-scripts
+          jq empty vss-extension.json Smurf/task.json Smurf/package.json Smurf/package-lock.json
+          node --check Smurf/index.js
+          npm --prefix Smurf audit
+          tfx extension create --manifest-globs vss-extension.json
+
+      - name: Publish extension
+        shell: bash
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          args=()
+          if [ -n "$INPUT_VERSION" ]; then
+            args+=(--version "$INPUT_VERSION")
+          fi
+          .codex/skills/azure-devops-extension-publisher/scripts/publish-extension.sh "${args[@]}"
+
+      - name: Find VSIX
+        id: vsix
+        shell: bash
+        run: |
+          vsix="$(ls -t clouddrove.smurf-azure-pipelines-*.vsix | head -n 1)"
+          echo "path=azure-devops-extension/$vsix" >> "$GITHUB_OUTPUT"
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: smurf-azure-pipelines-vsix
+          path: ${{ steps.vsix.outputs.path }}
+
+      - name: Commit version bump
+        if: ${{ inputs.commit_version }}
+        shell: bash
+        working-directory: .
+        run: |
+          if git diff --quiet -- azure-devops-extension/vss-extension.json azure-devops-extension/Smurf/task.json azure-devops-extension/Smurf/package.json azure-devops-extension/Smurf/package-lock.json; then
+            echo "No version changes to commit."
+            exit 0
+          fi
+
+          version="$(jq -r '.version' azure-devops-extension/vss-extension.json)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add azure-devops-extension/vss-extension.json azure-devops-extension/Smurf/task.json azure-devops-extension/Smurf/package.json azure-devops-extension/Smurf/package-lock.json
+          git commit -m "chore: publish azure devops extension v${version}"
+          git push
