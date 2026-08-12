@@ -1,0 +1,53 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Microsoft/azure-pipelines-task-lib/master/tasks.schema.json",
+  "id": "34ae8e9b-ed26-4315-b87e-51012e92c6b8",
+  "name": "Smurf",
+  "friendlyName": "Smurf",
+  "description": "Install and run the Smurf CLI.",
+  "helpMarkDown": "Installs smurf from GitHub Releases, adds it to PATH, and optionally runs a smurf command.",
+  "category": "Utility",
+  "author": "CloudDrove",
+  "version": {
+    "Major": 1,
+    "Minor": 0,
+    "Patch": 0
+  },
+  "minimumAgentVersion": "2.206.1",
+  "instanceNameFormat": "Smurf $(command)",
+  "inputs": [
+    {
+      "name": "version",
+      "type": "string",
+      "label": "Smurf version",
+      "defaultValue": "latest",
+      "required": false,
+      "helpMarkDown": "Version of smurf to install. Use `latest` or a release tag such as `v1.1.5`."
+    },
+    {
+      "name": "command",
+      "type": "string",
+      "label": "Command",
+      "defaultValue": "version",
+      "required": false,
+      "helpMarkDown": "Smurf command and arguments to run after installation, for example `stf plan`. Leave blank to install only."
+    },
+    {
+      "name": "workingDirectory",
+      "type": "filePath",
+      "label": "Working directory",
+      "defaultValue": "$(System.DefaultWorkingDirectory)",
+      "required": false,
+      "helpMarkDown": "Directory where the smurf command runs."
+    }
+  ],
+  "execution": {
+    "Node20_1": {
+      "target": "index.js"
+    }
+  },
+  "restrictions": {
+    "commands": {
+      "mode": "restricted"
+    }
+  }
+}
