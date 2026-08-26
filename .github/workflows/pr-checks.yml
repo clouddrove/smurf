@@ -11,4 +11,11 @@ on:
 jobs:
   pr-validation:
     if: github.actor != 'dependabot[bot]'
+    # Least privilege for the reusable workflow: it only checks out the repo,
+    # reads PR labels and lints commit messages. Without this the job would
+    # inherit the repository default token, which is write-scoped.
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
     uses: clouddrove/github-shared-workflows/.github/workflows/pr-checks.yml@b12c03fd682c618813721af75a5f681adb2ae921

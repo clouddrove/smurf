@@ -57,8 +57,12 @@ test:
 test-integration:
 	go test -tags=integration -v ./test/...
 
+# Vet the main tree, then compile-check the integration tests too. They sit
+# behind the `integration` build tag, so `go vet ./...` and `go test ./...`
+# skip them entirely and a dependency bump could break them unnoticed.
 vet:
 	go vet ./...
+	go vet -tags=integration ./test/...
 
 # Regenerate the CLI reference under docs/sm/docs/cli from the live command
 # tree, so it can never drift from the code. Depends on compile (not
