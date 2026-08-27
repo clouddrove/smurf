@@ -1,0 +1,89 @@
+name: Go Security & Coverage
+
+# Vulnerability scanning (govulncheck) and unit-test coverage reporting.
+# The shared pr-checks workflow validates commit/PR conventions; this adds the
+# Go-specific safety net.
+#
+# This workflow and lint.yml were added in #461 and removed as collateral by
+# #469, an unrelated feature PR. Nothing noticed for six weeks, during which the
+# Go toolchain pin went stale and accumulated 21 reachable stdlib CVEs.
+
+on:
+  pull_request:
+  push:
+    branches: [ master ]
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: 1.26.7
+
+jobs:
+  govulncheck:
+    name: Vulnerability scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Install govulncheck
+        # Pinned rather than @latest so a scan result is reproducible and an
+        # upstream release cannot change what this gate does without a commit.
+        #
+        # SonarCloud S8545 wants a lock-file-enforcing install here. The Go
+        # mechanism for that is a go.mod tool directive, but `go get -tool`
+        # pulls x/vuln into the main module graph: it upgraded x/net, x/text
+        # and x/tools and left go.sum incomplete. The official
+        # golang/govulncheck-action is no better, since it runs
+        # `go install ...@latest` internally with no version input. An explicit
+        # version pin is the reproducible option that does not disturb the
+        # module graph, so the rule is suppressed rather than satisfied.
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.7.0 # NOSONAR
+
+      # Human-readable report, always published even when the gate passes.
+      - name: Report
+        run: |
+          set -o pipefail
+          {
+            echo "<details><summary>Full govulncheck report</summary>"
+            echo
+            echo '```'
+            govulncheck ./... || true
+            echo '```'
+            echo
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Gate: fails only when a vulnerable symbol is actually reachable and is
+      # not allowlisted. Module-only and package-only findings do not block.
+      - name: Gate on reachable vulnerabilities
+        run: |
+          set -o pipefail
+          govulncheck -format json ./... | python3 .github/scripts/govulncheck_gate.py
+
+  coverage:
+    name: Unit-test coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Test with coverage
+        # Unit packages only. The ./test/... integration suites need docker,
+        # helm and terraform binaries; make vet compile-checks them instead.
+        run: |
+          set -euo pipefail
+          PKGS=$(go list ./... | grep -v '/test/')
+          go test -covermode=atomic -coverprofile=coverage.out $PKGS
+          {
+            echo "### Unit-test coverage"
+            echo '```'
+            go tool cover -func=coverage.out | tail -1
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          go tool cover -func=coverage.out | tail -1
