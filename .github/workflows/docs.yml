@@ -39,9 +39,9 @@ jobs:
           restore-keys: |
             mkdocs-material-
 
-      # Install from the pinned manifest so the docs build is reproducible
-      # and Dependabot has something to track.
-      - run: "pip install --only-binary :all: -r docs/sm/docs/requirements.txt"
+      # Hash-pinned install: pip verifies every artifact and refuses to run
+      # sdist setup scripts. See docs/sm/docs/requirements.txt to regenerate.
+      - run: "pip install --require-hashes --only-binary :all: -r docs/sm/docs/requirements.txt"
 
       - name: Deploy Documentation
         working-directory: ./docs/sm  # Specify your documentation directory here
