@@ -32,7 +32,16 @@ jobs:
       - name: Install govulncheck
         # Pinned rather than @latest so a scan result is reproducible and an
         # upstream release cannot change what this gate does without a commit.
-        run: go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
+        #
+        # SonarCloud S8545 wants a lock-file-enforcing install here. The Go
+        # mechanism for that is a go.mod tool directive, but `go get -tool`
+        # pulls x/vuln into the main module graph: it upgraded x/net, x/text
+        # and x/tools and left go.sum incomplete. The official
+        # golang/govulncheck-action is no better, since it runs
+        # `go install ...@latest` internally with no version input. An explicit
+        # version pin is the reproducible option that does not disturb the
+        # module graph, so the rule is suppressed rather than satisfied.
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.7.0 # NOSONAR
 
       # Human-readable report, always published even when the gate passes.
       - name: Report
