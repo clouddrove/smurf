@@ -1,12 +1,50 @@
-# Direct dependencies for the MkDocs site under docs/sm.
+# Pinned dependencies for the MkDocs site under docs/sm.
 #
-# Only direct dependencies are pinned. Transitive packages resolve to the
-# newest compatible release at install time, so security fixes land without
-# a lockfile refresh. This file used to be a full `pip freeze` that nothing
-# installed, which meant its stale pins produced Dependabot alerts for a
-# build that never used them.
+# Fully locked, including transitive packages, so the docs build is
+# reproducible and every version is auditable. Dependabot's `pip` entry in
+# .github/dependabot.yml keeps these current; do not hand-edit a single pin
+# without re-resolving the whole set.
 #
-# Install with: pip install -r docs/sm/docs/requirements.txt
+# Regenerate:
+#   python3 -m venv .venv && . .venv/bin/activate
+#   pip install mkdocs-material==<ver> mkdocs-git-revision-date-localized-plugin==<ver>
+#   pip freeze --exclude-editable | sort
+#
+# Direct dependencies are mkdocs-material and
+# mkdocs-git-revision-date-localized-plugin; the rest are transitive.
+#
+# Installed with --only-binary :all: so no sdist setup scripts execute.
 
-mkdocs-material==9.7.7
+babel==2.18.0
+backrefs==8.0
+certifi==2026.7.22
+charset-normalizer==3.5.1
+click==8.5.0
+colorama==0.4.6
+ghp-import==2.1.0
+gitdb==4.0.12
+GitPython==3.1.60
+idna==3.19
+Jinja2==3.1.6
+Markdown==3.10.3
+MarkupSafe==3.0.3
+mergedeep==1.3.4
+mkdocs-get-deps==0.2.2
 mkdocs-git-revision-date-localized-plugin==1.5.4
+mkdocs-material-extensions==1.3.1
+mkdocs-material==9.7.7
+mkdocs==1.6.1
+packaging==26.3
+paginate==0.5.7
+pathspec==1.1.1
+platformdirs==4.11.4
+Pygments==2.21.0
+pymdown-extensions==11.0.2
+python-dateutil==2.9.0.post0
+pyyaml_env_tag==1.1
+PyYAML==6.0.3
+requests==2.34.2
+six==1.17.0
+smmap==5.0.3
+urllib3==2.7.0
+watchdog==6.0.0

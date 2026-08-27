@@ -26,7 +26,10 @@ jobs:
 
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: 3.x
+          # Pinned rather than 3.x: watchdog, pulled in by mkdocs, ships no
+          # cp314 wheel, so a runner moving to 3.14 would break the build.
+          python-version: "3.13"
+
       - run: echo "cache_id=$(date --utc '+%V')" >> $GITHUB_ENV
 
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -38,7 +41,7 @@ jobs:
 
       # Install from the pinned manifest so the docs build is reproducible
       # and Dependabot has something to track.
-      - run: pip install -r docs/sm/docs/requirements.txt
+      - run: "pip install --only-binary :all: -r docs/sm/docs/requirements.txt"
 
       - name: Deploy Documentation
         working-directory: ./docs/sm  # Specify your documentation directory here
