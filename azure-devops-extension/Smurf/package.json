@@ -11,6 +11,6 @@
     "azure-pipelines-task-lib": "^5.278.0"
   },
   "overrides": {
-    "brace-expansion": "5.0.8"
+    "brace-expansion": "^1.1.18"
   }
 }
