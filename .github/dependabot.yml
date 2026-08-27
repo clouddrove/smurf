@@ -24,3 +24,26 @@ updates:
     reviewers:
       - "anmolnagpal"
       - "anketclouddrove"
+
+  # docs/sm MkDocs site. Without this entry the requirements manifest was
+  # never updated, so its advisories only ever surfaced as alerts.
+  - package-ecosystem: "pip"
+    directory: "/docs/sm/docs"
+    schedule:
+      interval: "weekly"
+    assignees:
+      - "clouddrove-ci"
+    reviewers:
+      - "anmolnagpal"
+      - "anketclouddrove"
+
+  # Azure DevOps extension task, which ships its own package-lock.json.
+  - package-ecosystem: "npm"
+    directory: "/azure-devops-extension/Smurf"
+    schedule:
+      interval: "weekly"
+    assignees:
+      - "clouddrove-ci"
+    reviewers:
+      - "anmolnagpal"
+      - "anketclouddrove"
