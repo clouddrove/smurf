@@ -18,4 +18,4 @@ jobs:
       contents: read
       pull-requests: read
       issues: read
-    uses: clouddrove/github-shared-workflows/.github/workflows/pr-checks.yml@a727e4dd4e0623d88a316157c3c354bfa1c411ae
+    uses: clouddrove/github-shared-workflows/.github/workflows/pr-checks.yml@310fe7dd76ad70c730900ac46168fc7eb082ba73
