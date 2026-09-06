@@ -1,0 +1,56 @@
+name: Docs build check
+
+# docs.yml only runs on push to master, so changes to the MkDocs site and its
+# hash-pinned requirements reached master unvalidated: a bad hash or a dropped
+# transitive dependency would only surface once it had already been merged.
+# This builds the same site on pull requests without publishing anything.
+on:
+  pull_request:
+    paths:
+      - "docs/sm/**"
+      - ".github/workflows/docs-check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build Docs (no deploy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # mkdocs-git-revision-date-localized-plugin reads commit dates, which
+          # a shallow clone does not carry.
+          fetch-depth: 0
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          # Kept in step with docs.yml: watchdog, pulled in by mkdocs, ships no
+          # cp314 wheel, so a runner moving to 3.14 would break the build.
+          python-version: "3.13"
+
+      - run: echo "cache_id=$(date --utc '+%V')" >> "$GITHUB_ENV"
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          key: mkdocs-material-${{ env.cache_id }}
+          path: .cache
+          restore-keys: |
+            mkdocs-material-
+
+      # Same install as docs.yml. This is the step the check exists for: it
+      # fails on a bad hash, a missing hash, or a transitive dependency that
+      # the lockfile does not pin.
+      - run: "pip install --require-hashes --only-binary :all: -r docs/sm/docs/requirements.txt"
+
+      - name: Build Documentation
+        working-directory: ./docs/sm
+        # --strict turns MkDocs warnings (broken links, unreadable nav entries)
+        # into failures. The site builds warning-free today.
+        run: mkdocs build --strict

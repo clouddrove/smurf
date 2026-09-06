@@ -17,6 +17,17 @@ updates:
     directory: "/" # Location of package manifests
     schedule:
       interval: "daily"
+    # The k8s.io modules share a release train and generated code that calls
+    # across module boundaries, so they only compile at a matching version.
+    # Ungrouped, dependabot opened one PR per module: #513 bumped apimachinery
+    # to 0.37.0 on its own, leaving k8s.io/api at 0.36.4, whose generated code
+    # calls validate.EachSliceVal, removed in 0.37.0. That PR could never pass
+    # CI. Grouping them means one PR that moves the whole set together.
+    groups:
+      k8s:
+        patterns:
+          - "k8s.io/*"
+          - "sigs.k8s.io/*"
     # Add assignees
     assignees:
       - "clouddrove-ci"
