@@ -190,6 +190,7 @@ invalid docker invocation once passed locally and failed only in CI.
 | `docs-check.yml` | PR | `mkdocs build --strict` |
 | `release-dry-run.yml` | PR | 6-way cross-compile, archives, changelog, checksums |
 | `release.yml` | **tag push only** | the real release |
+| `post-release-smoke.yml` | release published, or dispatch with a tag | the published assets, the ghcr image, and the action as published |
 
 Keep `GO_VERSION` in the workflows, the `go` directive in `go.mod` and the
 `golang:` tag in the Dockerfile aligned. When they drift, govulncheck evaluates
@@ -204,11 +205,24 @@ clean scan.
 
 `release.yml` runs only on tag push, so it is the one thing PRs cannot fully
 rehearse. `release-dry-run.yml` covers the cross-compile matrix, archives,
-changelog and checksums; the publish steps and the ghcr push are still first
-exercised for real on the tag.
+changelog and checksums; the publish steps and the ghcr push are inherently
+first exercised for real on the tag, since publishing is what they do.
 
-Check that PR CI is green (that now includes the image build and all 59
-subcommands), then watch the release run rather than assuming it.
+`post-release-smoke.yml` catches the result within minutes. It runs when a
+release publishes and checks what a user actually downloads: every published
+archive against checksums.txt, all six platforms present, the linux binary
+executed and reporting the tag, the ghcr image pulled anonymously with every
+bundled tool run, and action.yml as published installing on ubuntu and macOS.
+
+So the order is: PR CI green (which now includes the image build, all 59
+subcommands and the release rehearsal), push the tag, watch the release run,
+then confirm post-release smoke goes green rather than assuming it.
+
+To check an existing release at any time:
+
+```bash
+gh workflow run "Post-release smoke" --ref master -f tag=v1.1.9
+```
 
 ## Gotchas worth knowing
 
