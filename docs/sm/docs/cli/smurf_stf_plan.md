@@ -40,7 +40,7 @@ smurf stf plan [flags]
     smurf stf plan --target=aws_instance.web --destroy --var="instance_type=t2.micro" --refresh=false --state=prod.tfstate
     smurf stf plan --out=prod.plan --var-file=vars.tfvars
 
-    # CI/CD detailed exit codes (0 = no changes, 1 = error, 2 = changes pending)
+    # CI/CD: exit 0 = no changes, 1 = error, 2 = changes pending
     smurf stf plan --detailed-exitcode --out=tfplan --var-file=vars.tfvars
     
 ```
