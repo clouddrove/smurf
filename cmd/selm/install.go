@@ -14,6 +14,13 @@ import (
 var RepoURL string
 var Version string
 
+// installTimeout backs install's --timeout flag. Each selm command declares
+// its own timeout variable rather than sharing one package-level global:
+// pflag writes a flag's default into the bound variable at registration time,
+// so when install, rollback and upgrade all bound the same variable, whichever
+// init() ran last decided the default for all three.
+var installTimeout int
+
 var installCmd = &cobra.Command{
 	Use:          "install [RELEASE] [CHART]",
 	Short:        "Install a Helm chart into a Kubernetes cluster.",
@@ -53,7 +60,7 @@ var installCmd = &cobra.Command{
 			}
 		}
 
-		timeoutDuration := time.Duration(configs.Timeout) * time.Second
+		timeoutDuration := time.Duration(installTimeout) * time.Second
 
 		if configs.Namespace == "" {
 			configs.Namespace = "default"
@@ -113,7 +120,7 @@ var installCmd = &cobra.Command{
 
 func init() {
 	installCmd.Flags().StringVarP(&configs.Namespace, "namespace", "n", "", "Specify the namespace to install the Helm chart")
-	installCmd.Flags().IntVar(&configs.Timeout, "timeout", 600, "Specify the timeout in seconds to wait for any individual Kubernetes operation")
+	installCmd.Flags().IntVar(&installTimeout, "timeout", 600, "Specify the timeout in seconds to wait for any individual Kubernetes operation")
 	installCmd.Flags().StringArrayVarP(&configs.File, "values", "f", []string{}, "Specify values in a YAML file")
 	installCmd.Flags().BoolVar(&configs.Atomic, "atomic", false, "If set, installation process purges chart on fail")
 	installCmd.Flags().BoolVar(&configs.Debug, "debug", false, "Enable verbose output")

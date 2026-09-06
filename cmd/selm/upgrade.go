@@ -22,6 +22,10 @@ var (
 )
 
 // upgradeCmd facilitates upgrading an existing Helm release or installing it if it's not present
+// upgradeTimeout backs upgrade's --timeout flag. See installTimeout in
+// install.go for why each command owns its own variable.
+var upgradeTimeout int
+
 var upgradeCmd = &cobra.Command{
 	Use:          "upgrade [NAME] [CHART]",
 	Short:        "Upgrade a deployed Helm chart.",
@@ -90,7 +94,7 @@ var upgradeCmd = &cobra.Command{
 			return errors.New("RELEASE and CHART must be provided")
 		}
 
-		timeoutDuration := time.Duration(configs.Timeout) * time.Second
+		timeoutDuration := time.Duration(upgradeTimeout) * time.Second
 
 		if configs.Debug {
 			pterm.Printf("Configuration\n")
@@ -207,7 +211,7 @@ func init() {
 	upgradeCmd.Flags().StringVarP(&configs.Namespace, "namespace", "n", "default", "Specify the namespace to install the release into")
 	upgradeCmd.Flags().BoolVar(&createNamespace, "create-namespace", false, "Create the namespace if it does not exist")
 	upgradeCmd.Flags().BoolVar(&configs.Atomic, "atomic", false, "If set, the installation process purges the chart on fail, the upgrade process rolls back changes, and the upgrade process waits for the resources to be ready")
-	upgradeCmd.Flags().IntVar(&configs.Timeout, "timeout", 120, "Time to wait for any individual Kubernetes operation (like Jobs for hooks)")
+	upgradeCmd.Flags().IntVar(&upgradeTimeout, "timeout", 120, "Time to wait for any individual Kubernetes operation (like Jobs for hooks)")
 	upgradeCmd.Flags().BoolVar(&configs.Debug, "debug", false, "Enable verbose output")
 	upgradeCmd.Flags().BoolVar(&installIfNotPresent, "install", false, "Install the chart if it is not already installed")
 	upgradeCmd.Flags().BoolVar(&forceUpgrade, "force", false, "Force resource updates through delete/recreate if needed")

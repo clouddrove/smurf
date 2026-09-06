@@ -27,15 +27,10 @@ new image repository and tag.
 Use --timeout to control how long the push and Helm operations are allowed to run.`,
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// configs.Timeout is a shared global also bound by selm's install,
-		// rollback, and upgrade flags. Each of those flag registrations
-		// writes its own default into configs.Timeout at init() time (last
-		// one registered wins), so deploy cannot bind --timeout directly to
-		// configs.Timeout without its default being clobbered by another
-		// package's init() order. Instead deploy owns its own local flag var
-		// and assigns it into configs.Timeout here, at RunE time, so the
-		// value seen downstream is always the one deploy intended.
-		configs.Timeout = deployTimeout
+		// Resolved once here and passed down explicitly. Nothing shares a
+		// package-level timeout any more, so the value a helper receives is
+		// always the one this command was given.
+		deployTimeoutDuration := time.Duration(deployTimeout) * time.Second
 
 		cfg, err := configs.LoadConfig(configs.FileName)
 		if err != nil {
@@ -52,9 +47,9 @@ Use --timeout to control how long the push and Helm operations are allowed to ru
 		case cfg.Sdkr.AwsECR:
 			imageRepo, imageTag, err = handleECRPush(cfg)
 		case cfg.Sdkr.DockerHub:
-			imageRepo, imageTag, err = handleDockerHubPush(cfg)
+			imageRepo, imageTag, err = handleDockerHubPush(cfg, deployTimeoutDuration)
 		case cfg.Sdkr.GHCRRepo:
-			imageRepo, imageTag, err = handleGHCRPush(cfg)
+			imageRepo, imageTag, err = handleGHCRPush(cfg, deployTimeoutDuration)
 		case cfg.Sdkr.GCPRepo:
 			imageRepo, imageTag, err = handleGCPPush(cfg)
 		default:
@@ -66,7 +61,7 @@ Use --timeout to control how long the push and Helm operations are allowed to ru
 		}
 
 		if cfg.Selm.HelmDeploy {
-			if err := handleHelmDeploy(cfg, imageRepo, imageTag); err != nil {
+			if err := handleHelmDeploy(cfg, imageRepo, imageTag, deployTimeoutDuration); err != nil {
 				return err
 			}
 		}
@@ -82,10 +77,7 @@ Use --timeout to control how long the push and Helm operations are allowed to ru
 `,
 }
 
-// deployTimeout backs the deploy command's own --timeout flag. It is
-// deliberately not bound to configs.Timeout directly (see the comment in
-// deployCmd's RunE) to avoid collisions with the selm install/rollback/upgrade
-// commands that bind the same shared global to their own --timeout flags.
+// deployTimeout backs the deploy command's own --timeout flag.
 var deployTimeout int
 
 func init() {
@@ -166,7 +158,7 @@ func handleECRPush(cfg *configs.Config) (string, string, error) {
 	return fmt.Sprintf("%s.dkr.ecr.%s.amazonaws.com/%s", accountID, region, repo), tag, nil
 }
 
-func handleDockerHubPush(cfg *configs.Config) (string, string, error) {
+func handleDockerHubPush(cfg *configs.Config, timeout time.Duration) (string, string, error) {
 	pterm.Info.Println("📦 Handling DockerHub push...")
 
 	imageName := cfg.Sdkr.ImageName
@@ -198,7 +190,7 @@ func handleDockerHubPush(cfg *configs.Config) (string, string, error) {
 
 	if err := docker.PushImage(docker.PushOptions{
 		ImageName: fullImage,
-		Timeout:   time.Duration(configs.Timeout) * time.Second,
+		Timeout:   timeout,
 	}, false); err != nil {
 		return "", "", err
 	}
@@ -209,7 +201,7 @@ func handleDockerHubPush(cfg *configs.Config) (string, string, error) {
 	return repo, tag, nil
 }
 
-func handleGHCRPush(cfg *configs.Config) (string, string, error) {
+func handleGHCRPush(cfg *configs.Config, timeout time.Duration) (string, string, error) {
 	pterm.Info.Println("📦 Handling GHCR push...")
 
 	imageName := cfg.Sdkr.ImageName
@@ -245,7 +237,7 @@ func handleGHCRPush(cfg *configs.Config) (string, string, error) {
 
 	if err := docker.PushToGHCR(docker.PushOptions{
 		ImageName: fullImage,
-		Timeout:   time.Duration(configs.Timeout) * time.Second,
+		Timeout:   timeout,
 	}, false); err != nil {
 		return "", "", err
 	}
@@ -308,7 +300,7 @@ func handleGCPPush(cfg *configs.Config) (string, string, error) {
 	return repo, tag, nil
 }
 
-func handleHelmDeploy(data *configs.Config, imageRepo, imageTag string) error {
+func handleHelmDeploy(data *configs.Config, imageRepo, imageTag string, timeout time.Duration) error {
 	pterm.Info.Println("Starting Helm deployment...")
 
 	if strings.Contains(imageRepo, ":") {
@@ -344,7 +336,7 @@ func handleHelmDeploy(data *configs.Config, imageRepo, imageTag string) error {
 		pterm.Success.Println("✅ Updated values.yaml with new image details")
 	}
 
-	timeoutDuration := time.Duration(configs.Timeout) * time.Second
+	timeoutDuration := timeout
 
 	exists, err := helm.HelmReleaseExists(releaseName, namespace, configs.Debug, false)
 	if err != nil {
