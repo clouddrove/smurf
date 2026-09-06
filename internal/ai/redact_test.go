@@ -1,6 +1,7 @@
 package ai
 
 import (
+	"encoding/base64"
 	"strings"
 	"testing"
 )
@@ -116,6 +117,19 @@ func TestRedact_CredentialAssignments(t *testing.T) {
 	}
 }
 
+// syntheticJWT builds a JWT-shaped string at run time. Written out as a
+// literal it tripped GitHub secret scanning (alert 2 on this repo) purely on
+// shape, even though nothing here is a credential: the payload is {"sub":"1"}
+// and the signature is eight characters where HS256 needs forty-three.
+// Assembling it keeps the test honest without leaving token-shaped bait in the
+// source for a scanner, or a reader, to trip over.
+func syntheticJWT() string {
+	seg := func(s string) string {
+		return base64.RawURLEncoding.EncodeToString([]byte(s))
+	}
+	return seg(`{"alg":"HS256"}`) + "." + seg(`{"sub":"1"}`) + ".aBc-_123"
+}
+
 // TestRedact_BearerTokens covers base64 and base64url payloads. The character
 // class previously stopped at the first + or /, so the tail of a token was
 // sent upstream in the clear.
@@ -129,8 +143,8 @@ func TestRedact_BearerTokens(t *testing.T) {
 			[]string{"aGVsbG8", "d29ybGQ", "dGhpcw"},
 		},
 		"jwt": {
-			"rejected Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.aBc-_123",
-			[]string{"eyJhbGciOiJIUzI1NiJ9", "aBc-_123"},
+			"rejected Authorization: Bearer " + syntheticJWT(),
+			[]string{"eyJzdWIiOiIxIn0", "aBc-_123"},
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
