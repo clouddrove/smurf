@@ -85,6 +85,21 @@ def main():
         print(f"could not parse govulncheck JSON: {exc}", file=sys.stderr)
         return 2
 
+    # A scan that failed to load packages still emits its config header and
+    # exits non-zero, leaving a stream with no findings that is indistinguishable
+    # from a clean result by finding count alone. The workflow sets pipefail so
+    # govulncheck's exit code already fails the step, but this script is also run
+    # by hand, where a silent "no reachable vulnerabilities" would be a lie.
+    # A completed scan always emits at least one progress object; a failed load
+    # emits only config.
+    if not any("progress" in o for o in objects):
+        print(
+            "govulncheck did not complete: no progress records in its output, "
+            "so the scan produced no verdict to gate on",
+            file=sys.stderr,
+        )
+        return 2
+
     findings = [o["finding"] for o in objects if "finding" in o]
     summaries = {
         o["osv"]["id"]: o["osv"].get("summary", "").strip()

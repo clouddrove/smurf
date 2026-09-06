@@ -1,6 +1,6 @@
 module github.com/clouddrove/smurf
 
-go 1.26.8
+go 1.27.1
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.14.1
