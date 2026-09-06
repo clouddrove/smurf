@@ -1,0 +1,60 @@
+name: Docker image check
+
+# The runtime image was only ever built by release.yml on tag push, so a
+# mistake in the Dockerfile stayed invisible until a release was cut. That is
+# how three unverified downloads (two of them piping a remote script into a
+# root shell) sat in the image for so long. This builds the same image on
+# pull requests and proves each bundled tool actually runs.
+#
+# Nothing is pushed: no registry login, no credentials, contents: read only.
+on:
+  pull_request:
+    paths:
+      - "Dockerfile"
+      - "entrypoint.sh"
+      - "go.mod"
+      - "go.sum"
+      - "**/*.go"
+      - ".github/workflows/docker-check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build image (no push)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Same invocation as `make image`, minus the registry tag.
+      - name: Build image
+        run: |
+          docker build -f Dockerfile \
+            --build-arg VERSION=ci \
+            --build-arg COMMIT="${GITHUB_SHA}" \
+            --build-arg DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            -t smurf:ci .
+
+      # A build that succeeds still proves nothing about the tools inside, and
+      # every one of them is installed by a step this check exists to guard.
+      # --entrypoint bypasses entrypoint.sh, which expects action inputs.
+      - name: Smoke test bundled tools
+        run: |
+          set -x
+          docker run --rm --entrypoint sh smurf:ci -c '
+            set -e
+            smurf --version
+            terraform version
+            trivy --version
+            gcloud version
+            gcloud components list --only-local-state --format="value(id)" | grep -q gke-gcloud-auth-plugin
+            aws --version
+            docker --version
+            git --version
+          '
