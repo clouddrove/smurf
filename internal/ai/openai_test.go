@@ -97,14 +97,40 @@ func TestIsEnabled(t *testing.T) {
 }
 
 func TestAskAI_NoAPIKey(t *testing.T) {
-	// With no key, AskAI must return an error before any network call is made.
+	// With no key and no endpoint, AskAI must return an error before any
+	// network call is made. The assertion is on the contract rather than the
+	// exact sentence: the message now also offers a way forward, and pinning
+	// its wording would break every time that guidance improves.
 	t.Setenv("OPENAI_API_KEY", "")
+	t.Setenv("OPENAI_BASE_URL", "")
 	_, err := AskAI("anything")
 	if err == nil {
 		t.Fatal("AskAI expected an error when OPENAI_API_KEY is unset, got nil")
 	}
-	if !strings.Contains(err.Error(), "OPENAI_API_KEY is not set") {
-		t.Errorf("error = %q, want it to mention 'OPENAI_API_KEY is not set'", err.Error())
+	if !strings.Contains(err.Error(), "OPENAI_API_KEY") {
+		t.Errorf("error = %q, want it to name the variable to set", err.Error())
+	}
+}
+
+func TestAskAI_LocalEndpointNeedsNoKey(t *testing.T) {
+	// A local server is the configuration that costs nothing, so an absent key
+	// must not stop the call. Port 1 is chosen because nothing listens there:
+	// the call is expected to fail on connection, which proves it got past the
+	// credential check rather than being rejected before the network.
+	t.Setenv("OPENAI_API_KEY", "")
+	t.Setenv("OPENAI_BASE_URL", "http://127.0.0.1:1/v1")
+	t.Setenv(envNoCache, "1")
+
+	_, err := AskAI("anything")
+
+	if err == nil {
+		t.Fatal("expected a connection failure, got nil")
+	}
+	if strings.Contains(err.Error(), "no OPENAI_API_KEY") {
+		t.Errorf("a local endpoint must not be blocked on a missing key, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "127.0.0.1:1") {
+		t.Errorf("the error should name the endpoint that failed, got: %v", err)
 	}
 }
 
