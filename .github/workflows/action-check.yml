@@ -1,0 +1,88 @@
+name: Action check
+
+# action.yml is how most people consume smurf, and until now no workflow ever
+# ran it. It is a composite action with its own platform detection, download,
+# checksum verification and install steps, none of which the Go tests touch.
+#
+# `uses: ./` runs the action as checked out in this PR, so a break is caught
+# here rather than by a user after the tag is published.
+on:
+  pull_request:
+    paths:
+      - "action.yml"
+      - ".github/actions/**"
+      - "entrypoint.sh"
+      - ".github/workflows/action-check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: action-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  install:
+    name: Install via action (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      # The action branches on RUNNER_OS and uname -m, and computes its checksum
+      # with sha256sum on Linux and shasum on macOS. Both paths need exercising.
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Exercises the action as written in this PR, not a published release.
+      - name: Install smurf via the action
+        uses: ./
+
+      # Installing without erroring is not proof the binary works.
+      - name: Verify the installed binary runs
+        run: |
+          set -euo pipefail
+          command -v smurf
+          smurf version
+          smurf --help
+          smurf sdkr --help
+          smurf selm --help
+          smurf stf --help
+
+      # init writes smurf.yaml and is the entry point of the documented
+      # workflow, so it is the cheapest end-to-end check that the binary is
+      # functional rather than merely present.
+      - name: Exercise smurf init
+        run: |
+          set -euo pipefail
+          workdir="$(mktemp -d)"
+          cd "$workdir"
+          smurf init
+          test -f smurf.yaml || { echo "smurf init did not create smurf.yaml"; exit 1; }
+          echo "--- generated smurf.yaml ---"
+          cat smurf.yaml
+
+  pinned-version:
+    name: Install a pinned version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The default is "latest"; the explicit-version path resolves a different
+      # URL and is what most consumers pin to, so it needs its own coverage.
+      - name: Install a specific version via the action
+        uses: ./
+        with:
+          version: v1.1.9
+
+      - name: Verify the pinned version is the one installed
+        run: |
+          set -euo pipefail
+          smurf version
+          # Anchored to the Version line: a bare grep for the number would
+          # also match the Go version or build date and pass by accident.
+          # Verified against the real v1.1.9 release, which prints
+          # "Version:    v1.1.9".
+          smurf version | grep -Eq '^Version: +v1\.1\.9$' || {
+            echo "expected v1.1.9 to be installed, got:"; smurf version; exit 1; }

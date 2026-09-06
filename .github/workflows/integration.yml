@@ -1,0 +1,80 @@
+name: Integration tests
+
+# test/{docker,helm,terraform} carry //go:build integration, and no workflow
+# ever passed that tag, so six suites sat written but never executed. They need
+# real services rather than mocks: a Docker daemon, a Kubernetes cluster and the
+# terraform binary. Each suite runs in its own job so one missing service cannot
+# mask the others.
+on:
+  pull_request:
+    paths:
+      - "**/*.go"
+      - "go.mod"
+      - "go.sum"
+      - ".github/workflows/integration.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: integration-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: 1.27.1
+
+jobs:
+  docker:
+    name: Integration - docker
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      # The runner image already provides a working daemon; fail loudly here
+      # rather than inside a test if that ever stops being true.
+      - name: Verify Docker daemon
+        run: docker version
+
+      - run: go test -v -tags integration -timeout 15m ./test/docker/...
+
+  terraform:
+    name: Integration - terraform
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      # tfexec drives a real terraform binary; the suites use the null provider,
+      # so the registry must be reachable for `terraform init`.
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_wrapper: false
+
+      - run: terraform version
+      - run: go test -v -tags integration -timeout 15m ./test/terraform/...
+
+  helm:
+    name: Integration - helm
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      # HelmInstall runs with atomic: true and expects success, so it needs a
+      # real cluster to install into, not just a kubeconfig.
+      - uses: helm/kind-action@06c1ae10762d3b9c1644e7fe69596ae519e015a2 # v1.15.0
+        with:
+          cluster_name: smurf-integration
+
+      - name: Verify cluster is reachable
+        run: kubectl cluster-info
+
+      - run: go test -v -tags integration -timeout 20m ./test/helm/...

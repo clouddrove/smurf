@@ -41,8 +41,33 @@ runs:
         set -euo pipefail
 
         if [ "$INPUT_VERSION" = "latest" ]; then
-          # Get latest tag
-          LATEST_TAG=$(curl -s https://api.github.com/repos/clouddrove/smurf/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+          # Resolved from the releases/latest redirect rather than the REST API.
+          # The API allows 60 unauthenticated requests per hour per IP, and
+          # hosted runners share egress addresses, so the previous
+          # `curl -s ... | grep tag_name` returned nothing once that budget was
+          # spent. Under `set -e -o pipefail` the grep failure exited 1 with no
+          # message, which is how this failed on macOS runners while passing on
+          # ubuntu. The redirect carries no such limit.
+          if ! LATEST_URL=$(curl -fsSLI -o /dev/null -w '%{url_effective}' \
+              --proto '=https' --proto-redir '=https' --tlsv1.2 \
+              https://github.com/clouddrove/smurf/releases/latest); then
+            echo "❌ Could not reach GitHub to resolve the latest smurf release."
+            echo "   Pass an explicit version (e.g. version: v1.1.9) to skip this lookup."
+            exit 1
+          fi
+
+          LATEST_TAG="${LATEST_URL##*/}"
+
+          # A redirect to the releases index rather than a tag means no release
+          # was resolved; without this the empty value flows into the download
+          # URL and fails later with a confusing 404.
+          if [[ ! "$LATEST_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "❌ Could not determine the latest smurf release (got: '$LATEST_TAG')."
+            echo "   Pass an explicit version (e.g. version: v1.1.9) to skip this lookup."
+            exit 1
+          fi
+
+          echo "Resolved latest release: $LATEST_TAG"
           echo "tag=${LATEST_TAG}" >> "$GITHUB_OUTPUT"
         else
           # Validate version format (must start with v and contain only safe chars)

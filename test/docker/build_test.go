@@ -40,7 +40,11 @@ CMD ["echo", "hello"]`
 	err = docker.Build(imageName, tag, opts, false)
 	require.NoError(t, err)
 
-	cli, err := client.NewClientWithOpts(client.FromEnv)
+	// The daemon on CI runners can be older than the API version this SDK
+	// defaults to, so negotiate down to what it supports. internal/docker does
+	// the same on every client it builds; without it these helper clients fail
+	// with "client version X is too new" while the code under test succeeds.
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	require.NoError(t, err)
 	defer cli.Close()
 

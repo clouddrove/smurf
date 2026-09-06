@@ -17,7 +17,11 @@ import (
 // TestRemoveImage tests the RemoveImage function by pulling an image, removing it, and then checking if it still exists.
 // It also tests the case where the image does not exist.
 func TestTagImage(t *testing.T) {
-	cli, err := client.NewClientWithOpts(client.FromEnv)
+	// The daemon on CI runners can be older than the API version this SDK
+	// defaults to, so negotiate down to what it supports. internal/docker does
+	// the same on every client it builds; without it these helper clients fail
+	// with "client version X is too new" while the code under test succeeds.
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	require.NoError(t, err)
 	defer cli.Close()
 
