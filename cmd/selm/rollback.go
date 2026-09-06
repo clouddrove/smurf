@@ -16,6 +16,10 @@ import (
 // It either takes both RELEASE and REVISION as command-line arguments or reads them
 // from a config file if none are provided. The user can also configure namespace, timeout,
 // debug, and force options. If the release or revision is invalid, an error is returned.
+// rollbackTimeout backs rollback's --timeout flag. See installTimeout in
+// install.go for why each command owns its own variable.
+var rollbackTimeout int
+
 var rollbackCmd = &cobra.Command{
 	Use:   "rollback [RELEASE] [REVISION]",
 	Short: "Roll back a release to a previous revision",
@@ -92,7 +96,7 @@ The first argument is the name of the release to roll back, and the second is th
 			Namespace: configs.Namespace,
 			Debug:     configs.Debug,
 			Force:     configs.Force,
-			Timeout:   configs.Timeout,
+			Timeout:   rollbackTimeout,
 			Wait:      configs.Wait,
 		}
 
@@ -109,7 +113,7 @@ func init() {
 	rollbackCmd.Flags().StringVarP(&configs.Namespace, "namespace", "n", "default", "Namespace of the release")
 	rollbackCmd.Flags().BoolVar(&configs.Debug, "debug", false, "Enable debug logging")
 	rollbackCmd.Flags().BoolVar(&configs.Force, "force", false, "Force rollback even if there are conflicts")
-	rollbackCmd.Flags().IntVar(&configs.Timeout, "timeout", 300, "Timeout for the rollback operation in seconds")
+	rollbackCmd.Flags().IntVar(&rollbackTimeout, "timeout", 300, "Timeout for the rollback operation in seconds")
 	rollbackCmd.Flags().BoolVar(&configs.Wait, "wait", true, "Wait until all resources are rolled back successfully")
 	rollbackCmd.Flags().IntVar(&historyMax, "history-max", 10, "Limit the maximum number of revisions saved per release")
 	rollbackCmd.Flags().BoolVar(&useAI, "ai", false, "To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.")
