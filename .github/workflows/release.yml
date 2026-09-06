@@ -128,10 +128,19 @@ jobs:
       # objects.githubusercontent.com, so redirects have to be followed, and
       # --proto-redir '=https' constrains every hop to HTTPS instead. --proto
       # '=https' rejects a non-HTTPS URL outright. Matches action.yml.
+      #
+      # The checksum is pinned here rather than fetched from the release's own
+      # checksums.txt: a value committed to this repo is reviewed in git, while
+      # a checksum file pulled from the same release could be replaced by
+      # whoever replaced the tarball. Update both together when bumping.
+      env:
+        CHGLOG_VERSION: 0.15.1
+        CHGLOG_SHA256: 5247e4602bac520e92fca317322fe716968a27aab1d91706f316627e3a3ee8e6
       run: |
         curl -fsSLO --proto '=https' --proto-redir '=https' --tlsv1.2 \
-          https://github.com/git-chglog/git-chglog/releases/download/v0.15.1/git-chglog_0.15.1_linux_amd64.tar.gz
-        tar xzf git-chglog*.tar.gz git-chglog
+          "https://github.com/git-chglog/git-chglog/releases/download/v${CHGLOG_VERSION}/git-chglog_${CHGLOG_VERSION}_linux_amd64.tar.gz"
+        echo "${CHGLOG_SHA256}  git-chglog_${CHGLOG_VERSION}_linux_amd64.tar.gz" | sha256sum -c -
+        tar xzf "git-chglog_${CHGLOG_VERSION}_linux_amd64.tar.gz" git-chglog
         
     - name: "Get Last Release"
       id: last_release

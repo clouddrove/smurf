@@ -76,6 +76,39 @@ runs:
           echo "❌ Failed to download smurf from $URL"
           exit 1
         fi
+
+        # Verify against checksums.txt from the same release. The version is
+        # chosen at runtime, so a checksum cannot be pinned in this file.
+        # This catches a truncated or corrupted download and a tarball swapped
+        # on its own; it does NOT defend against someone who can rewrite the
+        # whole release, since they could rewrite checksums.txt with it.
+        TARBALL="smurf-${VERSION}-${OS}-${ARCH}.tar.gz"
+        SUMS_URL="https://github.com/clouddrove/smurf/releases/download/${VERSION}/checksums.txt"
+        if ! curl -fsSLo checksums.txt --proto '=https' --proto-redir '=https' --tlsv1.2 "$SUMS_URL"; then
+          echo "❌ Failed to download checksums from $SUMS_URL"
+          exit 1
+        fi
+        EXPECTED="$(awk -v f="$TARBALL" '$2 == f { print $1 }' checksums.txt)"
+        if [ -z "$EXPECTED" ]; then
+          echo "❌ No checksum for $TARBALL in checksums.txt"
+          exit 1
+        fi
+        # This action supports macOS runners, which ship shasum rather than
+        # the GNU sha256sum available on the Linux images.
+        if command -v sha256sum >/dev/null 2>&1; then
+          ACTUAL="$(sha256sum smurf.tar.gz | cut -d' ' -f1)"
+        else
+          ACTUAL="$(shasum -a 256 smurf.tar.gz | cut -d' ' -f1)"
+        fi
+        if [ "$EXPECTED" != "$ACTUAL" ]; then
+          echo "❌ Checksum mismatch for $TARBALL"
+          echo "   expected: $EXPECTED"
+          echo "   actual:   $ACTUAL"
+          exit 1
+        fi
+        echo "✅ Checksum verified for $TARBALL"
+        rm -f checksums.txt
+
         tar -xzf smurf.tar.gz
         chmod +x smurf
         sudo mv smurf /usr/local/bin/
