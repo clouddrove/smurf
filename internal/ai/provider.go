@@ -13,8 +13,10 @@ import (
 // endpoint, or a local Ollama or llama.cpp server. That covers both bring your
 // own key and running at no cost, without a second SDK or a provider registry
 // to maintain.
+
+// These name environment variables; they hold no secret themselves.
 const (
-	envAPIKey  = "OPENAI_API_KEY"
+	envAuthVar = "OPENAI_API_KEY"
 	envBaseURL = "OPENAI_BASE_URL"
 	envModel   = "OPENAI_MODEL"
 )
@@ -34,7 +36,7 @@ type providerConfig struct {
 // required only when talking to the default OpenAI endpoint.
 func resolveProvider() providerConfig {
 	return providerConfig{
-		APIKey:  strings.TrimSpace(os.Getenv(envAPIKey)),
+		APIKey:  strings.TrimSpace(os.Getenv(envAuthVar)),
 		BaseURL: strings.TrimSpace(os.Getenv(envBaseURL)),
 		Model:   modelFromEnv(),
 	}
@@ -68,13 +70,13 @@ func (p providerConfig) credentialsMissing() (bool, string) {
 		return false, ""
 	}
 	if p.BaseURL != "" {
-		return true, "AI mode enabled but no " + envAPIKey + " found for " + p.BaseURL +
+		return true, "AI mode enabled but no " + envAuthVar + " found for " + p.BaseURL +
 			"\nSet a key for that endpoint, or point " + envBaseURL + " at a local server such as http://localhost:11434/v1"
 	}
-	return true, "AI mode enabled but no " + envAPIKey + " found." +
+	return true, "AI mode enabled but no " + envAuthVar + " found." +
 		"\nEither export a key, or set " + envBaseURL + " to another OpenAI-compatible endpoint" +
 		"\n  free and local:  export " + envBaseURL + "=http://localhost:11434/v1 && export " + envModel + "=llama3.2" +
-		"\n  hosted free tier: export " + envBaseURL + "=https://api.groq.com/openai/v1 && export " + envAPIKey + "=<key>"
+		"\n  hosted free tier: export " + envBaseURL + "=https://api.groq.com/openai/v1 && export " + envAuthVar + "=<key>"
 }
 
 // authToken is what gets handed to the client. Local servers ignore the value

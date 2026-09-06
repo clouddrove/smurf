@@ -70,6 +70,22 @@ func cacheDir() string {
 	return dir
 }
 
+// cacheEntryPath builds the path for a key, refusing anything that is not the
+// hex digest cacheKey produces. The value never comes from user input today,
+// but constructing a path from a variable deserves the check rather than the
+// assumption, and it keeps the guarantee local to where the path is built.
+func cacheEntryPath(dir, key string) (string, bool) {
+	if len(key) != sha256.Size*2 {
+		return "", false
+	}
+	for _, c := range key {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return "", false
+		}
+	}
+	return filepath.Join(dir, key), true
+}
+
 // cacheLookup returns a cached response when one exists and is still fresh.
 //
 // Every failure path here returns a miss rather than an error: a cache that
@@ -82,7 +98,10 @@ func cacheLookup(p providerConfig, prompt string) (string, bool) {
 	if dir == "" {
 		return "", false
 	}
-	path := filepath.Join(dir, cacheKey(p, prompt))
+	path, ok := cacheEntryPath(dir, cacheKey(p, prompt))
+	if !ok {
+		return "", false
+	}
 
 	info, err := os.Stat(path)
 	if err != nil {
@@ -93,7 +112,7 @@ func cacheLookup(p providerConfig, prompt string) (string, bool) {
 		_ = os.Remove(path)
 		return "", false
 	}
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- path is dir + a validated hex digest, see cacheEntryPath
 	if err != nil || len(data) == 0 {
 		return "", false
 	}
@@ -110,7 +129,11 @@ func cacheStore(p providerConfig, prompt, response string) {
 	if dir == "" {
 		return
 	}
+	path, ok := cacheEntryPath(dir, cacheKey(p, prompt))
+	if !ok {
+		return
+	}
 	// 0600: an explanation embeds the error text it was derived from, which can
 	// include paths and infrastructure detail from the user's environment.
-	_ = os.WriteFile(filepath.Join(dir, cacheKey(p, prompt)), []byte(response), 0o600)
+	_ = os.WriteFile(path, []byte(response), 0o600)
 }

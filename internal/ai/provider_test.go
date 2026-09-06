@@ -6,7 +6,7 @@ import (
 )
 
 func TestResolveProvider_ReadsEnvironment(t *testing.T) {
-	t.Setenv(envAPIKey, "sk-test")
+	t.Setenv(envAuthVar, "sk-test")
 	t.Setenv(envBaseURL, "https://api.groq.com/openai/v1")
 	t.Setenv(envModel, "llama-3.3-70b")
 
@@ -27,7 +27,7 @@ func TestResolveProvider_TrimsWhitespace(t *testing.T) {
 	// A key pasted from a dashboard often carries a trailing newline, which
 	// would otherwise be sent in the Authorization header and rejected with an
 	// opaque 401.
-	t.Setenv(envAPIKey, "  sk-test\n")
+	t.Setenv(envAuthVar, "  sk-test\n")
 	t.Setenv(envBaseURL, " http://localhost:11434/v1 ")
 
 	p := resolveProvider()

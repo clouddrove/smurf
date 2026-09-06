@@ -176,8 +176,13 @@ func AskAI(prompt string) (string, error) {
 
 	// Build request
 	req := openai.ChatCompletionRequest{
-		Model:       provider.Model,
-		MaxTokens:   maxResponseTokens,
+		Model: provider.Model,
+		// MaxTokens rather than MaxCompletionTokens: the newer field is an
+		// OpenAI addition for the o1 series, and the compatible servers this
+		// now targets, Ollama and llama.cpp among them, understand only
+		// max_tokens. Choosing the deprecated field keeps the cost ceiling
+		// effective everywhere instead of only against OpenAI.
+		MaxTokens:   maxResponseTokens, //nolint:staticcheck // SA1019: see above
 		Temperature: responseTemp,
 		Messages: []openai.ChatCompletionMessage{
 			{

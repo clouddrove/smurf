@@ -47,7 +47,7 @@ func TestAskAI_AgainstLocalEndpointWithoutAKey(t *testing.T) {
 	var seen map[string]any
 	srv := stubEndpoint(t, "ROOT CAUSE:\n- stub", &seen)
 
-	t.Setenv(envAPIKey, "")
+	t.Setenv(envAuthVar, "")
 	t.Setenv(envBaseURL, srv.URL+"/v1")
 	t.Setenv(envModel, "llama3.2")
 
@@ -78,7 +78,7 @@ func TestAskAI_SendsCostControls(t *testing.T) {
 	var seen map[string]any
 	srv := stubEndpoint(t, "ok", &seen)
 
-	t.Setenv(envAPIKey, "")
+	t.Setenv(envAuthVar, "")
 	t.Setenv(envBaseURL, srv.URL+"/v1")
 
 	if _, err := AskAI("prompt"); err != nil {
@@ -105,7 +105,7 @@ func TestAskAI_SecondIdenticalCallIsServedFromCache(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	t.Setenv(envAPIKey, "")
+	t.Setenv(envAuthVar, "")
 	t.Setenv(envBaseURL, srv.URL+"/v1")
 
 	first, err := AskAI("identical prompt")
@@ -137,7 +137,7 @@ func TestAskAI_DifferentPromptBypassesCache(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	t.Setenv(envAPIKey, "")
+	t.Setenv(envAuthVar, "")
 	t.Setenv(envBaseURL, srv.URL+"/v1")
 
 	if _, err := AskAI("first prompt"); err != nil {
@@ -161,7 +161,7 @@ func TestAskAI_ErrorNamesTheEndpoint(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	t.Setenv(envAPIKey, "")
+	t.Setenv(envAuthVar, "")
 	t.Setenv(envBaseURL, srv.URL+"/v1")
 
 	_, err := AskAI("prompt")
