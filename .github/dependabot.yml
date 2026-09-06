@@ -48,6 +48,21 @@ updates:
       - "anmolnagpal"
       - "anketclouddrove"
 
+  # The runtime image's base images. Without this entry nothing tracked them,
+  # and alpine sat on 3.18 for over a year past its 2025-05-09 end of life.
+  # Note this covers FROM lines only: the gcloud, Trivy and Terraform versions
+  # pinned as ARGs in the Dockerfile are not something dependabot updates, so
+  # those stay manual.
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    assignees:
+      - "clouddrove-ci"
+    reviewers:
+      - "anmolnagpal"
+      - "anketclouddrove"
+
   # Azure DevOps extension task, which ships its own package-lock.json.
   - package-ecosystem: "npm"
     directory: "/azure-devops-extension/Smurf"
