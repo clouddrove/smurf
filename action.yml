@@ -69,8 +69,10 @@ runs:
         
         echo "Downloading from: $URL"
         
-        # Download and extract
-        if ! curl -fsSLo smurf.tar.gz "$URL"; then
+        # Download and extract. --proto '=https' rejects a non-HTTPS URL and
+        # --proto-redir '=https' keeps every redirect hop on HTTPS, so the
+        # release tarball cannot be fetched over plain HTTP via a redirect.
+        if ! curl -fsSLo smurf.tar.gz --proto '=https' --proto-redir '=https' --tlsv1.2 "$URL"; then
           echo "❌ Failed to download smurf from $URL"
           exit 1
         fi

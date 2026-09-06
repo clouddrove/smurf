@@ -124,8 +124,11 @@ jobs:
         merge-multiple: true
 
     - name: Install ChangeLog generator
+      # --https-only keeps every hop of the redirect chain on HTTPS; without it
+      # a redirect can downgrade to plain HTTP and the tarball we then unpack
+      # comes off the wire unauthenticated.
       run: |
-        wget https://github.com/git-chglog/git-chglog/releases/download/v0.15.1/git-chglog_0.15.1_linux_amd64.tar.gz
+        wget --https-only https://github.com/git-chglog/git-chglog/releases/download/v0.15.1/git-chglog_0.15.1_linux_amd64.tar.gz
         tar xzf git-chglog*.tar.gz git-chglog
         
     - name: "Get Last Release"
