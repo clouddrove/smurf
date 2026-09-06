@@ -1,0 +1,193 @@
+name: Release dry run
+
+# release.yml only ever runs on `push: tags`, so tag day was the first and only
+# execution of the cross-compile matrix, the archive and checksum steps, and
+# changelog generation. A break there is discovered while cutting a release,
+# which is the worst possible moment.
+#
+# This rehearses every one of those steps on a pull request and publishes
+# nothing: no GitHub release, no registry login, no image push. contents: read
+# throughout. The image build itself is already covered by docker-check.yml.
+on:
+  pull_request:
+    paths:
+      - "**/*.go"
+      - "go.mod"
+      - "go.sum"
+      - "Makefile"
+      - ".chglog/**"
+      - ".github/workflows/release.yml"
+      - ".github/workflows/release-dry-run.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-dry-run-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: 1.27.1
+  APP_PACKAGE: github.com/clouddrove/smurf/cmd
+  BINARY_NAME: smurf
+
+jobs:
+  build-matrix:
+    name: Cross-compile ${{ matrix.GOOS }}/${{ matrix.GOARCH }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      # Mirrors release.yml exactly. A dependency that fails to cross-compile
+      # for one of these, windows/arm64 being the usual suspect, currently
+      # surfaces only once a tag is pushed.
+      matrix:
+        GOOS: [linux, darwin, windows]
+        GOARCH: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      # release.yml derives this from the pushed tag. There is no tag here, so
+      # a placeholder in the same vX.Y.Z shape stands in; the point is to prove
+      # the ldflags injection works, not what the number says.
+      - name: Synthesise build info
+        id: buildinfo
+        run: |
+          set -euo pipefail
+          {
+            echo "version=v0.0.0-pr${{ github.event.pull_request.number || 0 }}"
+            echo "commit=$(git rev-parse --short HEAD)"
+            echo "date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build with version injection
+        run: |
+          set -euo pipefail
+          OUTPUT_NAME="${BINARY_NAME}"
+          if [ "${{ matrix.GOOS }}" = "windows" ]; then
+            OUTPUT_NAME="$OUTPUT_NAME.exe"
+          fi
+          mkdir -p "bin/${{ matrix.GOOS }}-${{ matrix.GOARCH }}"
+          GOOS=${{ matrix.GOOS }} GOARCH=${{ matrix.GOARCH }} go build -a \
+            -ldflags "\
+              -X '${APP_PACKAGE}.version=${{ steps.buildinfo.outputs.version }}' \
+              -X '${APP_PACKAGE}.commit=${{ steps.buildinfo.outputs.commit }}' \
+              -X '${APP_PACKAGE}.date=${{ steps.buildinfo.outputs.date }}'" \
+            -o "bin/${{ matrix.GOOS }}-${{ matrix.GOARCH }}/$OUTPUT_NAME" .
+
+      - name: Create distribution archive
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          ARCHIVE_NAME="${BINARY_NAME}-${{ steps.buildinfo.outputs.version }}-${{ matrix.GOOS }}-${{ matrix.GOARCH }}"
+          if [ "${{ matrix.GOOS }}" = "windows" ]; then
+            zip -j "dist/$ARCHIVE_NAME.zip" "bin/${{ matrix.GOOS }}-${{ matrix.GOARCH }}/${BINARY_NAME}.exe"
+          else
+            tar -czf "dist/$ARCHIVE_NAME.tar.gz" -C "bin/${{ matrix.GOOS }}-${{ matrix.GOARCH }}" "${BINARY_NAME}"
+          fi
+          ls -la dist/
+
+      # An archive that exists but is empty or missing its binary would still
+      # upload cleanly during a real release and only fail for whoever
+      # downloads it.
+      - name: Verify the archive holds the binary
+        run: |
+          set -euo pipefail
+          cd dist
+          archive=$(ls)
+          echo "checking $archive"
+          case "$archive" in
+            *.zip) unzip -l "$archive" | grep -q "${BINARY_NAME}.exe" ;;
+            *)     tar -tzf "$archive" | grep -qx "${BINARY_NAME}" ;;
+          esac
+          size=$(wc -c < "$archive")
+          [ "$size" -gt 1000000 ] || { echo "archive suspiciously small: $size bytes"; exit 1; }
+
+      # Only the native binary can actually be executed here, and it is the one
+      # that proves the ldflags landed rather than silently producing a binary
+      # that reports an empty version.
+      - name: Run the binary and confirm version injection
+        if: matrix.GOOS == 'linux' && matrix.GOARCH == 'amd64'
+        run: |
+          set -euo pipefail
+          BIN="bin/linux-amd64/${BINARY_NAME}"
+          "$BIN" version
+          "$BIN" version | grep -Eq "^Version: +${{ steps.buildinfo.outputs.version }}$" || {
+            echo "ldflags version injection did not take effect"; "$BIN" version; exit 1; }
+          "$BIN" version | grep -Eq '^Git commit: +[0-9a-f]{7,}$' || {
+            echo "ldflags commit injection did not take effect"; "$BIN" version; exit 1; }
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dryrun-${{ matrix.GOOS }}-${{ matrix.GOARCH }}
+          path: dist
+          retention-days: 1
+
+  package:
+    name: Changelog and checksums
+    runs-on: ubuntu-latest
+    needs: build-matrix
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          path: artifacts
+          pattern: dryrun-*
+          merge-multiple: true
+
+      # Same pinned download and checksum as release.yml. Kept in step with it.
+      - name: Install ChangeLog generator
+        env:
+          CHGLOG_VERSION: 0.15.1
+          CHGLOG_SHA256: 5247e4602bac520e92fca317322fe716968a27aab1d91706f316627e3a3ee8e6
+        run: |
+          set -euo pipefail
+          curl -fsSLO --proto '=https' --proto-redir '=https' --tlsv1.2 \
+            "https://github.com/git-chglog/git-chglog/releases/download/v${CHGLOG_VERSION}/git-chglog_${CHGLOG_VERSION}_linux_amd64.tar.gz"
+          echo "${CHGLOG_SHA256}  git-chglog_${CHGLOG_VERSION}_linux_amd64.tar.gz" | sha256sum -c -
+          tar xzf "git-chglog_${CHGLOG_VERSION}_linux_amd64.tar.gz" git-chglog
+
+      # `make CHANGELOG.md` rewrites .chglog/config.yml via sed and then runs
+      # git-chglog. It needs full history, and it is the step most likely to
+      # break quietly, since nothing else ever invokes it.
+      - name: Generate the changelog
+        run: |
+          set -euo pipefail
+          PATH="${PATH}:." make CHANGELOG.md
+          test -s CHANGELOG.md || { echo "CHANGELOG.md came out empty"; exit 1; }
+          echo "--- first 30 lines ---"
+          head -30 CHANGELOG.md
+
+      - name: Generate checksums
+        run: |
+          set -euo pipefail
+          cd artifacts
+          ls -la
+          for file in *.tar.gz *.zip; do
+            [ -f "$file" ] && sha256sum "$file" >> checksums.txt
+          done
+          echo "--- checksums.txt ---"
+          cat checksums.txt
+
+      # Six matrix combinations must produce six archives. A silently dropped
+      # one would ship a release missing a platform.
+      - name: Verify every platform is present and every checksum valid
+        run: |
+          set -euo pipefail
+          cd artifacts
+          count=$(grep -c . checksums.txt)
+          [ "$count" -eq 6 ] || { echo "expected 6 archives, found $count"; cat checksums.txt; exit 1; }
+          sha256sum -c checksums.txt
+          for want in linux-amd64 linux-arm64 darwin-amd64 darwin-arm64 windows-amd64 windows-arm64; do
+            grep -q -- "-${want}\." checksums.txt || { echo "missing platform: $want"; exit 1; }
+          done
+          echo "all 6 platforms present, all checksums verify"
