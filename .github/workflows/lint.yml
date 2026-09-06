@@ -17,7 +17,7 @@ permissions:
 # version older than the go directive in go.mod fails outright rather than
 # fetching a newer toolchain; keep this in step when go.mod moves.
 env:
-  GO_VERSION: 1.26.8
+  GO_VERSION: 1.27.1
 
 jobs:
   golangci:
