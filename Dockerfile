@@ -11,7 +11,7 @@ COPY . .
 RUN go build -ldflags "-X 'github.com/clouddrove/smurf/cmd.version=${VERSION}' -X 'github.com/clouddrove/smurf/cmd.commit=${COMMIT}' -X 'github.com/clouddrove/smurf/cmd.date=${DATE}'" -o smurf main.go
 
 # Stage 2: Create minimal runtime image
-FROM alpine:3.18
+FROM alpine:3.24
 
 # Install only essential CLI tools.
 # python3 is listed explicitly because the Google Cloud CLI needs it: it
