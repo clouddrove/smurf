@@ -42,81 +42,6 @@ func TestRedact(t *testing.T) {
 			wantAbsent:  []string{"super secret value"},
 			wantPresent: "[REDACTED]",
 		},
-		{
-			name:        "github oauth token",
-			input:       "auth failed for gho_16C7e42F292c6912E7710c838347Ae178B4a",
-			wantAbsent:  []string{"gho_16C7e42F292c6912E7710c838347Ae178B4a"},
-			wantPresent: "[REDACTED]",
-		},
-		{
-			name:        "github server to server token",
-			input:       "installation token ghs_1234567890abcdefABCDEF1234567890 rejected",
-			wantAbsent:  []string{"ghs_1234567890abcdefABCDEF1234567890"},
-			wantPresent: "[REDACTED]",
-		},
-		{
-			name:        "github user to server token",
-			input:       "ghu_1234567890abcdefABCDEF1234567890 is expired",
-			wantAbsent:  []string{"ghu_1234567890abcdefABCDEF1234567890"},
-			wantPresent: "[REDACTED]",
-		},
-		{
-			name:        "github refresh token",
-			input:       "refresh ghr_1234567890abcdefABCDEF1234567890 failed",
-			wantAbsent:  []string{"ghr_1234567890abcdefABCDEF1234567890"},
-			wantPresent: "[REDACTED]",
-		},
-		{
-			name:        "github fine grained pat",
-			input:       "denied for github_pat_11ABCDEFG0abcdefGHIJKL_mnopQRSTUV12345 on repo",
-			wantAbsent:  []string{"github_pat_11ABCDEFG0abcdefGHIJKL_mnopQRSTUV12345"},
-			wantPresent: "[REDACTED]",
-		},
-		{
-			name:        "token assignment unquoted",
-			input:       "registry login failed: token=abc123DEF456ghi789 rejected",
-			wantAbsent:  []string{"abc123DEF456ghi789"},
-			wantPresent: "[REDACTED]",
-		},
-		{
-			name:        "token assignment quoted",
-			input:       `helm error: token="some secret token" not accepted`,
-			wantAbsent:  []string{"some secret token"},
-			wantPresent: "[REDACTED]",
-		},
-		{
-			name:        "secret assignment unquoted",
-			input:       "terraform var secret=hunter2hunter2 is invalid",
-			wantAbsent:  []string{"hunter2hunter2"},
-			wantPresent: "[REDACTED]",
-		},
-		{
-			name:        "secret assignment quoted",
-			input:       `error: secret="a b c value" could not be read`,
-			wantAbsent:  []string{"a b c value"},
-			wantPresent: "[REDACTED]",
-		},
-		{
-			// A base64 token contains + and / and ends in = padding. The old
-			// Bearer class stopped at the first + or /, leaving the tail of
-			// the token in the text sent upstream.
-			name:        "bearer token with base64 characters",
-			input:       "Authorization: Bearer aGVsbG8+d29ybGQ/dGhpcw==",
-			wantAbsent:  []string{"aGVsbG8", "d29ybGQ", "dGhpcw"},
-			wantPresent: "[REDACTED]",
-		},
-		{
-			name:        "bearer jwt",
-			input:       "rejected Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.aBc-_123",
-			wantAbsent:  []string{"eyJhbGciOiJIUzI1NiJ9", "aBc-_123"},
-			wantPresent: "[REDACTED]",
-		},
-		{
-			name:        "case insensitive assignment keys",
-			input:       "Error: Token=SHOUTYSECRET1 and SECRET=quietsecret2 rejected",
-			wantAbsent:  []string{"SHOUTYSECRET1", "quietsecret2"},
-			wantPresent: "[REDACTED]",
-		},
 	}
 
 	for _, tc := range cases {
@@ -139,6 +64,78 @@ func TestRedact_LeavesNormalTextAlone(t *testing.T) {
 	got := Redact(input)
 	if got != input {
 		t.Errorf("Redact(%q) = %q, want unchanged text", input, got)
+	}
+}
+
+// assertRedacted checks that every secret is gone and a placeholder is left.
+func assertRedacted(t *testing.T, input string, secrets ...string) {
+	t.Helper()
+	got := Redact(input)
+	for _, secret := range secrets {
+		if strings.Contains(got, secret) {
+			t.Errorf("Redact(%q) = %q, still contains secret %q", input, got, secret)
+		}
+	}
+	if !strings.Contains(got, "[REDACTED]") {
+		t.Errorf("Redact(%q) = %q, want it to contain [REDACTED]", input, got)
+	}
+}
+
+// TestRedact_GitHubTokenPrefixes covers the token types GitHub issues beyond
+// the classic ghp_: OAuth, server-to-server, user-to-server, refresh, and the
+// fine-grained PAT, whose body also contains underscores.
+func TestRedact_GitHubTokenPrefixes(t *testing.T) {
+	tokens := []string{
+		"ghp_1234567890abcdefABCDEF1234567890",
+		"gho_16C7e42F292c6912E7710c838347Ae178B4a",
+		"ghs_1234567890abcdefABCDEF1234567890",
+		"ghu_1234567890abcdefABCDEF1234567890",
+		"ghr_1234567890abcdefABCDEF1234567890",
+		"github_pat_11ABCDEFG0abcdefGHIJKL_mnopQRSTUV12345",
+	}
+
+	for _, token := range tokens {
+		t.Run(token[:strings.Index(token, "_")+1], func(t *testing.T) {
+			assertRedacted(t, "authentication with "+token+" failed", token)
+		})
+	}
+}
+
+// TestRedact_CredentialAssignments covers password=, token= and secret=, in
+// both quoted and unquoted form. The quoted case matters most: the value holds
+// spaces, so a pattern that stopped at the first space would leave the rest of
+// the secret in the text sent upstream.
+func TestRedact_CredentialAssignments(t *testing.T) {
+	for _, key := range []string{"password", "token", "secret", "PASSWORD", "Token", "SECRET"} {
+		t.Run(key+" unquoted", func(t *testing.T) {
+			assertRedacted(t, "operation failed: "+key+"=hunter2hunter2 rejected", "hunter2hunter2")
+		})
+		t.Run(key+" quoted", func(t *testing.T) {
+			assertRedacted(t, `config error: `+key+`="a b c value" is invalid`, "a b c value")
+		})
+	}
+}
+
+// TestRedact_BearerTokens covers base64 and base64url payloads. The character
+// class previously stopped at the first + or /, so the tail of a token was
+// sent upstream in the clear.
+func TestRedact_BearerTokens(t *testing.T) {
+	for name, tc := range map[string]struct {
+		input   string
+		secrets []string
+	}{
+		"base64 with plus slash and padding": {
+			"Authorization: Bearer aGVsbG8+d29ybGQ/dGhpcw==",
+			[]string{"aGVsbG8", "d29ybGQ", "dGhpcw"},
+		},
+		"jwt": {
+			"rejected Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.aBc-_123",
+			[]string{"eyJhbGciOiJIUzI1NiJ9", "aBc-_123"},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			assertRedacted(t, tc.input, tc.secrets...)
+		})
 	}
 }
 
