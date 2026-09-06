@@ -124,7 +124,9 @@ popd >/dev/null
 if docker info >/dev/null 2>&1; then
   mkdir -p "$WORK/docker" && printf 'FROM alpine:3.24\nCMD ["true"]\n' > "$WORK/docker/Dockerfile"
   pushd "$WORK/docker" >/dev/null
-  run "sdkr build"  "$SMURF" sdkr build smurf-e2e latest --file Dockerfile --context .
+  # One positional argument in IMAGE:TAG form. Passing name and tag separately
+  # is rejected with "accepts at most 1 arg(s)".
+  run "sdkr build"  "$SMURF" sdkr build smurf-e2e:latest --file Dockerfile --context .
   run "sdkr tag"    "$SMURF" sdkr tag smurf-e2e:latest smurf-e2e:tagged
   run "sdkr remove" "$SMURF" sdkr remove smurf-e2e:tagged
   run "sdkr remove" "$SMURF" sdkr remove smurf-e2e:latest
