@@ -102,7 +102,9 @@ TF
   pushd "$WORK/tf" >/dev/null
   run "stf init"     "$SMURF" stf init
   run "stf validate" "$SMURF" stf validate
-  run "stf format"   "$SMURF" stf format
+  # fmt, not format. `smurf stf format` used to be swallowed by the group
+  # command and exit 0, which made this check pass while running nothing.
+  run "stf fmt"      "$SMURF" stf fmt
   run "stf plan"     "$SMURF" stf plan
   popd >/dev/null
 else
