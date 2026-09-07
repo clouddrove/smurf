@@ -13,6 +13,8 @@ import (
 	"github.com/fatih/color"
 	"github.com/pterm/pterm"
 	"github.com/sashabaranov/go-openai"
+
+	"github.com/clouddrove/smurf/internal/ci"
 )
 
 // defaultModel is used when OPENAI_MODEL is not set.
@@ -211,6 +213,15 @@ func AskAI(prompt string) (string, error) {
 	}
 
 	answer := resp.Choices[0].Message.Content
+
+	// An empty completion is a failure, not an answer. Free tiers return one
+	// under load, and rendering it produces an "AI ANALYSIS:" heading with
+	// nothing beneath, which reads as a broken tool rather than an unavailable
+	// service. It is also not worth caching.
+	if strings.TrimSpace(answer) == "" {
+		return "", errors.New("AI response is empty")
+	}
+
 	cacheStore(provider, prompt, answer)
 	return answer, nil
 }
@@ -404,8 +415,16 @@ func resetExplainedForTest() {
 func alreadyExplained(errText string) bool {
 	explainedMu.Lock()
 	defer explainedMu.Unlock()
-	if explainedSeen[errText] {
-		return true
+
+	// Containment, not equality. Go wraps errors as fmt.Errorf("...: %w", err),
+	// so the same failure reaches this twice with different text: an internal
+	// function explains "found 1 failed pods in release demo" and the wrapper
+	// in cmd then sees "upgrade failed: found 1 failed pods in release demo".
+	// Comparing exactly would print two analyses of one failure.
+	for seen := range explainedSeen {
+		if strings.Contains(errText, seen) || strings.Contains(seen, errText) {
+			return true
+		}
 	}
 	explainedSeen[errText] = true
 	return false
@@ -426,5 +445,33 @@ func AIExplainError(useAI bool, errTest string) {
 			return
 		}
 		fmt.Println(answer)
+
+		// The whole point of the analysis is telling someone what went wrong,
+		// and in Actions stdout is the log wall the job summary exists to
+		// avoid. Publishing it there puts the root cause at the top of the run
+		// beside the pod table, rather than hundreds of lines down.
+		publishAnalysisToCI(answer)
 	}
+}
+
+// publishAnalysisToCI adds the explanation to the GitHub Actions job summary.
+// It is a no-op elsewhere, and strips the ANSI colouring that makes sense in a
+// terminal but renders as escape sequences in markdown.
+func publishAnalysisToCI(answer string) {
+	if !ci.SummaryEnabled() {
+		return
+	}
+	plain := stripANSI(answer)
+	if strings.TrimSpace(plain) == "" {
+		return
+	}
+	ci.Summary("### 🤖 AI analysis\n\n" + ci.CodeBlock("text", plain))
+}
+
+// ansiPattern matches the escape sequences pterm and color emit.
+var ansiPattern = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
+
+// stripANSI removes terminal colouring so the text reads as markdown.
+func stripANSI(s string) string {
+	return ansiPattern.ReplaceAllString(s, "")
 }

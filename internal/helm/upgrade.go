@@ -1410,11 +1410,20 @@ func printFinalPodStatus(namespace, releaseName string, debug bool) error {
 			conditionStr,
 		})
 
-		// Categorize pods for summary
+		// Categorize pods for summary.
+		//
+		// Unrecoverable states are checked before the pending case. They look
+		// like pending, since the pod sits in Pending phase with a waiting
+		// container, but nothing about them resolves with time: the image does
+		// not exist, or the container cannot be created. Counting them as
+		// pending made the upgrade return nil, so a release whose pods could
+		// never start was reported as a success.
 		switch {
+		case isUnrecoverablePodStatus(status):
+			failedPods = append(failedPods, fmt.Sprintf("%s (%s)", pod.Name, status))
 		case strings.Contains(status, "Failed") || strings.Contains(status, "Error") || strings.Contains(status, "CrashLoopBackOff"):
 			failedPods = append(failedPods, fmt.Sprintf("%s (%s)", pod.Name, status))
-		case strings.Contains(status, "Pending") || strings.Contains(status, "ImagePullBackOff") || strings.Contains(status, "ErrImagePull"):
+		case strings.Contains(status, "Pending"):
 			pendingPods = append(pendingPods, fmt.Sprintf("%s (%s)", pod.Name, status))
 		case strings.Contains(status, "Completed") || strings.Contains(status, "Succeeded"):
 			successfulPods = append(successfulPods, fmt.Sprintf("%s (%s)", pod.Name, status))
@@ -1449,7 +1458,13 @@ func printFinalPodStatus(namespace, releaseName string, debug bool) error {
 	// Only return error if there are failed pods (not just "not running")
 	// For Jobs, Succeeded is a valid final state
 	if len(failedPods) > 0 {
-		return fmt.Errorf("found %d failed pods in release %s", len(failedPods), releaseName)
+		// The pod names and their states are already known here. Naming them in
+		// the error means the CLI message says which pod broke, and the AI
+		// explanation is grounded in the real state instead of guessing from
+		// "found 1 failed pods": asked with only the count, it reported
+		// CrashLoopBackOff for a pod that was actually in ImagePullBackOff.
+		return fmt.Errorf("found %d failed pods in release %s: %s",
+			len(failedPods), releaseName, strings.Join(failedPods, ", "))
 	}
 
 	// If there are pending pods, return a warning but don't fail the overall operation
@@ -1592,4 +1607,31 @@ func printPodSummary(pods []corev1.Pod) {
 			fmt.Printf("     - %s: %d\n", status, count)
 		}
 	}
+}
+
+// unrecoverablePodStatuses are container states that never resolve on their
+// own. The same list already drives isPodInFailureState in error.go; the two
+// disagreed, and the disagreement is what let a broken release report success.
+var unrecoverablePodStatuses = []string{
+	"ImagePullBackOff",
+	"ErrImagePull",
+	"InvalidImageName",
+	"CreateContainerConfigError",
+	"CreateContainerError",
+	"CrashLoopBackOff",
+}
+
+// isUnrecoverablePodStatus reports whether a rendered pod status describes a
+// state that waiting will not fix.
+//
+// A pod pulling an image that does not exist stays in Pending forever. Waiting
+// longer is not a remedy, and reporting it as a slow rollout hides a deploy
+// that has already failed.
+func isUnrecoverablePodStatus(status string) bool {
+	for _, s := range unrecoverablePodStatuses {
+		if strings.Contains(status, s) {
+			return true
+		}
+	}
+	return false
 }
