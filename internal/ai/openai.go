@@ -7,6 +7,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/fatih/color"
@@ -376,8 +377,22 @@ func formatFallbackResponse(response string) string {
 	return output.String()
 }
 
+// explained ensures one command run produces one explanation. Failures cascade,
+// and a command whose internal function already explained an error should not
+// explain it again when the wrapper in cmd sees the same failure surface.
+var explained atomic.Bool
+
+// resetExplainedForTest restores the guard between tests.
+func resetExplainedForTest() { explained.Store(false) }
+
 func AIExplainError(useAI bool, errTest string) {
-	if useAI && IsEnabled() {
+	if !useAI {
+		return
+	}
+	if !explained.CompareAndSwap(false, true) {
+		return
+	}
+	if IsEnabled() {
 		fmt.Println("\n🤖 Smurf AI Analysis...")
 		answer, err := ExplainError(errTest)
 		if err != nil {

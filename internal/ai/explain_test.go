@@ -152,3 +152,41 @@ func TestExplainError_RedactsBeforeSending(t *testing.T) {
 		t.Error("the secret must not survive the redact-then-truncate path")
 	}
 }
+
+// One command run should produce one explanation. Failures cascade, and the
+// central wrapper in cmd sees the same failure that an internal function may
+// already have explained; without this guard that surfaces twice.
+func TestAIExplainError_ExplainsOnlyOnce(t *testing.T) {
+	resetExplainedForTest()
+	// No key and no endpoint, so IsEnabled is false and nothing is sent. The
+	// guard is what is under test, not the call.
+	t.Setenv(envAuthVar, "")
+	t.Setenv(envBaseURL, "")
+
+	if explained.Load() {
+		t.Fatal("guard should start clear")
+	}
+
+	AIExplainError(true, "first failure")
+	if !explained.Load() {
+		t.Error("the first call should claim the guard")
+	}
+
+	// A second call must take the early return rather than claiming it again.
+	AIExplainError(true, "second failure")
+	if !explained.Load() {
+		t.Error("the guard should stay set")
+	}
+}
+
+// Without the flag nothing should happen at all, including claiming the guard,
+// or a later command that did ask for an explanation would be silently skipped.
+func TestAIExplainError_WithoutFlagDoesNothing(t *testing.T) {
+	resetExplainedForTest()
+
+	AIExplainError(false, "a failure")
+
+	if explained.Load() {
+		t.Error("a call without --ai must not consume the once guard")
+	}
+}
