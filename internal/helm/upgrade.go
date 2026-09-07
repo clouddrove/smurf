@@ -1420,7 +1420,17 @@ func printFinalPodStatus(namespace, releaseName string, debug bool) error {
 		// never start was reported as a success.
 		switch {
 		case isUnrecoverablePodStatus(status):
-			failedPods = append(failedPods, fmt.Sprintf("%s (%s)", pod.Name, status))
+			// The registry message says which of "wrong tag" and "bad
+			// credentials" it was, and those need different fixes. Stating it
+			// here means the CLI, the job summary and the AI prompt all carry
+			// the specific cause rather than the bare status.
+			detail := fmt.Sprintf("%s (%s)", pod.Name, status)
+			if reason := getPodFailureReason(context.Background(), clientset, &pod); reason != "" {
+				if specific := describeImagePullFailure(imageFromPullMessage(reason), reason); specific != "" {
+					detail = fmt.Sprintf("%s (%s: %s)", pod.Name, status, specific)
+				}
+			}
+			failedPods = append(failedPods, detail)
 		case strings.Contains(status, "Failed") || strings.Contains(status, "Error") || strings.Contains(status, "CrashLoopBackOff"):
 			failedPods = append(failedPods, fmt.Sprintf("%s (%s)", pod.Name, status))
 		case strings.Contains(status, "Pending"):
