@@ -1434,7 +1434,19 @@ func printFinalPodStatus(namespace, releaseName string, debug bool) error {
 		case strings.Contains(status, "Failed") || strings.Contains(status, "Error") || strings.Contains(status, "CrashLoopBackOff"):
 			failedPods = append(failedPods, fmt.Sprintf("%s (%s)", pod.Name, status))
 		case strings.Contains(status, "Pending"):
-			pendingPods = append(pendingPods, fmt.Sprintf("%s (%s)", pod.Name, status))
+			// Pending is only tolerable while it is transient. A pod that no
+			// node can schedule, whose volume cannot bind, or that the quota
+			// forbids will stay pending for as long as anyone waits, and
+			// counting it as pending made the upgrade report success.
+			blocked := ""
+			if reason := getPodFailureReason(context.Background(), clientset, &pod); reason != "" {
+				blocked = describePendingBlocker(reason)
+			}
+			if blocked != "" {
+				failedPods = append(failedPods, fmt.Sprintf("%s (%s: %s)", pod.Name, status, blocked))
+			} else {
+				pendingPods = append(pendingPods, fmt.Sprintf("%s (%s)", pod.Name, status))
+			}
 		case strings.Contains(status, "Completed") || strings.Contains(status, "Succeeded"):
 			successfulPods = append(successfulPods, fmt.Sprintf("%s (%s)", pod.Name, status))
 		case strings.Contains(status, "Running"):

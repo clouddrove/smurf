@@ -117,3 +117,95 @@ func TestDescribeImagePullFailure_NoImageStillReportsCause(t *testing.T) {
 		t.Errorf("describeImagePullFailure() = %q, want the bare cause", got)
 	}
 }
+
+// An upgrade whose only problem was a pod no node could schedule exited 0.
+// Verified on a real cluster before the fix: a pod requesting more CPU than
+// any node has left the upgrade reporting success.
+func TestClassifyPendingBlocker(t *testing.T) {
+	cases := []struct {
+		name    string
+		message string
+		want    PendingBlocker
+	}{
+		{
+			name:    "insufficient resources",
+			message: `FailedScheduling: 0/2 nodes are available: 2 Insufficient cpu, 2 Insufficient memory.`,
+			want:    PendingUnschedulable,
+		},
+		{
+			name:    "node selector",
+			message: `0/5 nodes are available: 5 node(s) didn't match node selector.`,
+			want:    PendingUnschedulable,
+		},
+		{
+			name:    "taints",
+			message: `0/3 nodes are available: 3 node(s) had untolerated taint {dedicated: gpu}.`,
+			want:    PendingUnschedulable,
+		},
+		{
+			name:    "storage class missing",
+			message: `storageclass.storage.k8s.io "no-such-storage-class" not found`,
+			want:    PendingVolume,
+		},
+		{
+			name:    "unbound claim",
+			message: `pod has unbound immediate PersistentVolumeClaims`,
+			want:    PendingVolume,
+		},
+		{
+			name:    "quota",
+			message: `pods "api-1" is forbidden: exceeded quota: compute, requested: cpu=2`,
+			want:    PendingQuota,
+		},
+		{
+			name:    "container creating is transient",
+			message: `ContainerCreating`,
+			want:    PendingBlockerNone,
+		},
+		{
+			name:    "empty",
+			message: "",
+			want:    PendingBlockerNone,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := classifyPendingBlocker(tc.message); got != tc.want {
+				t.Errorf("classifyPendingBlocker() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// WaitForFirstConsumer volumes sit in exactly this state during a normal
+// deployment and bind once the pod is scheduled. Treating it as a failure
+// would break ordinary releases, which is a worse outcome than the bug being
+// fixed here.
+func TestClassifyPendingBlocker_WaitForFirstConsumerIsNormal(t *testing.T) {
+	msg := `waiting for first consumer to be created before binding`
+
+	if got := classifyPendingBlocker(msg); got != PendingBlockerNone {
+		t.Errorf("classifyPendingBlocker() = %q, want no blocker; this is the normal state of a WaitForFirstConsumer volume", got)
+	}
+}
+
+// A volume problem often also mentions scheduling, since the pod cannot be
+// placed until the claim binds. Reporting it as unschedulable would send
+// someone to look at node capacity instead of the storage class.
+func TestClassifyPendingBlocker_VolumeWinsOverScheduling(t *testing.T) {
+	msg := `0/2 nodes are available: 2 pod has unbound immediate PersistentVolumeClaims. preemption: not helpful`
+
+	if got := classifyPendingBlocker(msg); got != PendingVolume {
+		t.Errorf("classifyPendingBlocker() = %q, want the volume cause", got)
+	}
+}
+
+func TestDescribePendingBlocker(t *testing.T) {
+	if got := describePendingBlocker(`Insufficient cpu`); got != string(PendingUnschedulable) {
+		t.Errorf("describePendingBlocker() = %q", got)
+	}
+	if got := describePendingBlocker(`ContainerCreating`); got != "" {
+		t.Errorf("describePendingBlocker() = %q, want empty for a transient state", got)
+	}
+}

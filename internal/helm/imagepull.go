@@ -88,3 +88,61 @@ func imageFromPullMessage(message string) string {
 	}
 	return rest[:end]
 }
+
+// A pod can also be stuck for reasons that have nothing to do with its image,
+// and those were being tolerated: an upgrade whose only problem was a pod that
+// could never be scheduled still exited 0. Verified on a real cluster, where a
+// pod requesting more CPU than any node has left the upgrade reporting success.
+//
+// The distinction that matters is not the phase but whether waiting helps.
+// "Insufficient cpu" does not resolve without changing the cluster or the
+// request. "ContainerCreating" resolves on its own. Only the first kind is a
+// failure.
+
+// PendingBlocker is a specific reason a pod cannot start that waiting will not
+// fix.
+type PendingBlocker string
+
+const (
+	PendingUnschedulable PendingBlocker = "no node can satisfy the pod's cpu, memory or placement requirements"
+	PendingVolume        PendingBlocker = "its persistent volume claim cannot be satisfied"
+	PendingQuota         PendingBlocker = "the namespace resource quota would be exceeded"
+	PendingBlockerNone   PendingBlocker = ""
+)
+
+// classifyPendingBlocker reports why a Pending pod will stay pending, or an
+// empty value when the reason looks transient.
+//
+// "waiting for first consumer" is deliberately not a blocker: that is the
+// normal state of a WaitForFirstConsumer volume and resolves once the pod is
+// scheduled, so treating it as a failure would break ordinary deployments.
+func classifyPendingBlocker(message string) PendingBlocker {
+	m := strings.ToLower(message)
+
+	if strings.Contains(m, "waiting for first consumer") {
+		return PendingBlockerNone
+	}
+
+	switch {
+	case containsAny(m, "exceeded quota", "forbidden: exceeded"):
+		return PendingQuota
+	case containsAny(m, "persistentvolumeclaim", "no persistent volumes available",
+		"storageclass", "unbound immediate persistentvolumeclaims", "failed to bind volumes"):
+		return PendingVolume
+	case containsAny(m, "failedscheduling", "unschedulable", "insufficient",
+		"didn't match node selector", "didn't match pod affinity", "had taint", "had untolerated taint"):
+		return PendingUnschedulable
+	default:
+		return PendingBlockerNone
+	}
+}
+
+// describePendingBlocker returns a sentence naming why a pod is stuck, or an
+// empty string when waiting may still help.
+func describePendingBlocker(message string) string {
+	blocker := classifyPendingBlocker(message)
+	if blocker == PendingBlockerNone {
+		return ""
+	}
+	return string(blocker)
+}
