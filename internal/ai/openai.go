@@ -20,6 +20,21 @@ const defaultModel = openai.GPT4oMini
 // aiRequestTimeout bounds how long a single OpenAI call may take.
 const aiRequestTimeout = 15 * time.Second
 
+// Cost controls. Without a ceiling a single unlucky error could bill an
+// arbitrarily long completion, and the default sampling temperature is tuned
+// for open-ended writing rather than for reproducing the same diagnosis for
+// the same failure.
+const (
+	maxResponseTokens = 700
+	responseTemp      = 0.2
+
+	// maxErrorChars bounds what is sent upstream. Terraform and Helm failures
+	// can run to tens of kilobytes of plan or manifest output, all of it
+	// billed. The tail is kept rather than the head because the actual cause
+	// is almost always at the end of such output.
+	maxErrorChars = 6000
+)
+
 // modelFromEnv returns the model to use for chat completions, allowing an
 // override via the OPENAI_MODEL environment variable and falling back to
 // defaultModel otherwise.
@@ -30,19 +45,66 @@ func modelFromEnv() string {
 	return defaultModel
 }
 
-// Check if API key exists or not
+// IsEnabled reports whether an AI call can be attempted, printing actionable
+// guidance when it cannot. A local endpoint needs no key, so this asks the
+// resolved provider rather than looking for one specific variable.
 func IsEnabled() bool {
-	if os.Getenv("OPENAI_API_KEY") == "" {
-		color.Yellow("⚠️  AI mode enabled but no OPENAI_API_KEY found.")
-		color.Cyan("👉 Run: export OPENAI_API_KEY=your_key_here")
+	missing, guidance := resolveProvider().credentialsMissing()
+	if missing {
+		color.Yellow("⚠️  " + guidance)
 		return false
 	}
 	return true
 }
 
+// truncateError bounds the error text sent upstream, keeping the tail. The
+// marker matters: without it the model silently reasons about a fragment it
+// believes is whole.
+func truncateError(errText string) string {
+	if len(errText) <= maxErrorChars {
+		return errText
+	}
+	return "[earlier output truncated]\n" + errText[len(errText)-maxErrorChars:]
+}
+
+// invokedCommand reports the smurf subcommand being run, for example
+// "stf apply". The same message means different things depending on which tool
+// produced it, and the advice should differ with it.
+//
+// This is read from os.Args rather than threaded through a parameter because
+// AIExplainError has over a hundred call sites; changing that signature would
+// be churn out of all proportion to the benefit.
+func invokedCommand() string {
+	args := os.Args
+	if len(args) < 2 {
+		return ""
+	}
+	var parts []string
+	for _, a := range args[1:] {
+		if strings.HasPrefix(a, "-") {
+			break
+		}
+		parts = append(parts, a)
+		if len(parts) == 3 {
+			break
+		}
+	}
+	return strings.Join(parts, " ")
+}
+
+// commandContext renders the failing command for the prompt, or nothing when
+// it cannot be determined.
+func commandContext() string {
+	cmd := invokedCommand()
+	if cmd == "" {
+		return ""
+	}
+	return "The user was running: smurf " + cmd + "\n"
+}
+
 // Explain error in human readable format using AI
 func ExplainError(errText string) (string, error) {
-	errText = Redact(errText)
+	errText = truncateError(Redact(errText))
 	prompt := fmt.Sprintf(`
 You are a Senior DevOps Engineer AI.
 
@@ -77,8 +139,8 @@ STYLE RULES:
 - Use Kubernetes/Docker/CI/CD/Helm style commands.
 - Every sub-step must be actionable.
 
-Error to analyze: %s
-`, errText)
+%sError to analyze: %s
+`, commandContext(), errText)
 
 	response, err := AskAI(prompt)
 	if err != nil {
@@ -92,17 +154,36 @@ Error to analyze: %s
 
 // Generic AI call
 func AskAI(prompt string) (string, error) {
-	apiKey := os.Getenv("OPENAI_API_KEY")
-	if apiKey == "" {
-		return "", errors.New("OPENAI_API_KEY is not set")
+	provider := resolveProvider()
+	if missing, guidance := provider.credentialsMissing(); missing {
+		return "", errors.New(guidance)
 	}
 
-	// Create OpenAI Client
-	client := openai.NewClient(apiKey)
+	// Serving a repeated failure from cache is the difference between a broken
+	// pipeline costing one call and costing one per re-run.
+	if cached, ok := cacheLookup(provider, prompt); ok {
+		return cached, nil
+	}
+
+	// NewClientWithConfig rather than NewClient so OPENAI_BASE_URL can point at
+	// any OpenAI-compatible endpoint: a local Ollama server, a free hosted
+	// tier, or a different vendor entirely.
+	cfg := openai.DefaultConfig(provider.authToken())
+	if provider.BaseURL != "" {
+		cfg.BaseURL = provider.BaseURL
+	}
+	client := openai.NewClientWithConfig(cfg)
 
 	// Build request
 	req := openai.ChatCompletionRequest{
-		Model: modelFromEnv(),
+		Model: provider.Model,
+		// MaxTokens rather than MaxCompletionTokens: the newer field is an
+		// OpenAI addition for the o1 series, and the compatible servers this
+		// now targets, Ollama and llama.cpp among them, understand only
+		// max_tokens. Choosing the deprecated field keeps the cost ceiling
+		// effective everywhere instead of only against OpenAI.
+		MaxTokens:   maxResponseTokens, //nolint:staticcheck // SA1019: see above
+		Temperature: responseTemp,
 		Messages: []openai.ChatCompletionMessage{
 			{
 				Role:    openai.ChatMessageRoleUser,
@@ -118,7 +199,9 @@ func AskAI(prompt string) (string, error) {
 
 	resp, err := client.CreateChatCompletion(ctx, req)
 	if err != nil {
-		return "", fmt.Errorf("openai error: %v", err)
+		// The endpoint is named because with a custom base URL "openai error"
+		// would point at the wrong service entirely.
+		return "", fmt.Errorf("%s error: %v", providerLabel(provider), err)
 	}
 
 	// Prevent panic – Always validate response
@@ -126,7 +209,17 @@ func AskAI(prompt string) (string, error) {
 		return "", errors.New("AI response is empty")
 	}
 
-	return resp.Choices[0].Message.Content, nil
+	answer := resp.Choices[0].Message.Content
+	cacheStore(provider, prompt, answer)
+	return answer, nil
+}
+
+// providerLabel names the endpoint in error messages.
+func providerLabel(p providerConfig) string {
+	if p.BaseURL == "" {
+		return "openai"
+	}
+	return p.BaseURL
 }
 
 // formatAIResponse formats the AI response with colors
@@ -192,7 +285,11 @@ func printSteps(output *strings.Builder, steps string) {
 	cyan := color.New(color.FgCyan, color.Bold)
 	white := color.New(color.FgWhite)
 
-	stepRegex := regexp.MustCompile(`(\d+)\.\s+(.+)`)
+	// The prompt asks for "Step 1: Title", so that is what this matches. It
+	// previously looked for "1. Title", which the prompt never requests, so
+	// this renderer never ran and every response fell through to plain text.
+	// Numbered form is still accepted since models drift toward it.
+	stepRegex := regexp.MustCompile(`(?m)^\s*(?:Step\s+)?(\d+)[.:]\s+(.+)$`)
 	matches := stepRegex.FindAllStringSubmatch(steps, -1)
 
 	if len(matches) == 0 {
