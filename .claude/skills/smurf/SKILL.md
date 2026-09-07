@@ -156,10 +156,23 @@ Requests are capped at 700 tokens with temperature 0.2, and error text is cut
 to 6000 characters keeping the tail, since the cause of a Terraform or Helm
 failure sits at the end of its output.
 
-**Known gap.** `--ai` is accepted by 42 internal functions and 19 of them have
-error paths that never reach it, three that never fire at all. `smurf stf
-validate --ai` is the clearest case: it prints nothing on a validation
-failure. Check the path before assuming the flag works for a given command.
+`--ai` fires from one place. `cmd/aiwrap.go` wraps every command's `RunE` in
+`Execute`, so any failure a command returns is explained, including from paths
+added later. That replaced per-call-site wiring, where an audit found 19 of 42
+functions had error paths that never reached it and `smurf stf validate --ai`
+printed nothing.
+
+The flag is read at run time, not when the tree is wrapped: cobra merges a
+parent's persistent flags during `ParseFlags`, so a wire-time lookup would see
+only local flags and declaring `--ai` once on the groups would silently stop
+everything being wrapped.
+
+The same error is explained once. The guard compares by containment rather
+than equality, because Go wraps errors, so one failure arrives as both
+`found 1 failed pods` and `upgrade failed: found 1 failed pods`.
+
+Errors from `Args` validators and flag parsing never reach `RunE`, so the
+wrapper cannot see those.
 
 ## GitHub Actions output
 
@@ -180,6 +193,41 @@ command layer and `HelmUpgrade` can both call it without reporting twice.
 Escaping is not cosmetic: a raw newline ends a workflow command and would drop
 everything after the first line, and an unescaped pipe shifts every later
 column of a table.
+
+## Helm upgrades are verified
+
+`selm upgrade` polls until the release is ready or `--timeout` expires, and
+fails if it is not. `--skip-verify` opts out.
+
+This replaced sampling a pod status string once, a few seconds after the
+upgrade, and matching it against known-bad values. That was open by default,
+so any state not on the list passed, and timing dependent: the same crash
+looping release was caught when sampled during backoff and missed between
+restarts, giving different answers for identical input.
+
+Requiring readiness needs no list of failure modes, which matters because
+Kubernetes has hundreds of them.
+
+`internal/helm/imagepull.go` classifies causes for the message, not the
+verdict. Deciding by pattern fails open, since an unrecognised state passes;
+explaining by pattern is safe, since it falls back to whatever Kubernetes
+said. It distinguishes a missing tag from bad credentials, a rate limit and an
+unreachable registry, and separately whether a Pending pod is blocked on
+scheduling, a volume or quota. `waiting for first consumer` is deliberately
+not a blocker: that is the normal state of a WaitForFirstConsumer volume.
+
+## Docker client construction
+
+Every client in `internal/docker` is built through `clientOpts()`. It resolves
+the endpoint the way the CLI does, `DOCKER_HOST` then `DOCKER_CONTEXT` then
+`currentContext` from `config.json`, whose metadata sits under a directory
+named for the sha256 of the context name.
+
+Without that, the SDK falls back to `/var/run/docker.sock`, which does not
+exist on Docker Desktop for macOS, and every `sdkr` command failed with
+"Cannot connect to the Docker daemon" on a machine where `docker` worked.
+`clientOpts()` also carries `WithAPIVersionNegotiation`, without which the
+client refuses to talk to an older daemon.
 
 ## Architecture
 
@@ -299,7 +347,12 @@ gh workflow run "Post-release smoke" --ref master -f tag=v1.1.9
 - `action.yml` resolves `version: latest` through the releases redirect, not the
   REST API — the API allows 60 unauthenticated requests per hour per IP and
   hosted runners share addresses.
-- `--ai` being accepted does not mean it fires; see the known gap above.
+- A Helm upgrade now fails when its pods do not become ready. Slow starting
+  applications may need a longer `--timeout`, or `--skip-verify`.
+- ECR credential and image-reference logic lives in `splitECRCredentials`,
+  `ecrRegistryHost` and `ecrImageRef`, testable without AWS. The credential
+  split uses `SplitN` with a limit of two because an ECR password can contain
+  a colon.
 - `internal/ci` is silent unless `GITHUB_ACTIONS=true` or `GITHUB_STEP_SUMMARY`
   is set, so to see its output locally, set them.
 - Every artifact the repo downloads and then executes is pinned and
