@@ -7,7 +7,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
-	"sync/atomic"
+	"sync"
 	"time"
 
 	"github.com/fatih/color"
@@ -377,22 +377,48 @@ func formatFallbackResponse(response string) string {
 	return output.String()
 }
 
-// explained ensures one command run produces one explanation. Failures cascade,
-// and a command whose internal function already explained an error should not
-// explain it again when the wrapper in cmd sees the same failure surface.
-var explained atomic.Bool
+// The guard exists because a failure surfaces more than once: an internal
+// function explains it, then the wrapper in cmd sees the same error return.
+//
+// It keys on the error text rather than latching a single boolean. A boolean
+// was wrong: helm/rollback.go and helm/status.go both explain a tolerated
+// sub-failure and then return nil, so in a chained command like selm provision
+// that success path consumed the only slot and the later genuine failure was
+// never explained at all.
+var (
+	explainedMu   sync.Mutex
+	explainedSeen = map[string]bool{}
+)
 
-// resetExplainedForTest restores the guard between tests.
-func resetExplainedForTest() { explained.Store(false) }
+// resetExplainedForTest clears the record between tests.
+func resetExplainedForTest() {
+	explainedMu.Lock()
+	defer explainedMu.Unlock()
+	explainedSeen = map[string]bool{}
+}
+
+// alreadyExplained reports whether this exact error has been explained, and
+// records it otherwise. Recording happens only for errors that are actually
+// going to be explained, so a run with no key configured does not silently
+// consume anything.
+func alreadyExplained(errText string) bool {
+	explainedMu.Lock()
+	defer explainedMu.Unlock()
+	if explainedSeen[errText] {
+		return true
+	}
+	explainedSeen[errText] = true
+	return false
+}
 
 func AIExplainError(useAI bool, errTest string) {
 	if !useAI {
 		return
 	}
-	if !explained.CompareAndSwap(false, true) {
-		return
-	}
 	if IsEnabled() {
+		if alreadyExplained(errTest) {
+			return
+		}
 		fmt.Println("\n🤖 Smurf AI Analysis...")
 		answer, err := ExplainError(errTest)
 		if err != nil {

@@ -80,8 +80,15 @@ Use --timeout to control how long the push and Helm operations are allowed to ru
 // deployTimeout backs the deploy command's own --timeout flag.
 var deployTimeout int
 
+// deployUseAI backs deploy's --ai flag. deploy is the pipeline most worth
+// explaining when it breaks, since a failure can come from a build, any of
+// four registries, or the Helm release, and it previously passed false to
+// every internal call so AI could never fire anywhere inside it.
+var deployUseAI bool
+
 func init() {
 	deployCmd.Flags().IntVar(&deployTimeout, "timeout", 600, "Timeout in seconds for push and Helm operations")
+	deployCmd.Flags().BoolVar(&deployUseAI, "ai", false, "To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.")
 	RootCmd.AddCommand(deployCmd)
 }
 
@@ -90,7 +97,7 @@ func buildImageWithOpts(imageName, tag string) error {
 	if err != nil {
 		return err
 	}
-	return docker.Build(imageName, tag, opts, false)
+	return docker.Build(imageName, tag, opts, deployUseAI)
 }
 
 func prepareDockerBuild() (docker.BuildOptions, error) {
@@ -123,7 +130,7 @@ func prepareDockerBuild() (docker.BuildOptions, error) {
 
 func maybeCleanup(image string) {
 	if configs.DeleteAfterPush {
-		_ = docker.RemoveImage(image, false)
+		_ = docker.RemoveImage(image, deployUseAI)
 		pterm.Info.Printf("🧹 Deleted local image: %s\n", image)
 	}
 }
@@ -148,7 +155,7 @@ func handleECRPush(cfg *configs.Config) (string, string, error) {
 	fullRemote := fmt.Sprintf("%s.dkr.ecr.%s.amazonaws.com/%s:%s", accountID, region, repo, tag)
 	pterm.Info.Printf("🚀 Pushing to ECR: %s\n", fullRemote)
 
-	if err := docker.PushImageToECR(fullRemote, region, repo, false); err != nil {
+	if err := docker.PushImageToECR(fullRemote, region, repo, deployUseAI); err != nil {
 		return "", "", err
 	}
 
@@ -191,7 +198,7 @@ func handleDockerHubPush(cfg *configs.Config, timeout time.Duration) (string, st
 	if err := docker.PushImage(docker.PushOptions{
 		ImageName: fullImage,
 		Timeout:   timeout,
-	}, false); err != nil {
+	}, deployUseAI); err != nil {
 		return "", "", err
 	}
 
@@ -238,7 +245,7 @@ func handleGHCRPush(cfg *configs.Config, timeout time.Duration) (string, string,
 	if err := docker.PushToGHCR(docker.PushOptions{
 		ImageName: fullImage,
 		Timeout:   timeout,
-	}, false); err != nil {
+	}, deployUseAI); err != nil {
 		return "", "", err
 	}
 
@@ -284,12 +291,12 @@ func handleGCPPush(cfg *configs.Config) (string, string, error) {
 
 	// Tag
 	tagOpts := docker.TagOptions{Source: localImageRef, Target: fullRemote}
-	if err := docker.TagImage(tagOpts, false); err != nil {
+	if err := docker.TagImage(tagOpts, deployUseAI); err != nil {
 		return "", "", fmt.Errorf("failed to tag image: %w", err)
 	}
 
 	// PUSH using GCP-specific function (like ECR does 🎯)
-	if err := docker.PushImageToGCR(configs.ProjectID, fullRemote, false); err != nil {
+	if err := docker.PushImageToGCR(configs.ProjectID, fullRemote, deployUseAI); err != nil {
 		return "", "", err
 	}
 
@@ -338,7 +345,7 @@ func handleHelmDeploy(data *configs.Config, imageRepo, imageTag string, timeout 
 
 	timeoutDuration := timeout
 
-	exists, err := helm.HelmReleaseExists(releaseName, namespace, configs.Debug, false)
+	exists, err := helm.HelmReleaseExists(releaseName, namespace, configs.Debug, deployUseAI)
 	if err != nil {
 		return err
 	}
