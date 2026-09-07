@@ -8,8 +8,17 @@ name: Post-release smoke
 # This runs after a release publishes and checks the artifacts themselves. It
 # publishes nothing and needs no secrets beyond reading the release.
 on:
-  release:
-    types: [published]
+  # Not `release: published`. release.yml creates the release with
+  # GITHUB_TOKEN, and GitHub deliberately does not raise workflow-triggering
+  # events for actions taken with that token, to stop workflows recursing. So
+  # the release event never fires for a release this repository publishes,
+  # which is every release, and v1.2.0 shipped without this ever running.
+  #
+  # workflow_run fires on the Release workflow finishing regardless of which
+  # token did the work.
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
   workflow_dispatch:
     inputs:
       tag:
@@ -22,16 +31,22 @@ on:
 permissions: {}
 
 concurrency:
-  group: post-release-smoke-${{ github.event.release.tag_name || inputs.tag }}
+  group: post-release-smoke-${{ inputs.tag || github.event.workflow_run.head_branch }}
   cancel-in-progress: false
 
 env:
-  TAG: ${{ github.event.release.tag_name || inputs.tag }}
+  # head_branch on a workflow_run started by a tag push is the tag name.
+  TAG: ${{ inputs.tag || github.event.workflow_run.head_branch }}
 
 jobs:
   release-assets:
     name: Published release assets
     runs-on: ubuntu-latest
+    # Nothing was published if the release failed, and smoke testing a release
+    # that does not exist would report a confusing failure on top of a real one.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success' 
     # Only to read the release through the gh CLI.
     permissions:
       contents: read
@@ -77,6 +92,9 @@ jobs:
   published-image:
     name: Published container image
     runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success' 
     # Pulls a public image and never touches the repository.
     permissions: {}
     steps:
@@ -112,6 +130,9 @@ jobs:
   published-action:
     name: Action as published (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success' 
     # Only to check out the released tag.
     permissions:
       contents: read
@@ -127,12 +148,12 @@ jobs:
       # expression in `uses:`, which is why this is done by checkout.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.release.tag_name || inputs.tag }}
+          ref: ${{ inputs.tag || github.event.workflow_run.head_branch }}
 
       - name: Install the published release through the published action
         uses: ./
         with:
-          version: ${{ github.event.release.tag_name || inputs.tag }}
+          version: ${{ inputs.tag || github.event.workflow_run.head_branch }}
 
       - name: Verify what the action installed
         run: |
