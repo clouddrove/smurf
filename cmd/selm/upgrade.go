@@ -26,6 +26,9 @@ var (
 // install.go for why each command owns its own variable.
 var upgradeTimeout int
 
+// skipVerify backs --skip-verify.
+var skipVerify bool
+
 var upgradeCmd = &cobra.Command{
 	Use:          "upgrade [NAME] [CHART]",
 	Short:        "Upgrade a deployed Helm chart.",
@@ -181,6 +184,7 @@ var upgradeCmd = &cobra.Command{
 			historyMax,
 			useAI,
 			forceUpgrade,
+			skipVerify,
 		)
 		if err != nil {
 			return err
@@ -228,6 +232,10 @@ func init() {
 	upgradeCmd.Flags().BoolVar(&forceUpgrade, "force", false, "Force resource updates through delete/recreate if needed")
 	upgradeCmd.Flags().StringVar(&RepoURL, "repo-url", "", "Helm repository URL")
 	upgradeCmd.Flags().StringVar(&Version, "version", "", "Helm chart version")
+	// Readiness is verified by default. This is the way out for a deliberate
+	// fire-and-forget rollout, rather than making everyone opt in to knowing
+	// whether their deploy worked.
+	upgradeCmd.Flags().BoolVar(&skipVerify, "skip-verify", false, "Do not wait for resources to become ready; report success as soon as Helm returns")
 	upgradeCmd.Flags().BoolVar(&wait, "wait", false, "Wait until all Pods, PVCs, Services, and minimum number of Pods of a Deployment are ready before marking success")
 	upgradeCmd.Flags().IntVar(&historyMax, "history-max", 10, "Limit the maximum number of revisions saved per release")
 	upgradeCmd.Flags().BoolVar(&useAI, "ai", false, "To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.")

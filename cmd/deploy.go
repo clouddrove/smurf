@@ -387,6 +387,7 @@ func handleHelmDeploy(data *configs.Config, imageRepo, imageTag string, timeout 
 		3,
 		false,
 		false,
+		false, // verify readiness
 	)
 }
 

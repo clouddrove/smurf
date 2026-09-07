@@ -39,6 +39,7 @@ func HelmUpgrade(
 	wait bool,
 	historyMax int,
 	useAI bool, force bool,
+	skipVerify bool,
 ) (err error) {
 	startTime := time.Now() // Track start time
 
@@ -207,17 +208,28 @@ func HelmUpgrade(
 	}
 
 	// Verify readiness only if wait is enabled
-	if wait {
-		readinessTimeout := 5 * time.Minute
+	// Readiness is verified on every upgrade, not only when --wait is passed.
+	//
+	// The previous approach sampled a pod status string once, a few seconds
+	// after the upgrade, and matched it against a list of known-bad values.
+	// That failed in two ways. It was open by default, so any state not on the
+	// list counted as success, and it was timing dependent: the same crash
+	// looping release was caught when sampled during backoff and missed when
+	// sampled between restarts. An intermittent false success is worse than a
+	// consistent one, because nobody can reproduce it.
+	//
+	// Requiring success instead of enumerating failure removes both problems.
+	// Kubernetes has hundreds of ways to leave a pod unready and they all land
+	// in the same place here: not ready before the deadline.
+	if !skipVerify {
 		if debug {
-			pterm.Printf("Waiting for resources to be ready (timeout: %v)\n", readinessTimeout)
+			pterm.Printf("Verifying resources are ready (timeout: %v)\n", timeout)
 		}
-		if err := verifyFinalReadiness(namespace, releaseName, readinessTimeout, debug); err != nil {
-			ai.AIExplainError(useAI, err.Error())
+		if err := verifyFinalReadiness(namespace, releaseName, timeout, debug); err != nil {
 			return fmt.Errorf("readiness verification failed: %w", err)
 		}
 	} else if debug {
-		pterm.Println("Skipping readiness verification (wait=false)")
+		pterm.Println("Skipping readiness verification (--skip-verify)")
 	}
 
 	// Print total time
@@ -487,10 +499,13 @@ func verifyFinalReadiness(namespace, releaseName string, timeout time.Duration, 
 
 	for attempt := 1; ; attempt++ {
 		if time.Now().After(deadline) {
-			// Provide detailed timeout information
+			// "Check pod logs for details" is the least useful thing to say
+			// here, because the details are already available. Naming each
+			// unready pod and why puts the cause in the CLI error, the job
+			// summary and the AI prompt without anyone going to look.
 			pods, _ := getPods(namespace, releaseName)
-			return fmt.Errorf("readiness verification timed out after %s. %d pods found. Check pod logs for details",
-				timeout, len(pods))
+			return fmt.Errorf("readiness verification timed out after %s: %s",
+				timeout, describeUnreadyPods(clientset, pods))
 		}
 
 		if debug {
@@ -1656,4 +1671,48 @@ func isUnrecoverablePodStatus(status string) bool {
 		}
 	}
 	return false
+}
+
+// describeUnreadyPods summarises why the pods of a release are not ready.
+//
+// The classifiers are used here rather than to decide the exit code. Deciding
+// by pattern was open by default, so an unrecognised state passed; explaining
+// by pattern is safe, because an unrecognised state simply falls back to
+// whatever Kubernetes said.
+func describeUnreadyPods(clientset *kubernetes.Clientset, pods []corev1.Pod) string {
+	if len(pods) == 0 {
+		return "no pods were found for this release"
+	}
+
+	var parts []string
+	for i := range pods {
+		pod := pods[i]
+		if isPodReady(pod) || pod.Status.Phase == corev1.PodSucceeded {
+			continue
+		}
+
+		reason := ""
+		if clientset != nil {
+			reason = getPodFailureReason(context.Background(), clientset, &pod)
+		}
+
+		// Prefer a specific cause when the message states one, and fall back to
+		// the raw text otherwise so an unknown failure still reports something.
+		detail := describeImagePullFailure(imageFromPullMessage(reason), reason)
+		if detail == "" {
+			detail = describePendingBlocker(reason)
+		}
+		if detail == "" {
+			detail = reason
+		}
+		if detail == "" {
+			detail = getKubectlLikeStatus(pod)
+		}
+		parts = append(parts, fmt.Sprintf("%s (%s)", pod.Name, detail))
+	}
+
+	if len(parts) == 0 {
+		return "workloads did not report ready in time"
+	}
+	return strings.Join(parts, "; ")
 }
