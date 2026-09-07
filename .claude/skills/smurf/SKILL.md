@@ -118,6 +118,69 @@ Calls Terraform through `tfexec` / `hashicorp/terraform-exec`.
 | `stf state-list\|-pull\|-push\|-rm` | `smurf stf state-rm [address...]` |
 | `stf provision` | init + plan + apply + output |
 
+## AI assistance
+
+Every command takes `--ai`. On failure the error is redacted, truncated and
+sent for a short explanation, which is then rendered above the raw error.
+
+Any OpenAI-compatible endpoint works, which covers running at no cost:
+
+```bash
+# free and local, no key, offline
+export OPENAI_BASE_URL=http://localhost:11434/v1
+export OPENAI_MODEL=llama3.2
+
+# free hosted tier
+export OPENAI_BASE_URL=https://openrouter.ai/api/v1
+export OPENAI_API_KEY=<key>
+export OPENAI_MODEL=cohere/north-mini-code:free
+
+# default: OpenAI
+export OPENAI_API_KEY=sk-...
+```
+
+| Variable | Effect |
+|---|---|
+| `OPENAI_API_KEY` | credential; not required when the endpoint is local |
+| `OPENAI_BASE_URL` | any OpenAI-compatible endpoint; unset means OpenAI |
+| `OPENAI_MODEL` | model id; defaults to gpt-4o-mini |
+| `SMURF_AI_NO_CACHE` | set to disable the response cache |
+| `SMURF_AI_CACHE_TTL` | seconds or a duration; defaults to 24h |
+
+Responses are cached on disk under the user cache dir, keyed by model,
+endpoint and prompt, mode 0600 because an explanation embeds the error it came
+from. A repeated failure is served locally: measured at 10.4s against
+OpenRouter versus 237ms from cache.
+
+Requests are capped at 700 tokens with temperature 0.2, and error text is cut
+to 6000 characters keeping the tail, since the cause of a Terraform or Helm
+failure sits at the end of its output.
+
+**Known gap.** `--ai` is accepted by 42 internal functions and 19 of them have
+error paths that never reach it, three that never fire at all. `smurf stf
+validate --ai` is the clearest case: it prints nothing on a validation
+failure. Check the path before assuming the flag works for a given command.
+
+## GitHub Actions output
+
+`internal/ci` writes the two things Actions understands, and both are no-ops
+elsewhere so a terminal sees no change:
+
+- workflow commands (`::error::`), which attach a message to the run and the
+  pull request rather than only the log
+- the job summary, markdown rendered at the top of the run
+
+A failed `selm upgrade` publishes a table of unhealthy pods with their status
+and reason, with the Helm error collapsed underneath, because Helm's own
+message is usually "timed out waiting for the condition" and the pod reason is
+what the reader wants. `internal/helm/cireport.go` holds this;
+`ReportFailureToCI` publishes only the first failure in a process, so the
+command layer and `HelmUpgrade` can both call it without reporting twice.
+
+Escaping is not cosmetic: a raw newline ends a workflow command and would drop
+everything after the first line, and an unescaped pipe shifts every later
+column of a table.
+
 ## Architecture
 
 Three layers, kept separate: **`cmd/` holds no business logic, `internal/`
@@ -162,6 +225,7 @@ make vet
 | Layer | Location | Needs |
 |---|---|---|
 | Unit | `configs/`, `internal/*/` | nothing |
+| CI output | `internal/ci` | nothing; set `GITHUB_STEP_SUMMARY` to a temp file to inspect |
 | Command wiring | `test/helm/*_test.go` (untagged) | nothing |
 | Integration | `test/{docker,helm,terraform}` — `//go:build integration` | Docker daemon, kind cluster, terraform binary |
 | All subcommands | `test/e2e/all-commands.sh` | terraform + Docker for full coverage |
@@ -235,6 +299,9 @@ gh workflow run "Post-release smoke" --ref master -f tag=v1.1.9
 - `action.yml` resolves `version: latest` through the releases redirect, not the
   REST API — the API allows 60 unauthenticated requests per hour per IP and
   hosted runners share addresses.
+- `--ai` being accepted does not mean it fires; see the known gap above.
+- `internal/ci` is silent unless `GITHUB_ACTIONS=true` or `GITHUB_STEP_SUMMARY`
+  is set, so to see its output locally, set them.
 - Every artifact the repo downloads and then executes is pinned and
   checksum-verified. Bump the version and its hash together; they sit adjacent
   deliberately.
