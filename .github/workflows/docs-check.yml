@@ -8,6 +8,10 @@ on:
   pull_request:
     paths:
       - "docs/sm/**"
+      - ".claude/skills/**"
+      - ".github/scripts/check_skill_claims.py"
+      - "cmd/**"
+      - "internal/**"
       - ".github/workflows/docs-check.yml"
   workflow_dispatch:
 
@@ -17,6 +21,9 @@ permissions:
 concurrency:
   group: docs-check-${{ github.ref }}
   cancel-in-progress: true
+
+env:
+  GO_VERSION: 1.27.1
 
 jobs:
   build:
@@ -54,3 +61,21 @@ jobs:
         # --strict turns MkDocs warnings (broken links, unreadable nav entries)
         # into failures. The site builds warning-free today.
         run: mkdocs build --strict
+
+  skill-claims:
+    name: Skill claims match the code
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The count check builds the binary and walks its command tree.
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      # The skill drifted twice in one session, and both times it described a
+      # state of the code that had stopped being true rather than omitting
+      # something. Prose cannot be verified, but the paths, flags and counts it
+      # cites can, and those are what go stale when code moves.
+      - name: Check skill claims
+        run: python3 .github/scripts/check_skill_claims.py
