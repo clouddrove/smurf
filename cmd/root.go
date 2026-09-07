@@ -31,6 +31,10 @@ var RootCmd = &cobra.Command{
 }
 
 func Execute() {
+	// Subcommands register through their own init functions, so the tree is
+	// only complete once here.
+	wireAIExplain(RootCmd)
+
 	err := RootCmd.Execute()
 	if err != nil {
 		os.Exit(1)
