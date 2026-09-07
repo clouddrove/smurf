@@ -1,8 +1,10 @@
-# 
+# Smurf: one CLI for Docker, Helm, Kubernetes and Terraform
+
+AI-assisted DevOps CLI that wraps Docker, Helm and Terraform behind one interface,
+with error diagnosis that runs free and offline against a local model, or against
+any OpenAI-compatible provider with your own key.
+
 ![Banner](https://github.com/clouddrove/terraform-module-template/assets/119565952/67a8a1af-2eb7-40b7-ae07-c94cde9ce062)
-<h1 align="center">
-    Smurf
-</h1>
 
 <p align="center">
     <a href="https://goreportcard.com/report/github.com/clouddrove/smurf">
@@ -33,7 +35,7 @@
 </p>
 
 <p align="center">
-Smurf is a Go CLI that wraps Docker, Helm, and Terraform behind one consistent interface, using each tool's native Go SDK instead of shelling out. One binary, one config file, unified commands: build and push images to any major registry, install and upgrade Helm releases, plan and apply Terraform, or chain the whole pipeline with a single <code>smurf deploy</code>. Less context switching, fewer one-off scripts, the same commands locally and in CI.
+Smurf is a Go CLI that wraps Docker, Helm, Kubernetes and Terraform behind one consistent interface, using each tool's native Go SDK instead of shelling out. One binary, one config file, unified commands: build and push images to any major registry, install and upgrade Helm releases, plan and apply Terraform, or chain the whole pipeline with a single <code>smurf deploy</code>. When something fails, <code>--ai</code> explains why in plain terms, and in GitHub Actions the cause is published to the job summary rather than buried in the log. Less context switching, fewer one-off scripts, the same commands locally and in CI.
 </p>
 
 <p align="center">
@@ -158,6 +160,93 @@ Easily manage Terraform workflows:
 ### 🚀 `smurf deploy` command
 Reads `smurf.yaml`, builds the Docker image, pushes it to whichever registry is enabled, and (if `selm.deployHelm` is true) installs or upgrades the Helm release.
 - `deploy` → runs (`build` ➝ `push` ➝ Helm install/upgrade), controlled by `--timeout` (seconds, default `600`)
+
+---
+
+## 🤖 AI assistance
+
+Add `--ai` to any command. When it fails, the error is explained in place:
+what went wrong, and what to check first.
+
+```console
+$ smurf selm upgrade api ./chart --namespace prod --ai
+
+🔍 ROOT CAUSE
+- Image ghcr.io/acme/api:v2.3.1 does not exist in the registry.
+
+📋 STEPS TO RESOLVE
+1. Verify the image tag was published
+2. Correct the image reference in your values
+3. Re-run the upgrade
+```
+
+### Free and offline
+
+Point smurf at a local model and it costs nothing, needs no key, and sends
+nothing off the machine:
+
+```bash
+export OPENAI_BASE_URL=http://localhost:11434/v1   # Ollama
+export OPENAI_MODEL=llama3.2
+smurf stf apply --ai
+```
+
+### Or bring your own key
+
+Any OpenAI-compatible endpoint works, which is nearly all of them:
+
+| Provider | `OPENAI_BASE_URL` |
+|---|---|
+| Ollama, llama.cpp, LM Studio | `http://localhost:11434/v1` |
+| OpenRouter | `https://openrouter.ai/api/v1` |
+| Groq | `https://api.groq.com/openai/v1` |
+| DeepSeek | `https://api.deepseek.com` |
+| OpenAI | unset (the default) |
+
+| Variable | Effect |
+|---|---|
+| `OPENAI_API_KEY` | credential; not needed for a local endpoint |
+| `OPENAI_BASE_URL` | any OpenAI-compatible endpoint |
+| `OPENAI_MODEL` | model id, defaults to `gpt-4o-mini` |
+| `SMURF_AI_NO_CACHE` | set to disable the response cache |
+| `SMURF_AI_CACHE_TTL` | cache lifetime, defaults to 24h |
+
+Before anything is sent, tokens, keys and `password=`/`token=`/`secret=` values
+are redacted from the error text. Responses are cached on disk, so a pipeline
+re-run does not pay for the same explanation twice.
+
+---
+
+## 🐙 GitHub Actions output
+
+In Actions the useful line is usually hundreds of lines up the log. smurf
+publishes the cause to the job summary instead, so it is the first thing on the
+run, and attaches an annotation that also shows on the pull request.
+
+```markdown
+## ❌ Helm upgrade failed
+
+**Release:** `api`  **Namespace:** `prod`
+
+| Pod | Status | Reason |
+|---|---|---|
+| `api-7d9f` | ImagePullBackOff | image ghcr.io/acme/api:v2.3.1 does not exist in the registry |
+| `api-7d9g` | Pending | no node can satisfy the pod's cpu, memory or placement requirements |
+```
+
+Nothing is printed differently in a terminal; the extra output appears only
+inside Actions.
+
+---
+
+## ✅ Deploys are verified, not assumed
+
+`smurf selm upgrade` waits for the release to become ready and fails if it does
+not, within `--timeout`. A pod that cannot pull its image, cannot be scheduled,
+or crashes on start is a failed upgrade rather than a warning, so a broken
+deploy does not pass as a green job.
+
+Use `--skip-verify` for a deliberate fire-and-forget rollout.
 
 ---
 
