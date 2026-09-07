@@ -193,3 +193,45 @@ func TestAIExplainError_WithoutFlagRecordsNothing(t *testing.T) {
 		t.Error("a call without --ai must not record the error as explained")
 	}
 }
+
+// Go wraps errors, so one failure arrives twice with different text: an
+// internal function explains the inner error and the wrapper in cmd then sees
+// it wrapped. Comparing exactly printed two analyses of a single failure,
+// which is what happened on a real cluster.
+func TestAIExplainError_WrappedErrorIsNotExplainedTwice(t *testing.T) {
+	resetExplainedForTest()
+
+	inner := "found 1 failed pods in release demo"
+	wrapped := "upgrade failed: " + inner
+
+	if alreadyExplained(inner) {
+		t.Fatal("the inner error should be new")
+	}
+	if !alreadyExplained(wrapped) {
+		t.Error("an error wrapping one already explained should be suppressed")
+	}
+}
+
+// The reverse order matters too: the wrapper may reach it first.
+func TestAIExplainError_InnerErrorAfterWrappedIsSuppressed(t *testing.T) {
+	resetExplainedForTest()
+
+	if alreadyExplained("upgrade failed: pod unhealthy") {
+		t.Fatal("first error should be new")
+	}
+	if !alreadyExplained("pod unhealthy") {
+		t.Error("the inner error should be suppressed once its wrapper was explained")
+	}
+}
+
+// Unrelated failures must still each be explained; that was the original bug.
+func TestAIExplainError_UnrelatedErrorsStillExplained(t *testing.T) {
+	resetExplainedForTest()
+
+	if alreadyExplained("status retrieval failed") {
+		t.Fatal("first error should be new")
+	}
+	if alreadyExplained("image pull failed for api") {
+		t.Error("an unrelated later failure must still be explained")
+	}
+}

@@ -175,3 +175,49 @@ func TestAskAI_ErrorNamesTheEndpoint(t *testing.T) {
 		t.Errorf("error should name %s, got: %v", srv.URL, err)
 	}
 }
+
+// A free tier under load returns a completion with empty content. Rendering it
+// produces an "AI ANALYSIS:" heading with nothing under it, which reads as a
+// broken tool rather than an unavailable service. Observed against OpenRouter.
+func TestAskAI_EmptyCompletionIsAnError(t *testing.T) {
+	useTempCache(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"choices":[{"index":0,"message":{"role":"assistant","content":"   "},"finish_reason":"stop"}]}`))
+	}))
+	t.Cleanup(srv.Close)
+
+	t.Setenv(envAuthVar, "")
+	t.Setenv(envBaseURL, srv.URL+"/v1")
+
+	_, err := AskAI("prompt")
+	if err == nil {
+		t.Fatal("an empty completion should be reported as an error")
+	}
+	if !strings.Contains(err.Error(), "empty") {
+		t.Errorf("error = %v, want it to say the response was empty", err)
+	}
+}
+
+// An empty answer must not be cached, or the failure would be replayed for the
+// life of the entry.
+func TestAskAI_EmptyCompletionIsNotCached(t *testing.T) {
+	useTempCache(t)
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"choices":[{"index":0,"message":{"role":"assistant","content":""},"finish_reason":"stop"}]}`))
+	}))
+	t.Cleanup(srv.Close)
+
+	t.Setenv(envAuthVar, "")
+	t.Setenv(envBaseURL, srv.URL+"/v1")
+
+	_, _ = AskAI("same prompt")
+	_, _ = AskAI("same prompt")
+
+	if calls != 2 {
+		t.Errorf("endpoint called %d times, want 2; an empty answer must not be cached", calls)
+	}
+}

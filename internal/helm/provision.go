@@ -64,6 +64,7 @@ func HelmProvision(releaseName, chartPath, namespace string, useAI bool) error {
 			5,
 			useAI,
 			false,
+			false, // verify readiness
 		)
 
 		if dryRunErr != nil {
@@ -88,6 +89,7 @@ func HelmProvision(releaseName, chartPath, namespace string, useAI bool) error {
 			5,
 			useAI,
 			false,
+			false, // verify readiness
 		)
 	} else {
 		pterm.Info.Printfln("Release %s does not exist, performing install...", releaseName)

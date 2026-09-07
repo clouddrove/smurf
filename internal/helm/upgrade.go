@@ -39,6 +39,7 @@ func HelmUpgrade(
 	wait bool,
 	historyMax int,
 	useAI bool, force bool,
+	skipVerify bool,
 ) (err error) {
 	startTime := time.Now() // Track start time
 
@@ -207,17 +208,28 @@ func HelmUpgrade(
 	}
 
 	// Verify readiness only if wait is enabled
-	if wait {
-		readinessTimeout := 5 * time.Minute
+	// Readiness is verified on every upgrade, not only when --wait is passed.
+	//
+	// The previous approach sampled a pod status string once, a few seconds
+	// after the upgrade, and matched it against a list of known-bad values.
+	// That failed in two ways. It was open by default, so any state not on the
+	// list counted as success, and it was timing dependent: the same crash
+	// looping release was caught when sampled during backoff and missed when
+	// sampled between restarts. An intermittent false success is worse than a
+	// consistent one, because nobody can reproduce it.
+	//
+	// Requiring success instead of enumerating failure removes both problems.
+	// Kubernetes has hundreds of ways to leave a pod unready and they all land
+	// in the same place here: not ready before the deadline.
+	if !skipVerify {
 		if debug {
-			pterm.Printf("Waiting for resources to be ready (timeout: %v)\n", readinessTimeout)
+			pterm.Printf("Verifying resources are ready (timeout: %v)\n", timeout)
 		}
-		if err := verifyFinalReadiness(namespace, releaseName, readinessTimeout, debug); err != nil {
-			ai.AIExplainError(useAI, err.Error())
+		if err := verifyFinalReadiness(namespace, releaseName, timeout, debug); err != nil {
 			return fmt.Errorf("readiness verification failed: %w", err)
 		}
 	} else if debug {
-		pterm.Println("Skipping readiness verification (wait=false)")
+		pterm.Println("Skipping readiness verification (--skip-verify)")
 	}
 
 	// Print total time
@@ -487,10 +499,13 @@ func verifyFinalReadiness(namespace, releaseName string, timeout time.Duration, 
 
 	for attempt := 1; ; attempt++ {
 		if time.Now().After(deadline) {
-			// Provide detailed timeout information
+			// "Check pod logs for details" is the least useful thing to say
+			// here, because the details are already available. Naming each
+			// unready pod and why puts the cause in the CLI error, the job
+			// summary and the AI prompt without anyone going to look.
 			pods, _ := getPods(namespace, releaseName)
-			return fmt.Errorf("readiness verification timed out after %s. %d pods found. Check pod logs for details",
-				timeout, len(pods))
+			return fmt.Errorf("readiness verification timed out after %s: %s",
+				timeout, describeUnreadyPods(clientset, pods))
 		}
 
 		if debug {
@@ -1410,12 +1425,43 @@ func printFinalPodStatus(namespace, releaseName string, debug bool) error {
 			conditionStr,
 		})
 
-		// Categorize pods for summary
+		// Categorize pods for summary.
+		//
+		// Unrecoverable states are checked before the pending case. They look
+		// like pending, since the pod sits in Pending phase with a waiting
+		// container, but nothing about them resolves with time: the image does
+		// not exist, or the container cannot be created. Counting them as
+		// pending made the upgrade return nil, so a release whose pods could
+		// never start was reported as a success.
 		switch {
+		case isUnrecoverablePodStatus(status):
+			// The registry message says which of "wrong tag" and "bad
+			// credentials" it was, and those need different fixes. Stating it
+			// here means the CLI, the job summary and the AI prompt all carry
+			// the specific cause rather than the bare status.
+			detail := fmt.Sprintf("%s (%s)", pod.Name, status)
+			if reason := getPodFailureReason(context.Background(), clientset, &pod); reason != "" {
+				if specific := describeImagePullFailure(imageFromPullMessage(reason), reason); specific != "" {
+					detail = fmt.Sprintf("%s (%s: %s)", pod.Name, status, specific)
+				}
+			}
+			failedPods = append(failedPods, detail)
 		case strings.Contains(status, "Failed") || strings.Contains(status, "Error") || strings.Contains(status, "CrashLoopBackOff"):
 			failedPods = append(failedPods, fmt.Sprintf("%s (%s)", pod.Name, status))
-		case strings.Contains(status, "Pending") || strings.Contains(status, "ImagePullBackOff") || strings.Contains(status, "ErrImagePull"):
-			pendingPods = append(pendingPods, fmt.Sprintf("%s (%s)", pod.Name, status))
+		case strings.Contains(status, "Pending"):
+			// Pending is only tolerable while it is transient. A pod that no
+			// node can schedule, whose volume cannot bind, or that the quota
+			// forbids will stay pending for as long as anyone waits, and
+			// counting it as pending made the upgrade report success.
+			blocked := ""
+			if reason := getPodFailureReason(context.Background(), clientset, &pod); reason != "" {
+				blocked = describePendingBlocker(reason)
+			}
+			if blocked != "" {
+				failedPods = append(failedPods, fmt.Sprintf("%s (%s: %s)", pod.Name, status, blocked))
+			} else {
+				pendingPods = append(pendingPods, fmt.Sprintf("%s (%s)", pod.Name, status))
+			}
 		case strings.Contains(status, "Completed") || strings.Contains(status, "Succeeded"):
 			successfulPods = append(successfulPods, fmt.Sprintf("%s (%s)", pod.Name, status))
 		case strings.Contains(status, "Running"):
@@ -1449,7 +1495,13 @@ func printFinalPodStatus(namespace, releaseName string, debug bool) error {
 	// Only return error if there are failed pods (not just "not running")
 	// For Jobs, Succeeded is a valid final state
 	if len(failedPods) > 0 {
-		return fmt.Errorf("found %d failed pods in release %s", len(failedPods), releaseName)
+		// The pod names and their states are already known here. Naming them in
+		// the error means the CLI message says which pod broke, and the AI
+		// explanation is grounded in the real state instead of guessing from
+		// "found 1 failed pods": asked with only the count, it reported
+		// CrashLoopBackOff for a pod that was actually in ImagePullBackOff.
+		return fmt.Errorf("found %d failed pods in release %s: %s",
+			len(failedPods), releaseName, strings.Join(failedPods, ", "))
 	}
 
 	// If there are pending pods, return a warning but don't fail the overall operation
@@ -1592,4 +1644,75 @@ func printPodSummary(pods []corev1.Pod) {
 			fmt.Printf("     - %s: %d\n", status, count)
 		}
 	}
+}
+
+// unrecoverablePodStatuses are container states that never resolve on their
+// own. The same list already drives isPodInFailureState in error.go; the two
+// disagreed, and the disagreement is what let a broken release report success.
+var unrecoverablePodStatuses = []string{
+	"ImagePullBackOff",
+	"ErrImagePull",
+	"InvalidImageName",
+	"CreateContainerConfigError",
+	"CreateContainerError",
+	"CrashLoopBackOff",
+}
+
+// isUnrecoverablePodStatus reports whether a rendered pod status describes a
+// state that waiting will not fix.
+//
+// A pod pulling an image that does not exist stays in Pending forever. Waiting
+// longer is not a remedy, and reporting it as a slow rollout hides a deploy
+// that has already failed.
+func isUnrecoverablePodStatus(status string) bool {
+	for _, s := range unrecoverablePodStatuses {
+		if strings.Contains(status, s) {
+			return true
+		}
+	}
+	return false
+}
+
+// describeUnreadyPods summarises why the pods of a release are not ready.
+//
+// The classifiers are used here rather than to decide the exit code. Deciding
+// by pattern was open by default, so an unrecognised state passed; explaining
+// by pattern is safe, because an unrecognised state simply falls back to
+// whatever Kubernetes said.
+func describeUnreadyPods(clientset *kubernetes.Clientset, pods []corev1.Pod) string {
+	if len(pods) == 0 {
+		return "no pods were found for this release"
+	}
+
+	var parts []string
+	for i := range pods {
+		pod := pods[i]
+		if isPodReady(pod) || pod.Status.Phase == corev1.PodSucceeded {
+			continue
+		}
+
+		reason := ""
+		if clientset != nil {
+			reason = getPodFailureReason(context.Background(), clientset, &pod)
+		}
+
+		// Prefer a specific cause when the message states one, and fall back to
+		// the raw text otherwise so an unknown failure still reports something.
+		detail := describeImagePullFailure(imageFromPullMessage(reason), reason)
+		if detail == "" {
+			detail = describePendingBlocker(reason)
+		}
+		if detail == "" {
+			detail = reason
+		}
+		if detail == "" {
+			detail = getKubectlLikeStatus(pod)
+		}
+		parts = append(parts, fmt.Sprintf("%s (%s)", pod.Name, detail))
+	}
+
+	if len(parts) == 0 {
+		return "workloads did not report ready in time"
+	}
+	return strings.Join(parts, "; ")
 }
