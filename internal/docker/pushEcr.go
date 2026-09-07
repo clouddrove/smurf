@@ -136,13 +136,13 @@ func PushImageToECR(imageName, region, repositoryName string, useAI bool) error 
 		return fmt.Errorf("failed to decode authorization token: %w", err)
 	}
 
-	credentials := strings.SplitN(string(authToken), ":", 2)
-	if len(credentials) != 2 {
+	username, password, err := splitECRCredentials(string(authToken))
+	if err != nil {
 		logger.logError("Invalid authorization token format", nil)
-		return fmt.Errorf("invalid authorization token format")
+		return err
 	}
 
-	ecrURL := strings.TrimPrefix(*authData.ProxyEndpoint, "https://")
+	ecrURL := ecrRegistryHost(*authData.ProxyEndpoint)
 
 	// Docker client
 	cli, err := client.NewClientWithOpts(clientOpts()...)
@@ -154,8 +154,8 @@ func PushImageToECR(imageName, region, repositoryName string, useAI bool) error 
 
 	// Docker auth
 	authConfig := registry.AuthConfig{
-		Username:      credentials[0],
-		Password:      credentials[1],
+		Username:      username,
+		Password:      password,
 		ServerAddress: *authData.ProxyEndpoint,
 	}
 	encodedJSON, err := json.Marshal(authConfig)
@@ -168,7 +168,7 @@ func PushImageToECR(imageName, region, repositoryName string, useAI bool) error 
 
 	// Tag image
 	_, tag, _ := configs.ParseImage(imageName)
-	ecrImage := fmt.Sprintf("%s/%s:%s", ecrURL, repositoryName, tag)
+	ecrImage := ecrImageRef(ecrURL, repositoryName, tag)
 	if err := cli.ImageTag(ctx, imageName, ecrImage); err != nil {
 		logger.logError("Failed to tag image", err)
 		ai.AIExplainError(useAI, err.Error())
@@ -224,4 +224,42 @@ func PushImageToECR(imageName, region, repositoryName string, useAI bool) error 
 	}
 
 	return nil
+}
+
+// The three steps below decide which registry the image is pushed to and under
+// what credentials. They were inlined in PushImageToECR, which cannot run
+// without AWS, so the parts of this file that decide where an image ends up
+// were the only ones with no test at all. Getting any of them wrong pushes to
+// the wrong place or fails to authenticate, and both are quiet failures.
+
+// splitECRCredentials splits the decoded ECR authorization token, which AWS
+// returns as "user:password".
+//
+// SplitN with a limit of two matters: a password may itself contain a colon,
+// and splitting on every colon would truncate it into an authentication
+// failure that looks like a permissions problem.
+func splitECRCredentials(token string) (username, password string, err error) {
+	parts := strings.SplitN(token, ":", 2)
+	if len(parts) != 2 {
+		return "", "", fmt.Errorf("invalid authorization token format")
+	}
+	return parts[0], parts[1], nil
+}
+
+// ecrRegistryHost turns the proxy endpoint AWS returns into the host used in
+// an image reference. The endpoint arrives as a URL; an image reference cannot
+// carry the scheme.
+func ecrRegistryHost(proxyEndpoint string) string {
+	host := strings.TrimPrefix(proxyEndpoint, "https://")
+	host = strings.TrimPrefix(host, "http://")
+	return strings.TrimSuffix(host, "/")
+}
+
+// ecrImageRef builds the fully qualified reference an image is tagged with
+// before being pushed.
+func ecrImageRef(registryHost, repositoryName, tag string) string {
+	if tag == "" {
+		tag = "latest"
+	}
+	return fmt.Sprintf("%s/%s:%s", registryHost, repositoryName, tag)
 }
