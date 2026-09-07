@@ -31,13 +31,24 @@ var upgradeCmd = &cobra.Command{
 	Short:        "Upgrade a deployed Helm chart.",
 	Args:         cobra.MaximumNArgs(2),
 	SilenceUsage: true,
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(cmd *cobra.Command, args []string) (err error) {
+		var releaseName, chartPath string
+
+		// An upgrade can fail before helm.HelmUpgrade is ever entered, most
+		// commonly on the release-exists check against an unreachable cluster.
+		// Reporting from here covers those too; helm.ReportFailureToCI only
+		// publishes the first failure, so this does not duplicate the report
+		// the upgrade itself makes.
+		defer func() {
+			if err != nil {
+				helm.ReportFailureToCI(configs.Namespace, releaseName, "Helm upgrade", err)
+			}
+		}()
+
 		if configs.Debug {
 			pterm.EnableDebugMessages()
 			pterm.Println("=== DEBUG MODE ENABLED ===")
 		}
-
-		var releaseName, chartPath string
 
 		if len(args) >= 1 {
 			releaseName = args[0]

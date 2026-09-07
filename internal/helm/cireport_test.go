@@ -3,6 +3,8 @@ package helm
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -164,4 +166,67 @@ func TestReportFailureToCI_SilentOutsideActions(t *testing.T) {
 	t.Setenv("GITHUB_STEP_SUMMARY", "")
 
 	ReportFailureToCI("prod", "api", "Helm upgrade", errors.New("boom"))
+}
+
+// A Helm upgrade can fail before any workload exists: an unreachable cluster,
+// a chart that will not load, values that will not parse. End-to-end testing
+// showed those produced no CI output at all, which is the opposite of what is
+// wanted, since they are the runs hardest to diagnose from the log.
+func TestReportFailureToCI_WritesSummaryWithNoPods(t *testing.T) {
+	resetReportedForTest()
+	path := filepath.Join(t.TempDir(), "summary.md")
+	t.Setenv("GITHUB_ACTIONS", "")
+	t.Setenv("GITHUB_STEP_SUMMARY", path)
+
+	ReportFailureToCI("prod", "api", "Helm upgrade",
+		errors.New("failed to list releases: Kubernetes cluster unreachable"))
+
+	data, err := os.ReadFile(path) // #nosec G304 -- this test's own t.TempDir file
+	if err != nil {
+		t.Fatalf("no summary written: %v", err)
+	}
+	got := string(data)
+	if !strings.Contains(got, "Helm upgrade failed") {
+		t.Errorf("summary should report the failure:\n%s", got)
+	}
+	if !strings.Contains(got, "cluster unreachable") {
+		t.Errorf("summary should carry the underlying error:\n%s", got)
+	}
+}
+
+// One failure should produce one report. The command layer and HelmUpgrade
+// both report so that either can be the first to see a failure, which means
+// paths passing through both would otherwise publish twice.
+func TestReportFailureToCI_ReportsOnlyOnce(t *testing.T) {
+	resetReportedForTest()
+	path := filepath.Join(t.TempDir(), "summary.md")
+	t.Setenv("GITHUB_ACTIONS", "")
+	t.Setenv("GITHUB_STEP_SUMMARY", path)
+
+	ReportFailureToCI("prod", "api", "Helm upgrade", errors.New("first failure"))
+	ReportFailureToCI("prod", "api", "Helm upgrade", errors.New("second failure"))
+
+	data, _ := os.ReadFile(path) // #nosec G304 -- this test's own t.TempDir file
+	got := string(data)
+
+	if n := strings.Count(got, "Helm upgrade failed"); n != 1 {
+		t.Errorf("expected exactly one report, found %d:\n%s", n, got)
+	}
+	if strings.Contains(got, "second failure") {
+		t.Error("a later failure is usually a consequence of the first; the first is the one to lead with")
+	}
+}
+
+func TestFirstLine(t *testing.T) {
+	if got := firstLine("one\ntwo\nthree"); got != "one" {
+		t.Errorf("firstLine = %q, want the first line only", got)
+	}
+	long := strings.Repeat("x", 500)
+	got := firstLine(long)
+	if len(got) > 310 {
+		t.Errorf("firstLine length = %d, want it truncated", len(got))
+	}
+	if !strings.HasSuffix(got, "...") {
+		t.Error("truncation should be visible")
+	}
 }

@@ -39,8 +39,20 @@ func HelmUpgrade(
 	wait bool,
 	historyMax int,
 	useAI bool, force bool,
-) error {
+) (err error) {
 	startTime := time.Now() // Track start time
+
+	// Reported here rather than at each failure site. An upgrade can fail long
+	// before any workload exists, at an unreachable cluster, a chart that will
+	// not load, or values that will not parse, and those returns are exactly
+	// the ones a reader of a failed Actions run needs explained. Hooking the
+	// named return covers every path, including ones added later, instead of
+	// relying on whoever adds the next early return to remember.
+	defer func() {
+		if err != nil {
+			ReportFailureToCI(namespace, releaseName, "Helm upgrade", err)
+		}
+	}()
 
 	if debug {
 		pterm.Println("=== HELM UPGRADE STARTED ===")
@@ -190,7 +202,6 @@ func HelmUpgrade(
 			printReleaseResources(namespace, releaseName)
 		}
 		printErrorSummary("Pod not healthy", releaseName, namespace, chartRef, err)
-		ReportFailureToCI(namespace, releaseName, "Helm upgrade: pods not healthy", err)
 		ai.AIExplainError(useAI, err.Error())
 		return fmt.Errorf("upgrade failed: %w", err)
 	}
@@ -202,7 +213,6 @@ func HelmUpgrade(
 			pterm.Printf("Waiting for resources to be ready (timeout: %v)\n", readinessTimeout)
 		}
 		if err := verifyFinalReadiness(namespace, releaseName, readinessTimeout, debug); err != nil {
-			ReportFailureToCI(namespace, releaseName, "Helm upgrade: readiness check", err)
 			ai.AIExplainError(useAI, err.Error())
 			return fmt.Errorf("readiness verification failed: %w", err)
 		}

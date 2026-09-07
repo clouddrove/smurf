@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync/atomic"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -109,7 +110,34 @@ func annotateFailures(stage string, failures []PodFailure) {
 	}
 }
 
+// reported guards against describing the same failure twice. A command can
+// fail in the command layer, before HelmUpgrade is ever entered, or inside it,
+// and both need covering; without this the paths that go through both would
+// publish two summaries for one failure.
+var reported atomic.Bool
+
+// resetReportedForTest restores the guard between tests.
+func resetReportedForTest() { reported.Store(false) }
+
+// firstLine keeps an annotation to a single readable line. The full text is
+// still in the job summary, and a wall of wrapped detail in the annotation
+// bar is harder to read than the one line that identifies the problem.
+func firstLine(s string) string {
+	if i := strings.IndexByte(s, '\n'); i >= 0 {
+		s = s[:i]
+	}
+	const max = 300
+	if len(s) > max {
+		s = s[:max] + "..."
+	}
+	return strings.TrimSpace(s)
+}
+
 // ReportFailureToCI publishes a Helm failure to GitHub Actions.
+//
+// Only the first failure in a process is reported. A later, more specific
+// error is usually a consequence of the first, and the first is the one worth
+// leading with.
 //
 // Failures inside this function are swallowed on purpose. Reporting is a
 // diagnostic aid layered on top of a command that has already failed; being
@@ -117,6 +145,9 @@ func annotateFailures(stage string, failures []PodFailure) {
 // the pterm diagnostics have already run regardless.
 func ReportFailureToCI(namespace, releaseName, stage string, helmErr error) {
 	if !ci.IsGitHubActions() && !ci.SummaryEnabled() {
+		return
+	}
+	if !reported.CompareAndSwap(false, true) {
 		return
 	}
 
@@ -133,6 +164,14 @@ func ReportFailureToCI(namespace, releaseName, stage string, helmErr error) {
 		}
 	}
 
-	annotateFailures(stage, failures)
+	if len(failures) > 0 {
+		annotateFailures(stage, failures)
+	} else if helmErr != nil {
+		// A failure with no unhealthy workload still needs the visible signal.
+		// An unreachable cluster or a chart that will not load produces no
+		// pods, and those are precisely the runs where an annotation saves
+		// someone reading the whole log.
+		ci.Annotate(ci.LevelError, stage, firstLine(helmErr.Error()))
+	}
 	ci.Summary(renderFailureSummary(stage, releaseName, namespace, failures, helmErr))
 }
