@@ -163,6 +163,7 @@ func HelmUpgrade(
 			printReleaseResources(namespace, releaseName)
 		}
 		printErrorSummary("Helm upgradation", releaseName, namespace, chartRef, err)
+		ReportFailureToCI(namespace, releaseName, "Helm upgrade", err)
 		ai.AIExplainError(useAI, err.Error())
 		return fmt.Errorf("upgrade failed: %w", err)
 	}
@@ -189,6 +190,7 @@ func HelmUpgrade(
 			printReleaseResources(namespace, releaseName)
 		}
 		printErrorSummary("Pod not healthy", releaseName, namespace, chartRef, err)
+		ReportFailureToCI(namespace, releaseName, "Helm upgrade: pods not healthy", err)
 		ai.AIExplainError(useAI, err.Error())
 		return fmt.Errorf("upgrade failed: %w", err)
 	}
@@ -200,6 +202,7 @@ func HelmUpgrade(
 			pterm.Printf("Waiting for resources to be ready (timeout: %v)\n", readinessTimeout)
 		}
 		if err := verifyFinalReadiness(namespace, releaseName, readinessTimeout, debug); err != nil {
+			ReportFailureToCI(namespace, releaseName, "Helm upgrade: readiness check", err)
 			ai.AIExplainError(useAI, err.Error())
 			return fmt.Errorf("readiness verification failed: %w", err)
 		}
