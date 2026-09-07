@@ -27,7 +27,7 @@ func encodeAuthToBase64(authConfig registry.AuthConfig) (string, error) {
 func initDockerClient(timeout time.Duration) (*client.Client, context.Context, context.CancelFunc, error) {
 	fmt.Printf("Initializing Docker client...\n")
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	cli, err := client.NewClientWithOpts(clientOpts()...)
 	if err != nil {
 		cancel()
 		return nil, nil, nil, fmt.Errorf("failed to initialize Docker client: %w", err)

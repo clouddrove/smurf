@@ -13,7 +13,7 @@ import (
 // It displays a spinner with progress updates and prints a success message upon completion.
 func TagImage(opts TagOptions, useAI bool) error {
 	ctx := context.Background()
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	cli, err := client.NewClientWithOpts(clientOpts()...)
 	if err != nil {
 		pterm.Error.Printf("Error creating Docker client : %v", err)
 		ai.AIExplainError(useAI, err.Error())

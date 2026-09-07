@@ -145,7 +145,7 @@ func PushImageToECR(imageName, region, repositoryName string, useAI bool) error 
 	ecrURL := strings.TrimPrefix(*authData.ProxyEndpoint, "https://")
 
 	// Docker client
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	cli, err := client.NewClientWithOpts(clientOpts()...)
 	if err != nil {
 		logger.logError("Failed to create Docker client", err)
 		ai.AIExplainError(useAI, err.Error())
