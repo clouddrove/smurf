@@ -97,10 +97,7 @@ func Build(imageName, tag string, opts BuildOptions, useAI bool) error {
 	ctx, cancel := context.WithTimeout(context.Background(), opts.Timeout)
 	defer cancel()
 
-	cli, err := client.NewClientWithOpts(
-		client.FromEnv,
-		client.WithAPIVersionNegotiation(),
-	)
+	cli, err := client.NewClientWithOpts(clientOpts()...)
 	if err != nil {
 		tracker.completeStep(false, fmt.Sprintf("Docker client init failed: %v", err))
 		ai.AIExplainError(useAI, err.Error())

@@ -15,7 +15,7 @@ import (
 // Upon successful completion, it prints a success message with the removed image tag.
 func RemoveImage(imageTag string, useAI bool) error {
 	ctx := context.Background()
-	cli, err := client.NewClientWithOpts(client.WithAPIVersionNegotiation())
+	cli, err := client.NewClientWithOpts(clientOpts()...)
 	if err != nil {
 		pterm.Error.Printf("failed to create Docker client : %v", err)
 		ai.AIExplainError(useAI, err.Error())

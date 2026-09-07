@@ -69,7 +69,7 @@ func PushImageToACR(subscriptionID, resourceGroupName, registryName, imageName s
 	spinner.Success("Registry credentials retrieved\n")
 
 	spinner, _ = pterm.DefaultSpinner.Start("Creating Docker client...")
-	dockerClient, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	dockerClient, err := client.NewClientWithOpts(clientOpts()...)
 	if err != nil {
 		spinner.Fail("Failed to create Docker client\n")
 		ai.AIExplainError(useAI, err.Error())

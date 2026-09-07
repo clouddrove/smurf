@@ -545,7 +545,7 @@ func PushImageToGCR(projectID, imageNameWithTag string, useAI bool) error {
 	logger.logStep("Starting image push to Google Container Registry/Artifact Registry")
 
 	// Get Docker client
-	dockerClient, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	dockerClient, err := client.NewClientWithOpts(clientOpts()...)
 	if err != nil {
 		ai.AIExplainError(useAI, err.Error())
 		return fmt.Errorf("%sdocker client creation failed%s: %w", colorRed, colorReset, err)
