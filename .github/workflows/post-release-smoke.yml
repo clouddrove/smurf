@@ -46,7 +46,9 @@ jobs:
     # that does not exist would report a confusing failure on top of a real one.
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      github.event.workflow_run.conclusion == 'success' 
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
     # Only to read the release through the gh CLI.
     permissions:
       contents: read
@@ -94,7 +96,9 @@ jobs:
     runs-on: ubuntu-latest
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      github.event.workflow_run.conclusion == 'success' 
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
     # Pulls a public image and never touches the repository.
     permissions: {}
     steps:
@@ -132,7 +136,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      github.event.workflow_run.conclusion == 'success' 
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
     # Only to check out the released tag.
     permissions:
       contents: read
@@ -143,12 +149,29 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     steps:
+      # This job checks out a ref and then runs `uses: ./` from it, so the ref
+      # decides which code executes. workflow_run grants the base repository's
+      # context, which is why the guard above requires the triggering run to
+      # have come from this repository, and why the value is checked here
+      # against a release tag shape before it reaches checkout. A branch name
+      # or a path would not match.
+      - name: Validate the tag before checking it out
+        env:
+          CANDIDATE: ${{ inputs.tag || github.event.workflow_run.head_branch }}
+        run: |
+          set -euo pipefail
+          if ! printf '%s' "$CANDIDATE" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$'; then
+            echo "::error::refusing to check out '$CANDIDATE': not a release tag"
+            exit 1
+          fi
+
       # Checked out at the released tag, so `uses: ./` below runs action.yml as
       # published rather than as it sits on master. A workflow cannot put an
       # expression in `uses:`, which is why this is done by checkout.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.tag || github.event.workflow_run.head_branch }}
+          persist-credentials: false
 
       - name: Install the published release through the published action
         uses: ./
