@@ -99,3 +99,43 @@ func TestErrorStillPropagates(t *testing.T) {
 	err := found.RunE(found, nil)
 	assert.ErrorIs(t, err, sentinel, "the wrapper must not swallow or replace the command's error")
 }
+
+// A persistent --ai declared on a group must still be seen. The wrapper runs
+// before Execute parses flags, so a wire-time Flags() lookup would find only
+// local flags: declaring --ai once on sdkr/selm/stf instead of 42 times, an
+// obvious tidy-up, would then silently stop every command being wrapped with
+// nothing failing to say so. The lookup is deferred to run time for that
+// reason, and this pins the behaviour.
+func TestUseAIFlagSeesPersistentFlags(t *testing.T) {
+	parent := &cobra.Command{Use: "group"}
+	parent.PersistentFlags().Bool("ai", false, "")
+
+	child := &cobra.Command{Use: "child", RunE: func(*cobra.Command, []string) error { return nil }}
+	parent.AddCommand(child)
+
+	// Before parsing, a local lookup finds nothing, which is exactly the trap.
+	require.Nil(t, child.Flags().Lookup("ai"),
+		"precondition: a persistent parent flag is not in the child's local set before parsing")
+
+	require.NoError(t, parent.PersistentFlags().Set("ai", "true"))
+
+	// After cobra has merged them, the inherited set carries the value.
+	assert.NotNil(t, child.InheritedFlags().Lookup("ai"),
+		"the child should inherit a persistent --ai from its parent")
+}
+
+// deploy is the pipeline most worth explaining when it breaks: a failure can
+// come from the build, any of four registries, or the Helm release. It offered
+// no --ai at all and passed false to every internal call.
+func TestDeployOffersAI(t *testing.T) {
+	var deploy *cobra.Command
+	walk(cmd.RootCmd, func(c *cobra.Command) {
+		if c.Name() == "deploy" {
+			deploy = c
+		}
+	})
+	require.NotNil(t, deploy, "deploy command should be registered")
+
+	assert.NotNil(t, deploy.Flags().Lookup("ai"),
+		"deploy should offer --ai; it is the command with the most ways to fail")
+}

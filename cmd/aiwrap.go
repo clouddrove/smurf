@@ -37,24 +37,44 @@ func wireAIExplain(root *cobra.Command) {
 		if c.RunE == nil {
 			continue
 		}
-		if c.Flags().Lookup("ai") == nil {
-			continue
-		}
 
+		// The flag is deliberately not inspected here. Cobra merges a parent's
+		// persistent flags into a child's flag set during ParseFlags, which
+		// happens inside Execute, after this runs. Checking now would see only
+		// local flags, so declaring --ai once as a persistent flag on the three
+		// groups, an obvious future tidy-up, would silently stop every command
+		// being wrapped, with nothing failing to say so. Deferring the lookup
+		// to run time means the flags are parsed by the time it is read.
 		inner := c.RunE
-		cmdRef := c
 		c.RunE = func(cc *cobra.Command, args []string) error {
 			err := inner(cc, args)
 			if err == nil {
 				return nil
 			}
-			// Read the flag from the command that owns it. Reading it from cc
-			// would miss the value when cobra passes a different receiver.
-			useAI, flagErr := cmdRef.Flags().GetBool("ai")
-			if flagErr == nil && useAI {
+			if useAIFlag(cc) {
 				ai.AIExplainError(true, err.Error())
 			}
 			return err
 		}
 	}
+}
+
+// useAIFlag reports whether --ai is set on the command being executed,
+// checking inherited flags as well as local ones so a persistent declaration
+// works.
+func useAIFlag(c *cobra.Command) bool {
+	if c == nil {
+		return false
+	}
+	if f := c.Flags().Lookup("ai"); f != nil {
+		if v, err := c.Flags().GetBool("ai"); err == nil {
+			return v
+		}
+	}
+	if f := c.InheritedFlags().Lookup("ai"); f != nil {
+		if v, err := c.InheritedFlags().GetBool("ai"); err == nil {
+			return v
+		}
+	}
+	return false
 }

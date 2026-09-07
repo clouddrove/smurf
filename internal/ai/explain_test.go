@@ -153,40 +153,43 @@ func TestExplainError_RedactsBeforeSending(t *testing.T) {
 	}
 }
 
-// One command run should produce one explanation. Failures cascade, and the
-// central wrapper in cmd sees the same failure that an internal function may
-// already have explained; without this guard that surfaces twice.
-func TestAIExplainError_ExplainsOnlyOnce(t *testing.T) {
+// A failure surfaces more than once: an internal function explains it, then the
+// wrapper in cmd sees the same error return. The same text should be explained
+// once.
+func TestAIExplainError_SameErrorExplainedOnce(t *testing.T) {
 	resetExplainedForTest()
-	// No key and no endpoint, so IsEnabled is false and nothing is sent. The
-	// guard is what is under test, not the call.
-	t.Setenv(envAuthVar, "")
-	t.Setenv(envBaseURL, "")
 
-	if explained.Load() {
-		t.Fatal("guard should start clear")
+	if alreadyExplained("boom") {
+		t.Fatal("a fresh error should not be marked as already explained")
 	}
-
-	AIExplainError(true, "first failure")
-	if !explained.Load() {
-		t.Error("the first call should claim the guard")
-	}
-
-	// A second call must take the early return rather than claiming it again.
-	AIExplainError(true, "second failure")
-	if !explained.Load() {
-		t.Error("the guard should stay set")
+	if !alreadyExplained("boom") {
+		t.Error("the same error text should be recognised the second time")
 	}
 }
 
-// Without the flag nothing should happen at all, including claiming the guard,
-// or a later command that did ask for an explanation would be silently skipped.
-func TestAIExplainError_WithoutFlagDoesNothing(t *testing.T) {
+// The reason this is keyed on the error rather than latched once per process:
+// helm/rollback.go and helm/status.go both explain a tolerated sub-failure and
+// then return nil. With a single latch, that success path consumed the only
+// slot and a later genuine failure in the same run went unexplained.
+func TestAIExplainError_DifferentErrorsAreBothExplained(t *testing.T) {
+	resetExplainedForTest()
+
+	if alreadyExplained("status retrieval failed") {
+		t.Fatal("first error should be new")
+	}
+	if alreadyExplained("upgrade failed: timed out") {
+		t.Error("a different, later failure must still be explained; it is the one that matters")
+	}
+}
+
+// Without the flag nothing should happen, and in particular nothing should be
+// recorded, or a later command that did ask would be skipped.
+func TestAIExplainError_WithoutFlagRecordsNothing(t *testing.T) {
 	resetExplainedForTest()
 
 	AIExplainError(false, "a failure")
 
-	if explained.Load() {
-		t.Error("a call without --ai must not consume the once guard")
+	if alreadyExplained("a failure") {
+		t.Error("a call without --ai must not record the error as explained")
 	}
 }
