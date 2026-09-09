@@ -25,10 +25,14 @@ PLATFORMS = [
     ("linux", [("intel", "linux-amd64"), ("arm", "linux-arm64")]),
 ]
 
+# No `version` stanza: brew scans the version out of the URL, and `brew audit`
+# fails a formula that also states it ("version X is redundant with version
+# scanned from URL"). The tap's own CI runs audit only on changed formulae,
+# which is why the hand-written 1.1.9 formula carried one for a year without
+# anyone noticing.
 TEMPLATE = '''class Smurf < Formula
   desc "CloudNative CI/CD Management Tool"
   homepage "https://github.com/clouddrove/smurf"
-  version "{version}"
   license "Apache-2.0"
 
 {blocks}  def install
@@ -93,7 +97,7 @@ def main() -> int:
         return 1
 
     pathlib.Path(out_path).write_text(
-        TEMPLATE.format(version=tag.lstrip("v"), blocks="".join(rendered))
+        TEMPLATE.format(blocks="".join(rendered))
     )
     print(f"rendered {out_path} for {tag}")
     return 0
