@@ -234,8 +234,9 @@ func GetFmtTerraform() (*tfexec.Terraform, error) {
 	return tf, nil
 }
 
-// Format applies canonical formatting to all Terraform files with optional timeout.
-func Format(recursive bool, timeout time.Duration) error {
+// Format applies canonical formatting to the Terraform files under dir with an
+// optional timeout. An empty dir means the current directory.
+func Format(dir string, recursive bool, timeout time.Duration) error {
 	tf, err := GetFmtTerraform()
 	if err != nil {
 		return err
@@ -245,6 +246,23 @@ func Format(recursive bool, timeout time.Duration) error {
 	if err != nil {
 		Error("Failed to get working directory: %v", err)
 		return fmt.Errorf("failed to get working directory: %w", err)
+	}
+
+	if dir == "" {
+		dir = "."
+	}
+
+	// Fail on a missing or non-directory target rather than reporting "no
+	// Terraform files found", which reads as a clean run. A CI job passing
+	// --dir with a typo would otherwise look like it had nothing to format.
+	info, err := os.Stat(dir)
+	if err != nil {
+		Error("Failed to read directory %s: %v", dir, err)
+		return fmt.Errorf("failed to read directory %s: %w", dir, err)
+	}
+	if !info.IsDir() {
+		Error("%s is not a directory", dir)
+		return fmt.Errorf("%s is not a directory", dir)
 	}
 
 	formatter := NewCustomFormatter(tf, workDir)
@@ -259,5 +277,5 @@ func Format(recursive bool, timeout time.Duration) error {
 		Info("Formatting with timeout: %v", timeout)
 	}
 
-	return formatter.FormatWithDetails(ctx, ".", recursive)
+	return formatter.FormatWithDetails(ctx, dir, recursive)
 }

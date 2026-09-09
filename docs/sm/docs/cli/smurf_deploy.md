@@ -30,6 +30,7 @@ smurf deploy [flags]
 ### Options
 
 ```
+      --ai            To enable AI help mode, export the OPENAI_API_KEY environment variable with your OpenAI API key.
   -h, --help          help for deploy
       --timeout int   Timeout in seconds for push and Helm operations (default 600)
 ```

@@ -109,7 +109,7 @@ Calls Terraform through `tfexec` / `hashicorp/terraform-exec`.
 
 | Command | Usage |
 |---|---|
-| `stf init` / `validate` / `fmt` | `smurf stf fmt` — the command is **`fmt`**, not `format` |
+| `stf init` / `validate` / `fmt` | `smurf stf fmt --dir=infra/prod` — the command is **`fmt`**; `format` is an accepted alias |
 | `stf plan` | `smurf stf plan` — `--detailed-exitcode` gives 0 none / 1 error / 2 pending |
 | `stf apply` | `smurf stf apply [plan-file]` |
 | `stf destroy` / `refresh` / `drift` / `graph` | `smurf stf drift` |
@@ -339,7 +339,14 @@ gh workflow run "Post-release smoke" --ref master -f tag=v1.1.9
 ## Gotchas worth knowing
 
 - `sdkr build` takes **one** argument in `IMAGE:TAG` form.
-- The stf format command is `fmt`.
+- The stf format command is `fmt`. `format` is accepted as an alias, kept
+  because the shared Terraform workflow called it that: before the group
+  gained `Args: cobra.NoArgs` the wrong name exited 0 having formatted
+  nothing, and afterwards it exited 1, breaking every caller on the latest
+  release. Write `fmt`.
+- `stf fmt` takes `--dir` like the rest of the group. Without it, a matrix
+  over several Terraform roots formatted the whole checkout, so one badly
+  formatted file failed every root rather than the one at fault.
 - `stf` sets `SilenceErrors: true`, so it exits 1 on an unknown subcommand but
   prints only its usage block, while sdkr and selm print `Error: unknown command`.
 - macOS has no `sha256sum`; use `shasum -a 256`. `action.yml` runs on consumer
