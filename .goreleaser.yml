@@ -89,23 +89,8 @@ release:
     name: smurf
   prerelease: auto
 
-# Auto-bumps Formula/smurf.rb in github.com/clouddrove/homebrew-tap on every
-# non-prerelease tag. Requires a TAP_GITHUB_TOKEN secret in the release
-# workflow: a PAT (classic or fine-grained) with repo write access to
-# clouddrove/homebrew-tap, since the default GITHUB_TOKEN only has write
-# access to the repo the workflow runs in.
-brews:
-  - name: smurf
-    repository:
-      owner: clouddrove
-      name: homebrew-tap
-      token: '{{ .Env.TAP_GITHUB_TOKEN }}'
-    directory: Formula
-    commit_author:
-      name: clouddrove-bot
-      email: bot@clouddrove.com
-    commit_msg_template: 'chore(formula): update smurf to {{ .Tag }}'
-    homepage: 'https://github.com/clouddrove/smurf'
-    description: 'CLI that wraps Docker, Helm, and Terraform behind a single interface'
-    license: 'Apache-2.0'
-    skip_upload: auto
+# No brews: block here on purpose. This file is only read by
+# `make release-dry-run`, which passes --skip=publish, so a brews: block in it
+# never runs and reads as though Homebrew were wired up when it is not. That
+# is how the formula sat at 1.1.9 while v1.2.0 and v1.2.1 released green.
+# The formula is bumped by the `homebrew` job in .github/workflows/release.yml.

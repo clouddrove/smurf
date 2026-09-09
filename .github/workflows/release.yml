@@ -247,3 +247,64 @@ jobs:
 
       - name: Push Latest Tag
         run: docker push ghcr.io/${{env.REPO}}:latest
+  homebrew:
+    runs-on: ubuntu-latest
+    name: Bump the Homebrew formula
+    needs: release
+    # A prerelease must not move what `brew install smurf` serves.
+    if: ${{ !contains(github.ref_name, '-') }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The formula lives in another repository, so the default GITHUB_TOKEN
+      # cannot write it. Fail here with something actionable rather than at a
+      # git push that reports only "permission denied".
+      - name: Require the tap token
+        env:
+          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+        run: |
+          if [ -z "${TAP_GITHUB_TOKEN}" ]; then
+            echo "::error::TAP_GITHUB_TOKEN is not set, so the Homebrew formula cannot be bumped."
+            echo "::error::Add a PAT with contents:write on clouddrove/homebrew-tap as the TAP_GITHUB_TOKEN repo secret."
+            exit 1
+          fi
+
+      - name: Download the published checksums
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release download "${{ github.ref_name }}" --repo "${{ github.repository }}" --pattern checksums.txt --dir .
+
+      - name: Check out the tap
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: clouddrove/homebrew-tap
+          token: ${{ secrets.TAP_GITHUB_TOKEN }}
+          path: tap
+
+      - name: Render the formula
+        run: python3 .github/scripts/render_brew_formula.py "${{ github.ref_name }}" checksums.txt tap/Formula/smurf.rb
+
+      - name: Check the formula parses
+        run: ruby -c tap/Formula/smurf.rb
+
+      - name: Commit and push
+        working-directory: tap
+        run: |
+          if git diff --quiet -- Formula/smurf.rb; then
+            echo "Formula already at ${{ github.ref_name }}, nothing to push."
+            exit 0
+          fi
+          git config user.name clouddrove-bot
+          git config user.email bot@clouddrove.com
+          git add Formula/smurf.rb
+          git commit -m "chore(smurf): update to ${{ github.ref_name }}"
+          git push
+
+      - name: Summary
+        run: |
+          {
+            echo "### Homebrew"
+            echo
+            echo "\`Formula/smurf.rb\` in clouddrove/homebrew-tap is now at \`${{ github.ref_name }}\`."
+          } >> "$GITHUB_STEP_SUMMARY"
