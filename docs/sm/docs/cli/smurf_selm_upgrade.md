@@ -51,6 +51,7 @@ smurf selm upgrade [NAME] [CHART] [flags]
       --repo-url string       Helm repository URL
       --set strings           Set values on the command line (can specify multiple or separate values with commas: key1=val1,key2=val2)
       --set-literal strings   Set literal values on the command line (values are always treated as strings)
+      --skip-verify           Do not wait for resources to become ready; report success as soon as Helm returns
       --timeout int           Time to wait for any individual Kubernetes operation (like Jobs for hooks) (default 120)
   -f, --values strings        Specify values in a YAML file (can specify multiple)
       --version string        Helm chart version
