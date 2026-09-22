@@ -8,7 +8,7 @@
     "test": "node index.js"
   },
   "dependencies": {
-    "azure-pipelines-task-lib": "^5.278.0"
+    "azure-pipelines-task-lib": "^5.280.3"
   },
   "overrides": {
     "brace-expansion": "^1.1.18"
