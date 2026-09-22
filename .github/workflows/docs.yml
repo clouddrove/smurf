@@ -9,6 +9,15 @@ on:
 permissions:
   contents: read
 
+# Both jobs write shared, single-slot state: `build` pushes to gh-pages and
+# `deploy` creates a Pages deployment. Two overlapping runs make the second
+# deployment fail with "due to in progress deployment", so runs queue instead.
+# Never cancel in progress: a half-finished `mkdocs gh-deploy --force` push
+# would leave gh-pages inconsistent.
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
 jobs:
   build:
     name: Build Docs
