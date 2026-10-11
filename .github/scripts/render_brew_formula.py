@@ -14,6 +14,7 @@ checksums the release actually published rather than retyped.
 Usage: render_brew_formula.py <tag> <checksums.txt> <output.rb>
 """
 
+import os
 import pathlib
 import re
 import sys
@@ -52,6 +53,15 @@ ARCH_BLOCK = '''    on_{arch} do
 '''
 
 
+def inside_cwd(arg: str) -> pathlib.Path:
+    """Resolve a path argument, refusing anything outside the working directory."""
+    root = os.path.realpath(os.getcwd())
+    full = os.path.realpath(arg)
+    if not full.startswith(root + os.sep):
+        raise ValueError(f"refusing {arg!r}: path is outside {root}")
+    return pathlib.Path(full)
+
+
 def parse_checksums(path: pathlib.Path) -> dict[str, str]:
     sums = {}
     for line in path.read_text().splitlines():
@@ -72,7 +82,13 @@ def main() -> int:
         print(f"refusing to render a formula for {tag!r}: expected vMAJOR.MINOR.PATCH")
         return 1
 
-    sums = parse_checksums(pathlib.Path(checksums_path))
+    try:
+        checksums_file, out_file = inside_cwd(checksums_path), inside_cwd(out_path)
+    except ValueError as err:
+        print(err)
+        return 1
+
+    sums = parse_checksums(checksums_file)
 
     # Every platform the formula claims to support must be present. A partial
     # release that quietly dropped an architecture would otherwise produce a
@@ -96,7 +112,7 @@ def main() -> int:
             print(f"  - {m}")
         return 1
 
-    pathlib.Path(out_path).write_text(
+    out_file.write_text(
         TEMPLATE.format(blocks="".join(rendered))
     )
     print(f"rendered {out_path} for {tag}")
