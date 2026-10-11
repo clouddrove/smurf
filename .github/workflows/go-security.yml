@@ -79,6 +79,10 @@ jobs:
         run: |
           set -euo pipefail
           PKGS=$(go list ./... | grep -v '/test/')
+          # Build covdata once up front. go test builds it on demand for every
+          # package without tests, and parallel builds race on the cached
+          # binary ("text file busy").
+          go tool covdata percent -i "$(mktemp -d)" >/dev/null 2>&1 || true
           go test -covermode=atomic -coverprofile=coverage.out $PKGS
           {
             echo "### Unit-test coverage"
