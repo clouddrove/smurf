@@ -326,6 +326,8 @@ We provide a platform for organizations to engage with experienced top-tier DevO
 
 At [CloudDrove][website], has extensive experience in designing, building & migrating environments, securing, consulting, monitoring, optimizing, automating, and maintaining complex and large modern systems. With remarkable client footprints in American & European corridors, our certified architects & engineers are ready to serve you as per your requirements & schedule. Write to us at [business@clouddrove.com](mailto:business@clouddrove.com).
 
+Smurf is one of [CloudDrove's open-source Terraform modules and DevOps tools](https://clouddrove.com/open-source).
+
 <p align="center">We are <b> The Cloud Experts!</b></p>
 <hr />
 <p align="center">We ❤️  <a href="https://github.com/clouddrove">Open Source</a> and you can check out <a href="https://registry.terraform.io/namespaces/clouddrove">our other modules</a> to get help with your new Cloud ideas.</p>
@@ -336,5 +338,5 @@ At [CloudDrove][website], has extensive experience in designing, building & migr
 [github]: https://github.com/clouddrove
 [linkedin]: https://linkedin.com/company/clouddrove
 [twitter]: https://twitter.com/clouddrove/
-[email]: https://clouddrove.com/contact-us.html
+[email]: https://clouddrove.com/contact
 [terraform_modules]: https://github.com/clouddrove?utf8=%E2%9C%93&q=terraform-&type=&language=
